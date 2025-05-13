@@ -22,6 +22,7 @@ loop = gmsh.model.geo.add_curve_loop([l1, l2, l3, l4])
 gmsh.model.geo.add_plane_surface([loop])
 
 gmsh.model.geo.synchronize()
+# gmsh.option.setNumber("Mesh.Algorithm", 7) # altera o tipo de algoritmo
 gmsh.model.mesh.generate(2)
 
 gmsh.write("GFG.msh")
