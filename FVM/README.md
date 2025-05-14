@@ -1,6 +1,8 @@
 # TCC-UFJF
 Repositório para o TCC.
 
+Baixar e extrair o SDK do libmesh na pasta FVM.
+
 Configuração das pastas:
 <ul>
 <li><b>app</b>: Arquivos principais vão aqui.</li>

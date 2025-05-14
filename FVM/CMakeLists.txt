@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # adicionando o diretório de include do GMSH
-set(GMSH_SDK_DIR "../gmsh-4.12.2-Linux64-sdk")
+set(GMSH_SDK_DIR "./gmsh-4.12.2-Linux64-sdk")
 
 include_directories(include)
 include_directories(${GMSH_SDK_DIR}/include)
