@@ -13,11 +13,12 @@ include_directories(${GMSH_SDK_DIR}/include)
 link_directories(${GMSH_SDK_DIR}/lib)
 
 set(SOURCE_FILES
-    src/Node.cpp
+    src/FVMSolver.cpp
 )
 
 set(HEADER_FILES
     include/Node.h
+    include/FVMSolver.h
 )
 
 add_executable(${PROJECT_NAME}.exe app/main.cpp ${SOURCE_FILES})
