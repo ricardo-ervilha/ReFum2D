@@ -1,13 +1,17 @@
 # TCC-UFJF
-Repositório para o TCC.
 
-Baixar e extrair o SDK do libmesh na pasta FVM.
+## Aluno: Ricardo Ervilha Silva
+## Orientador: José Jerônimo Camata
+
+Repositório para o TCC 2025.3 da Universidade Federal de Juiz de Fora, curso Ciência da Computação.
+
+<!-- Baixar e extrair o SDK do libmesh na pasta FVM. -->
 
 Configuração das pastas:
 <ul>
 <li><b>app</b>: Arquivos principais vão aqui.</li>
 <li><b>build</b>: Contém arquivos objetos, e é limpado usando <i>clean</i>.</li>
-<li><b>docs</b>: Contém notas e outros arquivos para ajudar no desenvolvimento do compilador.</li>
+<li><b>docs</b>: Contém notas e outros arquivos para ajudar no desenvolvimento do tcc.</li>
 <li><b>include</b>: Arquivos de cabeçalho.</li>
 <li><b>inputs</b>: Arquivos fonte da linguagem para serem compilados e executados.</li>
 <li><b>src</b>: Arquivo fonte que implementam os includes.</li>
@@ -31,8 +35,7 @@ $ cd ./build
 $ make
 [ 50%] Building CXX object CMakeFiles/hello_world.dir/hello_world.cpp.o
 [100%] Linking CXX executable hello_world
-[100%] Built target hello_world
+[100%] Built target TCC
 
-$ ./Compiladores.exe
-Hello, World!
+$ ./TCC.exe
 ```

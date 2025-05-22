@@ -3,12 +3,20 @@
 
 class Node{
     private:
+        int id;
         double x;
         double y;
         double z;
     public:
-        Node(double x, double y, double z)  {this->x = x; this-> y = y; this->z = z;};
+        Node(int id, double x, double y, double z)  
+        {
+            this->id = id;
+            this->x = x; 
+            this-> y = y; 
+            this->z = z;
+        };
         ~Node() {};
+        int getId()   {return this->id;};
         double getX() {return this->x;};
         double getY() {return this->y;};
         double getZ() {return this->z;};

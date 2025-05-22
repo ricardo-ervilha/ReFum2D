@@ -1,9 +1,9 @@
-#include "FVMSolver.h"
+#include "Mesh.h"
 
 int main(void){
 
-    FVMSolver* solver = new FVMSolver();
-    solver->readMesh("../inputs/malhaSimples.msh");
-
+    Mesh* mesh = new Mesh();
+    mesh->readMesh("../inputs/malhaSimples.msh");
+    mesh->meshSummary();
     return 0;
 }
