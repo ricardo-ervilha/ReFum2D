@@ -15,6 +15,12 @@ class Node{
             this-> y = y; 
             this->z = z;
         };
+        Node(){
+            this->id = 0;
+            this->x = 0;
+            this->y = 0;
+            this->z = 0;
+        }
         ~Node() {};
         int getId()   {return this->id;};
         double getX() {return this->x;};

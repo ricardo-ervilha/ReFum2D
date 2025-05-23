@@ -19,6 +19,7 @@ class Element{
         */ 
         int elementType; 
         vector<int> nodes; //id dos nós que compõem o element.
+        vector<int> faces; //id das faces que compõem o element.
     public:
         Element(int id, int elementType, vector<int> nodes) {
             this->id = id;
@@ -29,6 +30,19 @@ class Element{
         int getId()             {return this->id;};
         int getElementType()    {return this->elementType;};
         vector<int>* getNodes() {return &this->nodes;};
+        void insertFace(int idFace) {this->faces.push_back(idFace);};
+        void printNodes(){
+            for(int i = 0; i < nodes.size(); i++){
+                cout << nodes[i] << " ";
+            }
+            cout << endl;
+        };
+        void printFaces(){
+            for(int i = 0; i < faces.size(); i++){
+                cout << faces[i] << " ";
+            }
+            std::cout << std::endl;
+        }
 };
 
 #endif
