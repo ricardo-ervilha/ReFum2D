@@ -27,6 +27,7 @@ void Mesh::readMesh(string filepath){
         while(getline(file, line)){
             line.erase(remove(line.begin(), line.end(), '\r'), line.end()); /*remove caracteres problemáticos*/
             if (line == "$fileFormat") {
+                /*Verificação da versão do arquivo.*/
                 getline(file, line);
                 istringstream iss(line);
                 double version;
@@ -36,24 +37,27 @@ void Mesh::readMesh(string filepath){
                 else
                     cout << "ERROR: Unexpected version of .msh file." << endl;
             } else if(line == "$PhysicalNames"){
+                /*Verificação dos grupos físicos*/
                 getline(file,line);
                 istringstream iss(line);
-                iss >> this->totalPhysicalEntities;
+                iss >> this->totalPhysicalGroups;
                 
-                for(int i = 0; i < this->totalPhysicalEntities; i++){
+                for(int i = 0; i < this->totalPhysicalGroups; i++){
                     getline(file, line);
                     istringstream iss(line);
                     int dim, id;
                     string name;
                     iss >> dim >> id >> name;
-                    name = name.substr(1, name.size() - 2);
+                    name = name.substr(1, name.size() - 2); // remoção das aspas duplas que vem do arqquivo.
+                    
                     PhysicalGroup pg = PhysicalGroup(dim, id, name);
                     this->physicalGroups.emplace(id, pg);
 
                     if(dim > this->geom_type)
-                        this->geom_type = dim; //capturando a geometria do problema inteiro 
+                        this->geom_type = dim; //capturando a geometria do problema inteiro (2D ou 3D)
                 }
             } else if(line == "$Nodes"){
+                /*Verificação dos nós*/
                 getline(file,line);
                 istringstream iss(line);
                 iss >> this->nnodes;
@@ -64,10 +68,12 @@ void Mesh::readMesh(string filepath){
                     int id;
                     double x, y, z;
                     iss >> id >> x >> y >> z;
-                    Node n = Node(id, x, y, z);
-                    this->nodes.emplace(id, n);
+                    Node n = Node(x, y, z);
+                    this->nodes.push_back(n);
                 }
+
             }else if(line == "$Elements"){
+                /*Verificação dos elementos*/
                 getline(file,line);
                 istringstream iss(line);
                 iss >> this->totalElements;
@@ -79,25 +85,30 @@ void Mesh::readMesh(string filepath){
                     int elementType;
                     int numTags;
                     iss >> elementId >> elementType >> numTags; 
-                    int geometricalEntityTag; // ainda não tenho certeza onde usar isso.
+                    int geometricalEntityTag; // Não tem utilidade.
                     int physicalGroupTag;
                     if(numTags == 2){    
                         iss >> physicalGroupTag >> geometricalEntityTag;
+                    }else{
+                        cout << "ERROR: numTags != 2." << endl;
+                        exit(1);
                     }
                     int numNodes = this->elementTypeToNumNodes[elementType];
                     vector<int> nodeIds;
                     for(int i = 0; i < numNodes; i++){
                         int id;
                         iss >> id;
-                        nodeIds.push_back(id);
+                        nodeIds.push_back(id-1); //subtrai 1 para ter indexação de 0 e bater com o do vector.
                     }
-                    Element e = Element(elementId, elementType, nodeIds);
-                    this->elements.emplace(elementId, e);
+                    Element e = Element(elementType, nodeIds);
+                    this->elements.push_back(e);
 
-                    this->physicalGroups[physicalGroupTag].insertElementId(elementId);
+                    this->physicalGroups[physicalGroupTag].insertElementId(elementId-1); //subtrai 1 para ter indexação de 0 e bater com o do vector.
 
-                    if(elementType >= 2 && elementType <= 4)
-                        this->ncells++; //incrementa em um o número de células.
+                    if(elementType >= 2 && elementType <= 4){
+                        this->ncells++; //incrementa em 1 o número de células.
+                        this->cells.push_back(elementId-1);
+                    }
                 }
             }
         }
@@ -111,120 +122,125 @@ void Mesh::readMesh(string filepath){
     this->preProcessing();
 }
 
+/*Função hash para o unordered set*/
+struct CantorPairingFunction {
+    // injetora para inteiros >= 0.
+    std::size_t operator()(const std::pair<int, int>& p) const noexcept {
+        int a = p.first;
+        int b = p.second;
+        return (a + b) * (a + b + 1) / 2 + b;
+    }
+};
+
+
 void Mesh::preProcessing(){
+    /*PRIMEIRA COISA: Computa o conjunto de todas as faces, e para cada célula, já guarda quais faces pertencem a ela.*/
     /*
-        Descobre número de faces. (Somente para triângulos, por enquanto.)
+    Estratégia: -iterar células
+                -ordena a face
+                -insere em um unordered set
+                -unordered set properties...
+                    -Insert an element	O(1) (average)
+                    -Delete an element	O(1) (average)
+                    -Access element by position O(n)
+                    -Find element by value	O(1) (average)
+                    -Traverse the set	O(n)
     */
-    set<pair<int,int>> faces; 
-    for(auto it = this->elements.begin(); it != this->elements.end(); ++it){
-        if(it->second.getElementType() == 2){
-            
-            vector<int>* nodes =  it->second.getNodes();
-            
-            /*Verificação das faces únicas*/
-            int a = (*nodes)[0];
-            int b = (*nodes)[1];
-            int c = (*nodes)[2];
-            
-            //cria os pares de faces do elemento triangular
-            //ordena sempre minmax para não ter problema de inserir (1,2) e (2,1) e contar como único no set, mas na verdade não ser único.
-            pair<int, int> ab = minmax(a, b);
-            pair<int, int> bc = minmax(b, c);
-            pair<int, int> ca = minmax(c, a);
+    unordered_set<pair<int,int>, CantorPairingFunction> facesUS; //para garantir faces ÚNICAS
+    vector<pair<int,int>> faces; //vector com as faces.
 
-            faces.insert(ab);
-            faces.insert(bc);
-            faces.insert(ca);
-            /*Fim verificação das faces únicas*/
-            
-            /*Cálculo do centroide do elemento*/
-            Node n1 = this->nodes[a];
-            Node n2 = this->nodes[b];
-            Node n3 = this->nodes[c];
+    unordered_map<pair<int,int>, int, CantorPairingFunction> facesUM; //para recuperar o índice dos elementos já inseridos
+    
+    int qtdFaces = 0;
+    
+    for(int i = 0; i < this->ncells; i++){
+        int idCell = this->cells[i]; //converte id do loop para id da célula
+        Element& cell = this->elements[idCell]; //recupera a celula como Element
 
-            double xc = (n1.getX() + n2.getX() + n3.getX()) / 3.0;
-            double yc = (n1.getY() + n2.getY() + n3.getY()) / 3.0;
-            double zc = (n1.getZ() + n2.getZ() + n3.getZ()) / 3.0;
+        vector<int>* nodeIds = cell.getNodes(); //obtém o id dos nodes dessa célula
 
-            Node centroidNode = Node(-1, xc, yc, zc);
-            this->centroids.emplace(it->first, centroidNode);
-            /*Fim cálculo do centroide do elemento*/
-        }
-    }
-    this->nfaces = faces.size();
-    for(const auto& f : faces){
-        this->faces.push_back(f);
-        Node n1 = this->nodes[f.first];
-        Node n2 = this->nodes[f.second];
-        Node center = Node(-1, (n1.getX() + n2.getX())/2.0, (n1.getY() + n2.getY())/2.0, (n1.getZ() + n2.getZ())/2.0);
-        this->faceMiddlePoints.push_back(center);
-        double area = sqrt(pow(n1.getX() - n2.getX(), 2) + pow(n1.getY() - n2.getY(), 2) + pow(n1.getZ() - n2.getZ(), 2));
-        this->faceAreas.push_back(area);
-    }
+        /*separa o id dos três nós que compõem o triângulo. Pela leitura do gmsh, a->b b->c e c->a já estão no sentido anti-horário*/
+        int a =  (*nodeIds)[0];
+        int b =  (*nodeIds)[1];
+        int c =  (*nodeIds)[2];
 
-    for(auto it = this->elements.begin(); it != this->elements.end(); ++it){
-        if(it->second.getElementType() == 2){
-            vector<int>* nodes =  it->second.getNodes();
-            int a = (*nodes)[0];
-            int b = (*nodes)[1];
-            int c = (*nodes)[2];
-            vector<pair<int,int>> edges;
-            edges.push_back(minmax(a, b));
-            edges.push_back(minmax(b, c));
-            edges.push_back(minmax(c, a));
-            for(int j = 0; j < edges.size(); j++){
-                auto ite = find(faces.begin(), faces.end(), edges[j]);
-                if(ite != faces.end()){
-                    int index = distance(faces.begin(), ite);   
-                    it->second.insertFace(index);
-                }else{
-                    cout << "ERROR: index not found!" << endl;
-                }
+        /*Criando os pairs ordenados usando minmax.*/
+        pair<int,int> ab = minmax(a,b); 
+        pair<int,int> bc = minmax(b,c);
+        pair<int,int> ca = minmax(c,a); 
+
+        vector<pair<int,int>> facesToIterate;
+        facesToIterate.push_back(ab);
+        facesToIterate.push_back(bc);
+        facesToIterate.push_back(ca);
+
+        // iterando para ab, bc, ca
+        for(int j = 0; j < facesToIterate.size(); j++){
+            if(facesUS.insert(facesToIterate[j]).second){
+                // inserção da face no Unordered set deu certo
+                facesUM.emplace(facesToIterate[j], qtdFaces); // insere no unordered map
+                faces.push_back(facesToIterate[j]); //insere no vector
+                cell.insertFace(qtdFaces); // insere a face na célula
+                qtdFaces++; // aumenta 1 para dizer que número de faces únicas aumentou
+            }else{
+                // inserção da face deu errado (já está lá)
+                int idx = facesUM[facesToIterate[j]]; // busca O(1)
+                cell.insertFace(idx); // insere a face na célula
             }
         }
-    }
+
+   }
+
+   this->nfaces = qtdFaces;
+   this->faces = faces; 
 }
 
 void Mesh::meshSummary(){
+    /**/
     cout << "Geometria do problema: " << this->geom_type << "D" << endl;
-    cout << "Número de celulas (Contando triângulos, tetraedros e quadriláteros): " << this->ncells << endl;
-    cout << "Número de faces (Somente funciona para triângulos): " << this->nfaces << endl;
-    cout << "#-----------------------------------------------------------------------------------#" << endl;
-    for(int i = 0; i < this->faces.size(); i++){
-        cout << "Nós que compõem a face: " << this->faces[i].first << " " << this->faces[i].second << " | coordenadas do centro da face: " << this->faceMiddlePoints[i].getX() << " " << this->faceMiddlePoints[i].getY() << " " << this->faceMiddlePoints[i].getZ() << " | comprimento (2D por enquanto): " << this->faceAreas[i] << endl; 
-    }
-    
-    cout << "#-----------------------------------------------------------------------------------#" << endl;
-    cout << "Quantidade de nós: " << nnodes << endl;
-    for(auto it = this->nodes.begin(); it != this->nodes.end(); ++it){
-        cout << "Id do nó: " << it->first << "\tx: " << it->second.getX() << "\ty: " << it->second.getY() << "\tz: " << it->second.getZ() << endl; 
-    }
-    
-    cout << "#-----------------------------------------------------------------------------------#" << endl;
-    cout << "Quantidade total de elementos: " << totalElements << endl;
-    for(auto it = this->elements.begin(); it != this->elements.end(); ++it){
-        cout << "Id do elemento: " << it->first << "\ttipo do elemento: " << it->second.getElementType() << "\tid de seus nós: ";
-        vector<int>* nodes = it->second.getNodes();
-        for(int i = 0; i < nodes->size(); i++){
-            cout << (*nodes)[i] << " ";
-        }
+    cout << "Quantidade total de nós: " << this->nnodes << endl;
+    cout << "Lista de coordenadas dos nodes (indexados de 0 até N-1):" << endl;
+    for(int i = 0; i < this->nnodes; i++)
+        cout << "x: " << this->nodes[i].getX() << "\ty:" << this->nodes[i].getY() << "\tz:" << this->nodes[i].getZ() << endl;
+    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "Quantidade de elementos: " << this->totalElements << endl;
+    cout << "Informação dos elementos: (indexados de 0 até N-1)" << endl;
+    for(int i = 0; i < this->totalElements; i++){
+        cout << "Tipo: " << this->elements[i].getElementType() << " | Nós que o compõem: ";
+        vector<int>* ns = this->elements[i].getNodes();
+        for(int j = 0; j < (*ns).size(); j++)
+            cout << (*ns)[j] << " ";
         cout << endl;
-    }    
-    
-    cout << "#-----------------------------------------------------------------------------------#" << endl;
-    cout << "Quantidade total de grupos físicos: " << totalPhysicalEntities << endl;
+    } 
+    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "Quantidade de grupos físicos: " << this->totalPhysicalGroups << endl;
+    cout << "Informação dos grupos físicos: (indexados pelo que vem do arquivo)" << endl;
     for(auto it = this->physicalGroups.begin(); it != this->physicalGroups.end(); ++it){
-        cout << "Id do grupo: " << it->first << "\tdimensão: " << it->second.getDimension() << "\tnome: " << it->second.getName() << "\tid de seus elementos: ";
-        vector<int>* elements = it->second.getElementIds();
-        for(int i = 0; i < elements->size(); i++){
-            cout << (*elements)[i] << " ";
-        }
+        cout << "ID: " << it->second.getId() <<  " Dimensão: " << it->second.getDimension() << " Nome: " << it->second.getName() << " \tId dos elementos que pertencem a ele: ";
+        vector<int>* es = it->second.getElementIds();
+        for(int i = 0; i < (*es).size(); i++)
+        cout <<  (*es)[i] << " ";
         cout << endl;
-    }   
-
-    cout << "#-----------------------------------------------------------------------------------#" << endl;
-    cout << "Informação dos centroides:" << endl;
-    for(auto it = this->centroids.begin(); it != this->centroids.end(); ++it){
-        cout << "Id do elemento: " << it->first << "\t\txc: " << it->second.getX() << "\tyc: " << it->second.getY() << "\t\tzc: " << it->second.getZ() << endl; 
-    }   
+    }
+    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "Quantidade de células: " << this->ncells << endl;
+    cout << "Id dos elementos que são células: ";
+    for(int i = 0; i < this->ncells; i++)
+        cout << this->cells[i] << " ";
+    cout << endl;
+    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "Quantidade de faces: " << this->nfaces << endl;
+    cout << "Id das faces e seus nós constituintes (Indexados de 0 até NumFaces - 1):" << endl;
+    for(int i = 0; i < this->nfaces; i++)
+        cout  << "[" << i << "] " << this->faces[i].first << " " << this->faces[i].second << endl;
+    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "Células e suas faces... (Tudo no anti-horário):" << endl;
+    for(int i = 0; i < this->ncells; i++){
+        int cellId = this->cells[i]; //casa a indexação do loop com a indexação verdadeira das células
+        vector<int>* faceIds = this->elements[cellId].getFaceIds();
+        cout << "[" << cellId << "] ";
+        for(int j = 0; j < (*faceIds).size(); j++)
+            cout <<  (*faceIds)[j] << " ";
+        cout << endl;
+    }
 }
