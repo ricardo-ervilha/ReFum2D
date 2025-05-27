@@ -193,16 +193,64 @@ void Mesh::preProcessing(){
 
    this->nfaces = qtdFaces;
    this->faces = faces; 
+
+   for(int i = 0; i < this->nfaces; i++){
+        int n1Id = this->faces[i].first;
+        int n2Id = this->faces[i].second;
+        Node n1 = this->nodes[n1Id];
+        Node n2 = this->nodes[n2Id];
+
+        // calcula área da face
+        double A_f = sqrt(pow(n1.getX() - n2.getX(), 2) + pow(n1.getY() - n2.getY(), 2) + pow(n1.getZ() - n2.getZ(), 2)); 
+
+        this->faceAreas.push_back(A_f);
+
+        // calcula o ponto médio da face
+        double xm = (n1.getX() + n2.getX())/2.0;
+        double ym = (n1.getY() + n2.getY())/2.0;
+        double zm = (n1.getZ() + n2.getZ())/2.0;
+        Node middle = Node(xm, ym, zm);
+        this->faceMiddlePoints.push_back(middle);
+
+        //calculando primeiro os vetores tangentes.
+        double tx = (n2.getX() - n1.getX())/A_f;
+        double ty = (n2.getY() - n1.getY())/A_f;
+
+        // calcula normal
+        tuple<double, double> normal = make_tuple(ty, -tx);
+        this->normals.push_back(normal);
+   }
+
+   /*Cálculo dos centroides & dos sinais da normal*/
+   for(int i = 0; i < this->ncells; i++){
+        int idCell = this->cells[i];
+        Element& cell = this->elements[idCell];
+        vector<int>* nodesFromTheCell = cell.getNodes();
+
+        Node& n1 = this->nodes[(*nodesFromTheCell)[0]]; 
+        Node& n2 = this->nodes[(*nodesFromTheCell)[1]]; 
+        Node& n3 = this->nodes[(*nodesFromTheCell)[2]]; 
+
+        double xc = (n1.getX() + n2.getX() + n3.getX())/3.0;
+        double yc = (n1.getY() + n2.getY() + n3.getY())/3.0;
+        double zc = (n1.getZ() + n2.getZ() + n3.getZ())/3.0;
+
+        Node nc = Node(xc, yc, zc);
+        this->centroids.push_back(nc);
+    }
+
+    
 }
 
 void Mesh::meshSummary(){
     /**/
+    cout << "#------------------------Infos. Gerais & Nós-----------------------------------------#" << endl;
     cout << "Geometria do problema: " << this->geom_type << "D" << endl;
     cout << "Quantidade total de nós: " << this->nnodes << endl;
     cout << "Lista de coordenadas dos nodes (indexados de 0 até N-1):" << endl;
     for(int i = 0; i < this->nnodes; i++)
         cout << "x: " << this->nodes[i].getX() << "\ty:" << this->nodes[i].getY() << "\tz:" << this->nodes[i].getZ() << endl;
-    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "#---------------------------Elementos------------------------------------------#" << endl;
     cout << "Quantidade de elementos: " << this->totalElements << endl;
     cout << "Informação dos elementos: (indexados de 0 até N-1)" << endl;
     for(int i = 0; i < this->totalElements; i++){
@@ -212,7 +260,7 @@ void Mesh::meshSummary(){
             cout << (*ns)[j] << " ";
         cout << endl;
     } 
-    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "#-----------------------------Grupos Físicos----------------------------------------------#" << endl;
     cout << "Quantidade de grupos físicos: " << this->totalPhysicalGroups << endl;
     cout << "Informação dos grupos físicos: (indexados pelo que vem do arquivo)" << endl;
     for(auto it = this->physicalGroups.begin(); it != this->physicalGroups.end(); ++it){
@@ -222,18 +270,18 @@ void Mesh::meshSummary(){
         cout <<  (*es)[i] << " ";
         cout << endl;
     }
-    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "#------------------------------------Células------------------------------------------#" << endl;
     cout << "Quantidade de células: " << this->ncells << endl;
     cout << "Id dos elementos que são células: ";
     for(int i = 0; i < this->ncells; i++)
         cout << this->cells[i] << " ";
     cout << endl;
-    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "#------------------------------------Faces----------------------------------------------#" << endl;
     cout << "Quantidade de faces: " << this->nfaces << endl;
     cout << "Id das faces e seus nós constituintes (Indexados de 0 até NumFaces - 1):" << endl;
     for(int i = 0; i < this->nfaces; i++)
         cout  << "[" << i << "] " << this->faces[i].first << " " << this->faces[i].second << endl;
-    cout << "#----------------------------------------------------------------------------------------#" << endl;
+    cout << "#-------------------------------------Faces das Células----------------------------------------#" << endl;
     cout << "Células e suas faces... (Tudo no anti-horário):" << endl;
     for(int i = 0; i < this->ncells; i++){
         int cellId = this->cells[i]; //casa a indexação do loop com a indexação verdadeira das células
@@ -242,5 +290,10 @@ void Mesh::meshSummary(){
         for(int j = 0; j < (*faceIds).size(); j++)
             cout <<  (*faceIds)[j] << " ";
         cout << endl;
+    }
+    cout << "#-------------------------------------Centroides----------------------------------------#" << endl;
+    for(int i = 0; i < this->ncells; i++){
+        int cellId = this->cells[i]; //casa a indexação do loop com a indexação verdadeira das células
+        cout << "[" << cellId << "] \tx:" << this->centroids[i].getX() << " \ty: " << this->centroids[i].getY() << " \tz: " << this->centroids[i].getZ() << endl;
     }
 }

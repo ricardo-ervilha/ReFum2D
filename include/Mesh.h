@@ -40,16 +40,30 @@ class Mesh{
         /*Geral*/
         int geom_type; //Tipo da geometria (2d ou 3d)
         int nbfaces; //Qtd total de faces de contorno
-
-
-        map<int, Node> centroids; //int nodeID => centroide da célula
-        vector<double> faceAreas; // como está tudo 2D por enquanto, aqui terá o comprimento somente.
-        vector<Node> faceMiddlePoints; //armazena o ponto central das faces. 
-
         map<int,int> elementTypeToNumNodes; // int id do elemento => int número de nós que o compõem
 
+        /*Centroides*/
+        vector<Node> centroids; // acompanha a indexação das células
+
+        /*Normais*/
+        vector<tuple<double, double>> normals; // normais de cada face. Acompanha a indexação de faces
+        
+        /*Área da Face (3d) ou Comprimento da face (1D)*/
+        vector<double> faceAreas; // acompanha a indexação do faces.
+        
+        /*Ponto médio das faces*/
+        vector<Node> faceMiddlePoints; //armazena o ponto central das faces. 
+
+        /*Conectividades*/
+        //link_cell_to_face
+        //link_face_to_cell
+        //link_face_to_node
+        //link_cell_to_node
+        //link_face_to_bface
+        //link_bface_to_face
+
         /*Funções privadas*/
-        void preProcessing();
+        void preProcessing(); //Calcula valores de diversas coisas que não foram feitos no readMesh
     public:
         Mesh();
         ~Mesh();
@@ -64,7 +78,7 @@ class Mesh{
         vector<Node>* getNodes() { return &nodes; };
         map<int, PhysicalGroup>* getPhysicalGroups() { return &physicalGroups; };
         vector<Element>* getElements() { return &elements; };
-        map<int, Node>* getCentroids() { return &centroids; };
+        vector<Node>* getCentroids() { return &centroids; };
         vector<pair<int, int>>* getFaces() { return &faces; };
         vector<double>* getFaceAreas() { return &faceAreas; };
         vector<Node>* getFaceMiddlePoints() { return &faceMiddlePoints; };
