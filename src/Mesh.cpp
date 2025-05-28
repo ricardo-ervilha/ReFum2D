@@ -285,6 +285,20 @@ void Mesh::preProcessing(){
             }
         }
     }
+
+    for(int i = 0; i < this->ncells; i++){ // PARA CADA CÉLULA
+        int cellId = this->cells[i]; //conversão do loop index para cell index
+        Element& cell = this->elements[cellId]; //recupera célula
+        double volume = 0;
+        vector<int>* faceIds = cell.getFaceIds(); 
+        vector<int>* normalSigns = cell.getNormalSigns();
+        for(int j = 0; j < (*faceIds).size(); j++){ //PARA CADA FACE DA CÉLULA
+            int gface = (*faceIds)[j];
+            //equação 7.39
+            volume += get<0>(this->normals[gface]) * (*normalSigns)[j] * this->faceMiddlePoints[gface].getX() * this->faceAreas[gface];
+        }
+        this->volumes.push_back(volume);
+    }
 }
 
 void Mesh::meshSummary(){
@@ -357,5 +371,9 @@ void Mesh::meshSummary(){
     cout << "#--------------------------------------------Normais------------------------------------------------#" << endl;
     for(int i = 0; i < this->nfaces; i++){
         cout <<  "x: " << get<0>(normals[i]) << " \ty: " << get<1>(normals[i]) << endl;
+    }
+    cout << "#--------------------------------------------Volumes------------------------------------------------#" << endl;
+    for(int i = 0; i < this->ncells; i++){
+        cout << "Volume da celula " << i << " : " << volumes[i] << endl;
     }
 }

@@ -32,6 +32,7 @@ class Mesh{
         /*Células*/
         int ncells; //Qtd total de células
         vector<int> cells; //guarda o id das células.
+        vector<double> volumes; //volumes de cada célula
 
         /*Faces*/
         int nfaces; //Qtd total de faces

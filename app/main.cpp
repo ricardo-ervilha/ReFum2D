@@ -3,7 +3,7 @@
 int main(void){
 
     Mesh* mesh = new Mesh();
-    mesh->readMesh("../inputs/malhaSimples.msh");
+    mesh->readMesh("../inputs/malhaComplexa.msh");
     mesh->meshSummary();
     // map<int, Element>* elements = mesh->getElements();
     // cout << "#####################################################################################" << endl;
