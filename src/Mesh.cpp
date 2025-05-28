@@ -374,6 +374,7 @@ void Mesh::meshSummary(){
     }
     cout << "#--------------------------------------------Volumes------------------------------------------------#" << endl;
     for(int i = 0; i < this->ncells; i++){
-        cout << "Volume da celula " << i << " : " << volumes[i] << endl;
+        int cellId = this->cells[i]; 
+        cout << "Volume da celula " << cellId << " : " << volumes[i] << endl;
     }
 }
