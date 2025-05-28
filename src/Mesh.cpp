@@ -194,6 +194,7 @@ void Mesh::preProcessing(){
    this->nfaces = qtdFaces;
    this->faces = faces; 
 
+   /*Calcula normal, área da face, ponto médio, etc.*/
    for(int i = 0; i < this->nfaces; i++){
         int n1Id = this->faces[i].first;
         int n2Id = this->faces[i].second;
@@ -221,8 +222,12 @@ void Mesh::preProcessing(){
         this->normals.push_back(normal);
    }
 
-   /*Cálculo dos centroides & dos sinais da normal*/
-   for(int i = 0; i < this->ncells; i++){
+    /*Cálculo dos centroides & link_face_to_cell*/
+    pair<int, int> default_pair(-1,-1);
+    vector<pair<int,int>> lftc(this->nfaces, default_pair); //inicializa o vector com tamanho nfaces e default_pair com as flags -1
+    this->link_face_to_cell = lftc;
+    
+    for(int i = 0; i < this->ncells; i++){
         int idCell = this->cells[i];
         Element& cell = this->elements[idCell];
         vector<int>* nodesFromTheCell = cell.getNodes();
@@ -237,9 +242,40 @@ void Mesh::preProcessing(){
 
         Node nc = Node(xc, yc, zc);
         this->centroids.push_back(nc);
+
+        //-------------------------
+        //calcula link_face_to_cell
+        vector<int>* facesFromCell = cell.getFaceIds();
+        for(int j = 0; j < (*facesFromCell).size(); j++){
+            int id = (*facesFromCell)[j];
+            if(this->link_face_to_cell[id].first == -1) //verifica se primeiro já foi preenchido
+                this->link_face_to_cell[id].first = idCell;
+            else //se primeiro já foi preenchido, segundoe estará vazio
+                this->link_face_to_cell[id].second = idCell;
+        }
     }
 
-    
+    /*Determinação do sinal das normais de cada célula*/
+    for(int i = 0; i < this->ncells; i++){ // PARA CADA CÉLULA
+        int cellId = this->cells[i]; //conversão do loop index para cell index
+        Element& cell = this->elements[cellId]; //recupera célula
+        vector<int>* faceIds = cell.getFaceIds(); 
+        for(int j = 0; j < (*faceIds).size(); j++){ //PARA CADA FACE DA CÉLULA
+            int faceId = (*faceIds)[j];
+            int ic1 = link_face_to_cell[faceId].first; //pega a primeira célula da faceId
+            if(cellId == ic1){
+                cell.insertNormalSign(1); // já está apontando OUT
+            }
+            else if(cellId != -1){
+                cell.insertNormalSign(-1); // estava apontando IN, inverte
+            }
+            else
+            {
+                cout << "ERROR: Line 272 in mesh.cpp (problem in normal signs)!" << endl;
+                exit(1);
+            }
+        }
+    }
 }
 
 void Mesh::meshSummary(){
@@ -295,5 +331,22 @@ void Mesh::meshSummary(){
     for(int i = 0; i < this->ncells; i++){
         int cellId = this->cells[i]; //casa a indexação do loop com a indexação verdadeira das células
         cout << "[" << cellId << "] \tx:" << this->centroids[i].getX() << " \ty: " << this->centroids[i].getY() << " \tz: " << this->centroids[i].getZ() << endl;
+    }
+    cout << "#-------------------------------------Link face to cell----------------------------------------#" << endl;
+    for(int i = 0; i < this->nfaces; i++){
+        cout <<  "[" << i << "] " << this->link_face_to_cell[i].first << " " << this->link_face_to_cell[i].second << endl;
+    }
+    cout << "#----------------------------------------Sinal das Normais------------------------------------------#" << endl;
+    for(int i = 0 ; i < this->ncells; i++){
+        int cellId = this->cells[i]; 
+        Element& cell = this->elements[cellId];
+        vector<int>* normalSigns = cell.getNormalSigns();
+        for(int j=0; j < (*normalSigns).size(); j++)
+            cout << (*normalSigns)[j] << " ";
+        cout << endl;
+    }
+    cout << "#--------------------------------------------Normais------------------------------------------------#" << endl;
+    for(int i = 0; i < this->nfaces; i++){
+        cout <<  "x: " << get<0>(normals[i]) << " \ty: " << get<1>(normals[i]) << endl;
     }
 }

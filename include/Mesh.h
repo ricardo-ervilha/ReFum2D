@@ -11,6 +11,7 @@
 #include "Node.h"
 #include "PhysicalGroup.h"
 #include "Element.h"
+#include <utility>
 
 using namespace std;
 
@@ -34,8 +35,8 @@ class Mesh{
 
         /*Faces*/
         int nfaces; //Qtd total de faces
-        vector<pair<int, int>> faces; //Vetor de faces. Ordem das faces já vem da indexação do vetor.
-        // padrão (min, max), isto é: face 1,2 = face 2,1, mas no vetor só tem 1,2.
+        vector<pair<int, int>> faces; //Vetor de faces. Ordem das faces já vem da indexação do vetor. | padrão (min, max), isto é: face 1,2 = face 2,1, mas no vetor só tem 1,2.
+        vector<pair<int,int>> link_face_to_cell; // para a i-ésima face, o pair contém as células que compartilham a face.
 
         /*Geral*/
         int geom_type; //Tipo da geometria (2d ou 3d)
@@ -55,12 +56,11 @@ class Mesh{
         vector<Node> faceMiddlePoints; //armazena o ponto central das faces. 
 
         /*Conectividades*/
-        //link_cell_to_face
-        //link_face_to_cell
-        //link_face_to_node
-        //link_cell_to_node
-        //link_face_to_bface
-        //link_bface_to_face
+        //link_cell_to_face | Já implementado através do vetor de faces da célula.
+        //link_face_to_node | Já implementado através da face guardar o pair de nós
+        //link_cell_to_node | Já implementado através do vetor de nós da célula.
+        //link_face_to_bface|
+        //link_bface_to_face|
 
         /*Funções privadas*/
         void preProcessing(); //Calcula valores de diversas coisas que não foram feitos no readMesh
