@@ -299,6 +299,22 @@ void Mesh::preProcessing(){
         }
         this->volumes.push_back(volume);
     }
+
+    /*Calculando para todos os nós as distâncias deles aos centroides*/
+    for(int i = 0; i < this->ncells; i++){ //para cada célula
+        int cellId = this->cells[i];
+        Element& cell = this->elements[cellId]; //TENHO A CÉLULA
+        vector<int>* nodesOfTheCell = cell.getNodes(); // obtenho ID dos nodes da célula;
+        Node& centroidFromCell = this->centroids[i]; //obtém o centroide da célula
+        for(int j = 0; j < (*nodesOfTheCell)[j]; j++){ // para cada nó da célula
+            int gnode = (*nodesOfTheCell)[j]; //converte em índice global
+            Node& n = this->nodes[gnode]; // obtém o nó
+            double dist = // calcular distancia desse nó para o centroide da célula
+            // armazenar dist no vetor de distcentroid do nó
+            // armazenar o id da celula lá também
+            // ir para o próximo nó 
+        }
+    }
 }
 
 void Mesh::meshSummary(){
