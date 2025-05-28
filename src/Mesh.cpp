@@ -132,6 +132,15 @@ struct CantorPairingFunction {
     }
 };
 
+struct Edge {
+    int from, to; // mantém a ordem original
+
+    Edge(int a, int b) : from(a), to(b) {}
+
+    pair<int, int> asKey() const {
+        return (from < to) ? make_pair(from, to) : make_pair(to, from);
+    }
+};
 
 void Mesh::preProcessing(){
     /*PRIMEIRA COISA: Computa o conjunto de todas as faces, e para cada célula, já guarda quais faces pertencem a ela.*/
@@ -147,7 +156,7 @@ void Mesh::preProcessing(){
                     -Traverse the set	O(n)
     */
     unordered_set<pair<int,int>, CantorPairingFunction> facesUS; //para garantir faces ÚNICAS
-    vector<pair<int,int>> faces; //vector com as faces.
+    vector<Edge> faces; //vector com as faces.
 
     unordered_map<pair<int,int>, int, CantorPairingFunction> facesUM; //para recuperar o índice dos elementos já inseridos
     
@@ -164,35 +173,35 @@ void Mesh::preProcessing(){
         int b =  (*nodeIds)[1];
         int c =  (*nodeIds)[2];
 
-        /*Criando os pairs ordenados usando minmax.*/
-        pair<int,int> ab = minmax(a,b); 
-        pair<int,int> bc = minmax(b,c);
-        pair<int,int> ca = minmax(c,a); 
+        Edge ab(a, b);
+        Edge bc(b, c);
+        Edge ca(c, a);
 
-        vector<pair<int,int>> facesToIterate;
-        facesToIterate.push_back(ab);
-        facesToIterate.push_back(bc);
-        facesToIterate.push_back(ca);
+        vector<Edge> facesToIterate = {ab, bc, ca};
 
-        // iterando para ab, bc, ca
-        for(int j = 0; j < facesToIterate.size(); j++){
-            if(facesUS.insert(facesToIterate[j]).second){
-                // inserção da face no Unordered set deu certo
-                facesUM.emplace(facesToIterate[j], qtdFaces); // insere no unordered map
-                faces.push_back(facesToIterate[j]); //insere no vector
-                cell.insertFace(qtdFaces); // insere a face na célula
-                qtdFaces++; // aumenta 1 para dizer que número de faces únicas aumentou
-            }else{
-                // inserção da face deu errado (já está lá)
-                int idx = facesUM[facesToIterate[j]]; // busca O(1)
-                cell.insertFace(idx); // insere a face na célula
+        for (const Edge& face : facesToIterate) {
+            pair<int,int> key = face.asKey(); // chave ordenada
+
+            if (facesUS.insert(key).second) {
+                facesUM.emplace(key, qtdFaces);
+                faces.push_back(face); // mantém ordem original aqui
+                cell.insertFace(qtdFaces);
+                qtdFaces++;
+            } else {
+                int idx = facesUM[key];
+                cell.insertFace(idx);
             }
         }
 
    }
 
+    vector<pair<int, int>> facesCorrigido;
+    for(int i = 0; i < faces.size(); i++){
+        facesCorrigido.push_back(make_pair(faces[i].from, faces[i].to));
+    }
+
    this->nfaces = qtdFaces;
-   this->faces = faces; 
+   this->faces = facesCorrigido; 
 
    /*Calcula normal, área da face, ponto médio, etc.*/
    for(int i = 0; i < this->nfaces; i++){
