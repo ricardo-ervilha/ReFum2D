@@ -306,13 +306,12 @@ void Mesh::preProcessing(){
         Element& cell = this->elements[cellId]; //TENHO A CÉLULA
         vector<int>* nodesOfTheCell = cell.getNodes(); // obtenho ID dos nodes da célula;
         Node& centroidFromCell = this->centroids[i]; //obtém o centroide da célula
-        for(int j = 0; j < (*nodesOfTheCell)[j]; j++){ // para cada nó da célula
+        for(int j = 0; j < (*nodesOfTheCell).size(); j++){ // para cada nó da célula
             int gnode = (*nodesOfTheCell)[j]; //converte em índice global
             Node& n = this->nodes[gnode]; // obtém o nó
-            double dist = // calcular distancia desse nó para o centroide da célula
-            // armazenar dist no vetor de distcentroid do nó
-            // armazenar o id da celula lá também
-            // ir para o próximo nó 
+            double dist = sqrt(pow(n.getX() - centroidFromCell.getX(), 2) + pow(n.getY() - centroidFromCell.getY(), 2) + pow(n.getZ() - centroidFromCell.getZ(), 2));
+            n.insertDistanceCentroids(dist);// armazenar dist no vetor de distcentroid do nó
+            n.insertIdCellRelativeToCentroid(cellId);// armazenar o id da celula lá também
         }
     }
 }
@@ -392,5 +391,12 @@ void Mesh::meshSummary(){
     for(int i = 0; i < this->ncells; i++){
         int cellId = this->cells[i]; 
         cout << "Volume da celula " << cellId << " : " << volumes[i] << endl;
+    }
+    cout << "#--------------------------------------------Distancia aos Centroides ------------------------------------------------#" << endl;
+    for(int i = 0; i < this->nnodes; i++){
+        vector<double>* distCentroides = this->nodes[i].getDistanceCentroids();
+        vector<int>* idCellsOfCentroids = this->nodes[i].getIdCellRelativeToCentroid();
+        for(int j = 0; j < (*distCentroides).size(); j++)
+            cout << "Node: " << i << " \tCélula: " << (*idCellsOfCentroids)[j] << " \tDistance: " << (*distCentroides)[j] << endl;
     }
 }
