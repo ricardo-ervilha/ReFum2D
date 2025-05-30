@@ -14,6 +14,7 @@ link_directories(${GMSH_SDK_DIR}/lib)
 
 set(SOURCE_FILES
     src/Mesh.cpp
+    src/FVMSolver.cpp
 )
 
 set(HEADER_FILES
@@ -21,6 +22,8 @@ set(HEADER_FILES
     include/PhysicalGroup.h
     include/Node.h
     include/Mesh.h
+    include/FVMSolver.h
+    include/BoundaryCondition.h
 )
 
 add_executable(${PROJECT_NAME}.exe app/main.cpp ${SOURCE_FILES})

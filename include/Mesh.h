@@ -102,6 +102,8 @@ class Mesh{
         void printInfoDistanceNodeToCentroids();
         void printInfoLinkFaceToBface();
         void printInfoLinkBfaceToFace();
+
+        int getNumCells() {return this->ncells;};
 };
 
 #endif
