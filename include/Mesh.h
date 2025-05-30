@@ -15,6 +15,26 @@
 
 using namespace std;
 
+/*Função hash para o unordered set*/
+struct CantorPairingFunction {
+    // injetora para inteiros >= 0.
+    std::size_t operator()(const std::pair<int, int>& p) const noexcept {
+        int a = p.first;
+        int b = p.second;
+        return (a + b) * (a + b + 1) / 2 + b;
+    }
+};
+
+struct Edge {
+    int from, to; // mantém a ordem original
+
+    Edge(int a, int b) : from(a), to(b) {}
+
+    pair<int, int> asKey() const {
+        return (from < to) ? make_pair(from, to) : make_pair(to, from);
+    }
+};
+
 class Mesh{
     private:
         /*Nodes*/
@@ -41,8 +61,13 @@ class Mesh{
 
         /*Geral*/
         int geom_type; //Tipo da geometria (2d ou 3d)
-        int nbfaces; //Qtd total de faces de contorno
         map<int,int> elementTypeToNumNodes; // int id do elemento => int número de nós que o compõem
+        
+        /*Faces de contorno*/
+        int nbfaces; //Qtd total de faces de contorno
+        vector<int> link_face_to_bface; //vetor que acompanha a indexação das faces, e em cada entrada correspondendo a id face global, diz qual id da bface, ou retorna -1 caso não seja boundary face.
+        vector<int> link_bface_to_face; // vetor do tamanho de faces de contorno. Para cada indice do vetor, diz qual o indice global da boundary face.
+        unordered_map<pair<int,int>, int, CantorPairingFunction> facesPairToKey; // dado o par de chaves retorna o índice => vai ser útil na hora das faces de contorno
 
         /*Centroides*/
         vector<Node> centroids; // acompanha a indexação das células
@@ -56,13 +81,6 @@ class Mesh{
         /*Ponto médio das faces*/
         vector<Node> faceMiddlePoints; //armazena o ponto central das faces. 
 
-        /*Conectividades*/
-        //link_cell_to_face | Já implementado através do vetor de faces da célula.
-        //link_face_to_node | Já implementado através da face guardar o pair de nós
-        //link_cell_to_node | Já implementado através do vetor de nós da célula.
-        //link_face_to_bface|
-        //link_bface_to_face|
-
         /*Funções privadas*/
         void preProcessing(); //Calcula valores de diversas coisas que não foram feitos no readMesh
     public:
@@ -70,20 +88,20 @@ class Mesh{
         ~Mesh();
         void readMesh(string filepath); // Função para ler os dados da malha .msh
         void meshSummary();
-        int getGeomType() {return this->geom_type;};
-        int getNFaces()  {return this->nfaces;};
-        int getNbFaces() const { return nbfaces; };
-        int getNNodes() const { return nnodes; };
-        int getTotalElements() const { return totalElements; };
-        int getTotalPhysicalEntities() const { return totalPhysicalGroups; };
-        vector<Node>* getNodes() { return &nodes; };
-        map<int, PhysicalGroup>* getPhysicalGroups() { return &physicalGroups; };
-        vector<Element>* getElements() { return &elements; };
-        vector<Node>* getCentroids() { return &centroids; };
-        vector<pair<int, int>>* getFaces() { return &faces; };
-        vector<double>* getFaceAreas() { return &faceAreas; };
-        vector<Node>* getFaceMiddlePoints() { return &faceMiddlePoints; };
-        map<int, int>* getElementTypeToNumNodes() { return &elementTypeToNumNodes; };
+        void printInfoGeral();
+        void printInfoNodes();
+        void printInfoElements();
+        void printInfoPhyisicalGroups();
+        void printInfoCells();
+        void printInfoFaces();
+        void printInfoCentroids();
+        void printInfoLinkFaceToCell();
+        void printinfoNormalSigns();
+        void printInfoNormalValues();
+        void printInfoVolumes();
+        void printInfoDistanceNodeToCentroids();
+        void printInfoLinkFaceToBface();
+        void printInfoLinkBfaceToFace();
 };
 
 #endif

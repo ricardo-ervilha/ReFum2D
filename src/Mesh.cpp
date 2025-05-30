@@ -122,26 +122,6 @@ void Mesh::readMesh(string filepath){
     this->preProcessing();
 }
 
-/*Função hash para o unordered set*/
-struct CantorPairingFunction {
-    // injetora para inteiros >= 0.
-    std::size_t operator()(const std::pair<int, int>& p) const noexcept {
-        int a = p.first;
-        int b = p.second;
-        return (a + b) * (a + b + 1) / 2 + b;
-    }
-};
-
-struct Edge {
-    int from, to; // mantém a ordem original
-
-    Edge(int a, int b) : from(a), to(b) {}
-
-    pair<int, int> asKey() const {
-        return (from < to) ? make_pair(from, to) : make_pair(to, from);
-    }
-};
-
 void Mesh::preProcessing(){
     /*PRIMEIRA COISA: Computa o conjunto de todas as faces, e para cada célula, já guarda quais faces pertencem a ela.*/
     /*
@@ -195,13 +175,16 @@ void Mesh::preProcessing(){
 
    }
 
+    facesUM.clear(); //limpa
     vector<pair<int, int>> facesCorrigido;
     for(int i = 0; i < faces.size(); i++){
-        facesCorrigido.push_back(make_pair(faces[i].from, faces[i].to));
+       facesCorrigido.push_back(make_pair(faces[i].from, faces[i].to));
+       facesUM.emplace(make_pair(faces[i].from, faces[i].to), i);
     }
 
    this->nfaces = qtdFaces;
    this->faces = facesCorrigido; 
+   this->facesPairToKey = facesUM;
 
    /*Calcula normal, área da face, ponto médio, etc.*/
    for(int i = 0; i < this->nfaces; i++){
@@ -314,49 +297,93 @@ void Mesh::preProcessing(){
             n.insertIdCellRelativeToCentroid(cellId);// armazenar o id da celula lá também
         }
     }
+
+    /*Fazendo a parte das faces de contorno*/
+    /*ASSUMINDO QUE VIRÁ NA ORDEM: DOWN, RIGHT, TOP, LEFT e FLUID. (REVER ISSO DEPOIS...)*/
+    int contBFaces = 0;
+    vector<int> aux_link_face_to_bface(this->nfaces, -1);
+    this->link_face_to_bface = aux_link_face_to_bface;
+    for(auto it = this->physicalGroups.begin(); it != this->physicalGroups.end() && it->second.getDimension() != 2; ++it){ // para cada grupo físico
+        vector<int>* elements = it->second.getElementIds();
+        for(int j = 0; j < (*elements).size(); j++){ // para cada id de elemento
+            int idElement = (*elements)[j];
+            vector<int>* nodes = this->elements[idElement].getNodes(); //teoricamenmte é para ser 1D
+            int n1 = (*nodes)[0];
+            int n2 = (*nodes)[1];
+            pair<int, int> faceToTest = make_pair(n1,n2);
+            int key = this->facesPairToKey[faceToTest]; //retorna o índice GLOBAL dessa face
+            this->link_bface_to_face.push_back(key);
+            this->link_face_to_bface[key] = contBFaces;
+            contBFaces++;
+        }
+    }
+
+    this->nbfaces = contBFaces;
 }
 
-void Mesh::meshSummary(){
-    /**/
-    cout << "#------------------------Infos. Gerais & Nós-----------------------------------------#" << endl;
+void Mesh::printInfoGeral(){
+    cout << "#------------------------------Infos. Gerais-----------------------------------------#" << endl;
     cout << "Geometria do problema: " << this->geom_type << "D" << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoNodes(){
+    cout << "#----------------------------------------Nós-----------------------------------------#" << endl;
     cout << "Quantidade total de nós: " << this->nnodes << endl;
-    cout << "Lista de coordenadas dos nodes (indexados de 0 até N-1):" << endl;
+    cout << "Lista de coordenadas:" << endl;
     for(int i = 0; i < this->nnodes; i++)
-        cout << "x: " << this->nodes[i].getX() << "\ty:" << this->nodes[i].getY() << "\tz:" << this->nodes[i].getZ() << endl;
-    cout << "#---------------------------Elementos------------------------------------------#" << endl;
+        cout << "[" << i << "]" << "\tx: " << this->nodes[i].getX() << "\ty:" << this->nodes[i].getY() << "\tz:" << this->nodes[i].getZ() << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoElements(){
+    cout << "#----------------------------------------Elementos-----------------------------------#" << endl;
     cout << "Quantidade de elementos: " << this->totalElements << endl;
-    cout << "Informação dos elementos: (indexados de 0 até N-1)" << endl;
+    cout << "Informações dos elementos:" << endl;
     for(int i = 0; i < this->totalElements; i++){
-        cout << "Tipo: " << this->elements[i].getElementType() << " | Nós que o compõem: ";
+        cout << "[" << i << "]" << "\tTipo: " << this->elements[i].getElementType() << " \tNós que o compõem: ";
         vector<int>* ns = this->elements[i].getNodes();
         for(int j = 0; j < (*ns).size(); j++)
-            cout << (*ns)[j] << " ";
+            cout << (*ns)[j] << "   ";
         cout << endl;
     } 
-    cout << "#-----------------------------Grupos Físicos----------------------------------------------#" << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoPhyisicalGroups(){
+    cout << "#-----------------------------Grupos Físicos----------------------------------------#" << endl;
     cout << "Quantidade de grupos físicos: " << this->totalPhysicalGroups << endl;
-    cout << "Informação dos grupos físicos: (indexados pelo que vem do arquivo)" << endl;
+    cout << "Informação dos grupos físicos:" << endl;
     for(auto it = this->physicalGroups.begin(); it != this->physicalGroups.end(); ++it){
-        cout << "ID: " << it->second.getId() <<  " Dimensão: " << it->second.getDimension() << " Nome: " << it->second.getName() << " \tId dos elementos que pertencem a ele: ";
+        cout << "[" << it->second.getId() << "]" <<  "\tDimensão: " << it->second.getDimension() << " Nome: " << it->second.getName() << "   Id dos elementos que pertencem a ele: ";
         vector<int>* es = it->second.getElementIds();
         for(int i = 0; i < (*es).size(); i++)
         cout <<  (*es)[i] << " ";
         cout << endl;
     }
-    cout << "#------------------------------------Células------------------------------------------#" << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoCells(){
+    cout << "#------------------------------------Células----------------------------------------#" << endl;
     cout << "Quantidade de células: " << this->ncells << endl;
     cout << "Id dos elementos que são células: ";
     for(int i = 0; i < this->ncells; i++)
         cout << this->cells[i] << " ";
     cout << endl;
-    cout << "#------------------------------------Faces----------------------------------------------#" << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoFaces(){
+    cout << "#------------------------------------Faces------------------------------------------#" << endl;
     cout << "Quantidade de faces: " << this->nfaces << endl;
-    cout << "Id das faces e seus nós constituintes (Indexados de 0 até NumFaces - 1):" << endl;
+    cout << "Id das faces e seus nós constituintes:" << endl;
     for(int i = 0; i < this->nfaces; i++)
         cout  << "[" << i << "] " << this->faces[i].first << " " << this->faces[i].second << endl;
-    cout << "#-------------------------------------Faces das Células----------------------------------------#" << endl;
-    cout << "Células e suas faces... (Tudo no anti-horário):" << endl;
+    cout << "#-------------------------------------Faces das Células-----------------------------#" << endl;
+    
+    cout << endl;
+    cout << "Células e suas faces: " << endl;
     for(int i = 0; i < this->ncells; i++){
         int cellId = this->cells[i]; //casa a indexação do loop com a indexação verdadeira das células
         vector<int>* faceIds = this->elements[cellId].getFaceIds();
@@ -365,38 +392,97 @@ void Mesh::meshSummary(){
             cout <<  (*faceIds)[j] << " ";
         cout << endl;
     }
-    cout << "#-------------------------------------Centroides----------------------------------------#" << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoCentroids(){  
+    cout << "#-------------------------------------Centroides-------------------------------------#" << endl;
     for(int i = 0; i < this->ncells; i++){
         int cellId = this->cells[i]; //casa a indexação do loop com a indexação verdadeira das células
         cout << "[" << cellId << "] \tx:" << this->centroids[i].getX() << " \ty: " << this->centroids[i].getY() << " \tz: " << this->centroids[i].getZ() << endl;
     }
-    cout << "#-------------------------------------Link face to cell----------------------------------------#" << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoLinkFaceToCell(){
+    cout << "#-------------------------------------Link Face to Cell------------------------------#" << endl;
     for(int i = 0; i < this->nfaces; i++){
         cout <<  "[" << i << "] " << this->link_face_to_cell[i].first << " " << this->link_face_to_cell[i].second << endl;
     }
-    cout << "#----------------------------------------Sinal das Normais------------------------------------------#" << endl;
+    cout << endl;
+}
+
+void Mesh::printinfoNormalSigns(){
+    cout << "#----------------------------------------Sinal das Normais---------------------------#" << endl;
     for(int i = 0 ; i < this->ncells; i++){
         int cellId = this->cells[i]; 
         Element& cell = this->elements[cellId];
         vector<int>* normalSigns = cell.getNormalSigns();
+        vector<int>* faceIds = cell.getFaceIds();
         for(int j=0; j < (*normalSigns).size(); j++)
-            cout << (*normalSigns)[j] << " ";
+            cout << "[" << (*faceIds)[j] << "] -> " << (*normalSigns)[j] << " ";
         cout << endl;
     }
-    cout << "#--------------------------------------------Normais------------------------------------------------#" << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoNormalValues(){
+    cout << "#--------------------------------------------Normais----------------------------------#" << endl;
     for(int i = 0; i < this->nfaces; i++){
-        cout <<  "x: " << get<0>(normals[i]) << " \ty: " << get<1>(normals[i]) << endl;
+        cout << "[" << i << "]" << "\tx: " << get<0>(normals[i]) << "\ty: " << get<1>(normals[i]) << endl;
     }
-    cout << "#--------------------------------------------Volumes------------------------------------------------#" << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoVolumes(){
+    cout << "#--------------------------------------------Volumes----------------------------------#" << endl;
     for(int i = 0; i < this->ncells; i++){
         int cellId = this->cells[i]; 
         cout << "Volume da celula " << cellId << " : " << volumes[i] << endl;
     }
-    cout << "#--------------------------------------------Distancia aos Centroides ------------------------------------------------#" << endl;
+    cout << endl;
+}
+
+void Mesh::printInfoDistanceNodeToCentroids(){
+    cout << "#-----------------------------------Distancia aos Centroides -------------------------#" << endl;
     for(int i = 0; i < this->nnodes; i++){
         vector<double>* distCentroides = this->nodes[i].getDistanceCentroids();
         vector<int>* idCellsOfCentroids = this->nodes[i].getIdCellRelativeToCentroid();
         for(int j = 0; j < (*distCentroides).size(); j++)
             cout << "Node: " << i << " \tCélula: " << (*idCellsOfCentroids)[j] << " \tDistance: " << (*distCentroides)[j] << endl;
     }
+    cout << endl;
+}
+
+void Mesh::printInfoLinkFaceToBface(){
+    cout << "#------------------------------------Link Face to Bface-------------------------------#" << endl;
+    for(int i = 0; i < this->link_face_to_bface.size(); i++){
+        cout << "[" << i << "] = " << this->link_face_to_bface[i] << endl;
+    }    
+    cout << endl;
+}
+
+void Mesh::printInfoLinkBfaceToFace(){  
+    cout << "#--------------------------------Link Bface to Face-----------------------------------#" << endl;
+    for(int i = 0 ; i < this->link_bface_to_face.size(); i++){
+        cout << "[" << i << "] = " << this->link_bface_to_face[i] << endl;
+    }
+    cout << endl;
+}
+
+void Mesh::meshSummary(){
+    this->printInfoGeral();
+    this->printInfoNodes();
+    this->printInfoElements();
+    this->printInfoPhyisicalGroups();
+    this->printInfoCells();
+    this->printInfoFaces();
+    this->printInfoCentroids();
+    this->printInfoLinkFaceToCell();
+    this->printinfoNormalSigns();
+    this->printInfoNormalValues();
+    this->printInfoVolumes();
+    this->printInfoDistanceNodeToCentroids();
+    this->printInfoLinkFaceToBface();
+    this->printInfoLinkBfaceToFace();
 }
