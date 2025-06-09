@@ -7,16 +7,20 @@
 class FVMSolver {
     private:
         Mesh* mesh;
-        double** A;
+        double** A; //ponteiro
+        double* _A; //ponteiro auxiliar
         double* b;
         vector<BoundaryCondition*> boundaries;
+        double gamma;
 
     public:
-        FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left);
+        FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double gamma);
         ~FVMSolver();
         void applyBoundariesConditions();
         void computeA();
         void computeb();
+        void printA();
+        void printB();
 };
 
 #endif

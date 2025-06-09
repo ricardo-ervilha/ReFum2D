@@ -283,18 +283,28 @@ void Mesh::preProcessing(){
         this->volumes.push_back(volume);
     }
 
-    /*Calculando para todos os nós as distâncias deles aos centroides*/
-    for(int i = 0; i < this->ncells; i++){ //para cada célula
-        int cellId = this->cells[i];
-        Element& cell = this->elements[cellId]; //TENHO A CÉLULA
-        vector<int>* nodesOfTheCell = cell.getNodes(); // obtenho ID dos nodes da célula;
-        Node& centroidFromCell = this->centroids[i]; //obtém o centroide da célula
-        for(int j = 0; j < (*nodesOfTheCell).size(); j++){ // para cada nó da célula
-            int gnode = (*nodesOfTheCell)[j]; //converte em índice global
-            Node& n = this->nodes[gnode]; // obtém o nó
-            double dist = sqrt(pow(n.getX() - centroidFromCell.getX(), 2) + pow(n.getY() - centroidFromCell.getY(), 2) + pow(n.getZ() - centroidFromCell.getZ(), 2));
-            n.insertDistanceCentroids(dist);// armazenar dist no vetor de distcentroid do nó
-            n.insertIdCellRelativeToCentroid(cellId);// armazenar o id da celula lá também
+    /*Calculando o df*/
+    int offset = this->totalElements - this->ncells;
+    // cout << offset << endl;
+    for(int i = 0; i < this->nfaces; i++){ // PARA CADA FACE
+        pair<int,int> cells = this->link_face_to_cell[i];
+        int cell1 = cells.first - offset; //ids globais 
+        int cell2 = cells.second - offset; //ids globais
+        
+        if(cell1 >= 0 && cell2 >= 0){
+            Node* c1 = &this->centroids[cell1]; // centroid da célula 1
+            Node* c2 = &this->centroids[cell2]; // centroid da célula 2
+            
+            //calculando vetor If
+            double Ifx = c2->getX() - c1->getX();
+            double Ify = c2->getY() - c1->getY();
+            // cout << Ifx << " " << Ify << endl;
+            tuple<double, double> normal = this->normals[i]; //obtém as componentes da normal daquela face
+
+            double df = Ifx * get<0>(normal) + Ify * get<1>(normal);
+            this->deltafs.push_back(df);
+        }else{
+            this->deltafs.push_back(-1);
         }
     }
 
@@ -319,6 +329,13 @@ void Mesh::preProcessing(){
     }
 
     this->nbfaces = contBFaces;
+}
+
+void Mesh::printDeltaFs(){
+    cout << "#--------------------------------DeltaF's-----------------------------------#" << endl;
+    for(int i = 0; i < this->nfaces; i++){ // PARA CADA FACE
+        cout << "[ " << i << " ] : " << this->deltafs[i] << endl;
+    }
 }
 
 void Mesh::printInfoGeral(){
@@ -443,17 +460,6 @@ void Mesh::printInfoVolumes(){
     cout << endl;
 }
 
-void Mesh::printInfoDistanceNodeToCentroids(){
-    cout << "#-----------------------------------Distancia aos Centroides -------------------------#" << endl;
-    for(int i = 0; i < this->nnodes; i++){
-        vector<double>* distCentroides = this->nodes[i].getDistanceCentroids();
-        vector<int>* idCellsOfCentroids = this->nodes[i].getIdCellRelativeToCentroid();
-        for(int j = 0; j < (*distCentroides).size(); j++)
-            cout << "Node: " << i << " \tCélula: " << (*idCellsOfCentroids)[j] << " \tDistance: " << (*distCentroides)[j] << endl;
-    }
-    cout << endl;
-}
-
 void Mesh::printInfoLinkFaceToBface(){
     cout << "#------------------------------------Link Face to Bface-------------------------------#" << endl;
     for(int i = 0; i < this->link_face_to_bface.size(); i++){
@@ -482,7 +488,7 @@ void Mesh::meshSummary(){
     this->printinfoNormalSigns();
     this->printInfoNormalValues();
     this->printInfoVolumes();
-    this->printInfoDistanceNodeToCentroids();
     this->printInfoLinkFaceToBface();
     this->printInfoLinkBfaceToFace();
+    this->printDeltaFs();
 }

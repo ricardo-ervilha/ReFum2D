@@ -83,6 +83,9 @@ class Mesh{
 
         /*Funções privadas*/
         void preProcessing(); //Calcula valores de diversas coisas que não foram feitos no readMesh
+
+        /*Deltaf*/
+        vector<double> deltafs; // acompanha a indexação da face (distancia entre os centroids das celulas que compartilham a face)
     public:
         Mesh();
         ~Mesh();
@@ -99,11 +102,18 @@ class Mesh{
         void printinfoNormalSigns();
         void printInfoNormalValues();
         void printInfoVolumes();
-        void printInfoDistanceNodeToCentroids();
         void printInfoLinkFaceToBface();
         void printInfoLinkBfaceToFace();
+        void printDeltaFs();
 
         int getNumCells() {return this->ncells;};
+        int getTotalElements()   {return this->totalElements;};
+        int getGlobalCellId(int i) {return this->cells[i];};
+        Element* getCell(int id) {return &this->elements[id];};
+        int get_link_face_to_bface(int id) {return this->link_face_to_bface[id];};
+        pair<int, int>* get_link_face_to_cell(int id) {return &this->link_face_to_cell[id];};
+        double get_face_area(int id) {return this->faceAreas[id];};
+        double get_deltaf(int id) {return this->deltafs[id];};
 };
 
 #endif
