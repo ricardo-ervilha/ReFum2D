@@ -5,7 +5,7 @@
 int main(void){
 
     Mesh* mesh = new Mesh();
-    mesh->readMesh("../inputs/complexMesh.msh");
+    mesh->readMesh("../inputs/benchmark.msh");
     mesh->meshSummary();
     BoundaryCondition down = BoundaryCondition("Dirichlet", 0.0);
     BoundaryCondition right = BoundaryCondition("Dirichlet", 0.0);
@@ -13,5 +13,7 @@ int main(void){
     BoundaryCondition left = BoundaryCondition("Dirichlet", 0.0);
     FVMSolver sol = FVMSolver(mesh, &down, &right, &top, &left, 50);
     sol.computeA();
+    sol.computeb();
+    // sol.applyBoundariesConditions();
     return 0;
 }

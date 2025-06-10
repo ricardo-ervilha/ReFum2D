@@ -308,6 +308,21 @@ void Mesh::preProcessing(){
         }
     }
 
+    /*Calculando para todos os nós as distâncias deles aos centroides*/
+    for(int i = 0; i < this->ncells; i++){ //para cada célula
+        int cellId = this->cells[i];
+        Element& cell = this->elements[cellId]; //TENHO A CÉLULA
+        vector<int>* nodesOfTheCell = cell.getNodes(); // obtenho ID dos nodes da célula;
+        Node& centroidFromCell = this->centroids[i]; //obtém o centroide da célula
+        for(int j = 0; j < (*nodesOfTheCell).size(); j++){ // para cada nó da célula
+            int gnode = (*nodesOfTheCell)[j]; //converte em índice global
+            Node& n = this->nodes[gnode]; // obtém o nó
+            double dist = sqrt(pow(n.getX() - centroidFromCell.getX(), 2) + pow(n.getY() - centroidFromCell.getY(), 2) + pow(n.getZ() - centroidFromCell.getZ(), 2));
+            n.insertDistanceCentroids(dist);// armazenar dist no vetor de distcentroid do nó
+            n.insertIdCellRelativeToCentroid(cellId);// armazenar o id da celula lá também
+        }
+    }
+
     /*Fazendo a parte das faces de contorno*/
     /*ASSUMINDO QUE VIRÁ NA ORDEM: DOWN, RIGHT, TOP, LEFT e FLUID. (REVER ISSO DEPOIS...)*/
     int contBFaces = 0;
@@ -410,6 +425,11 @@ void Mesh::printInfoFaces(){
         cout << endl;
     }
     cout << endl;
+
+    cout<< "#------------------------------------Áreas das Faces-----------------------------------------#" << endl;
+    for(int i = 0; i < this->nfaces; i++)
+        cout  << "[" << i << "] " << this->faceAreas[i] << endl;
+    cout << endl;
 }
 
 void Mesh::printInfoCentroids(){  
@@ -476,6 +496,17 @@ void Mesh::printInfoLinkBfaceToFace(){
     cout << endl;
 }
 
+void Mesh::printInfoDistanceNodeToCentroids(){
+    cout << "#-----------------------------------Distancia aos Centroides -------------------------#" << endl;
+    for(int i = 0; i < this->nnodes; i++){
+        vector<double>* distCentroides = this->nodes[i].getDistanceCentroids();
+        vector<int>* idCellsOfCentroids = this->nodes[i].getIdCellRelativeToCentroid();
+        for(int j = 0; j < (*distCentroides).size(); j++)
+            cout << "Node: " << i << " \tCélula: " << (*idCellsOfCentroids)[j] << " \tDistance: " << (*distCentroides)[j] << endl;
+    }
+    cout << endl;
+}
+
 void Mesh::meshSummary(){
     this->printInfoGeral();
     this->printInfoNodes();
@@ -491,4 +522,5 @@ void Mesh::meshSummary(){
     this->printInfoLinkFaceToBface();
     this->printInfoLinkBfaceToFace();
     this->printDeltaFs();
+    this->printInfoDistanceNodeToCentroids();
 }

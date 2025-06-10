@@ -105,6 +105,7 @@ class Mesh{
         void printInfoLinkFaceToBface();
         void printInfoLinkBfaceToFace();
         void printDeltaFs();
+        void printInfoDistanceNodeToCentroids();
 
         int getNumCells() {return this->ncells;};
         int getTotalElements()   {return this->totalElements;};
@@ -117,6 +118,8 @@ class Mesh{
         pair<int, int>* get_id_of_nodes_that_make_face(int id) {return &this->faces[id];};
         Node* get_centroid(int id) {return &this->centroids[id];};
         Node* get_node(int id) {return &this->nodes[id];};
+        int get_num_boundary_faces() {return this->nbfaces;};
+        int get_link_bface_to_face(int id) {return this->link_bface_to_face[id];};
 };
 
 #endif
