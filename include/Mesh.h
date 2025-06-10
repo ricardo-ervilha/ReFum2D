@@ -114,6 +114,9 @@ class Mesh{
         pair<int, int>* get_link_face_to_cell(int id) {return &this->link_face_to_cell[id];};
         double get_face_area(int id) {return this->faceAreas[id];};
         double get_deltaf(int id) {return this->deltafs[id];};
+        pair<int, int>* get_id_of_nodes_that_make_face(int id) {return &this->faces[id];};
+        Node* get_centroid(int id) {return &this->centroids[id];};
+        Node* get_node(int id) {return &this->nodes[id];};
 };
 
 #endif

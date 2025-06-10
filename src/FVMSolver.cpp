@@ -13,10 +13,12 @@ FVMSolver::FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition* rig
     A = new double*[N];
     _A = new double[N*N]; //declara vetor
     b = new double[N];
+    skew = new double[N];
 
     /*inicialização com zeros de _A e b*/
     for(int i = 0; i < N; i++){
         b[i] = 0;
+        skew[i] = 0;
         for(int j = 0; j < N; j++){
             _A[i*N + j] = 0;
         }
@@ -75,5 +77,41 @@ void FVMSolver::computeA(){
 }
 
 void FVMSolver::computeb(){
+    int offset = this->mesh->getTotalElements() - this->mesh->getNumCells();
+    for(int i = 0; i < this->mesh->getNumCells(); i++){
+        int globalCellID = this->mesh->getGlobalCellId(i);
+        vector<int>* faceIdsFromCell = this->mesh->getCell(globalCellID)->getFaceIds(); // id das faces daquela célula
+        for(int j = 0; j < (*faceIdsFromCell).size(); j++){
+            int gface = (*faceIdsFromCell)[j]; // global index da face
+            
+            //encontrando os indices dos vertices que compõem essa face
+            pair<int, int>* idNodes = this->mesh->get_id_of_nodes_that_make_face(gface);
+            int va = idNodes->first;
+            int vb = idNodes->second;
 
+            pair<int, int>* idCellsThatShareThatFace = this->mesh->get_link_face_to_cell(gface);
+            int ic1 = idCellsThatShareThatFace->first; 
+            int ic2 = idCellsThatShareThatFace->second;
+
+            Node* ic1El = this->mesh->get_centroid(ic1 - offset);
+            Node* ic2El = this->mesh->get_centroid(ic2 - offset);
+
+            double Lf1 = ic2El->getX() - ic1El->getX();
+            double Lf2 = ic2El->getY() - ic2El->getY();
+
+            Node* vaN = this->mesh->get_node(va);
+            Node* vbN = this->mesh->get_node(vb);
+
+            double tf1 = vaN->getX() - vbN->getX();
+            double tf2 = vaN->getY() - vbN->getY();
+            
+            // tangente unitária
+            tf1 = tf1 / this->mesh->get_face_area(gface);
+            tf2 = tf2 / this->mesh->get_face_area(gface);
+            
+            double utf_dot_Lf = tf1 * Lf1 + tf2 * Lf2;
+
+            skew[globalCellID - offset] += -this->gamma * utf_dot_Lf * (phiv(va) - phiv(vb)) / this->mesh->get_deltaf(gface);
+        }
+    }
 }

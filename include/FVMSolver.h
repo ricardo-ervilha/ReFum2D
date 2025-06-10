@@ -10,6 +10,7 @@ class FVMSolver {
         double** A; //ponteiro
         double* _A; //ponteiro auxiliar
         double* b;
+        double* skew;
         vector<BoundaryCondition*> boundaries;
         double gamma;
 
