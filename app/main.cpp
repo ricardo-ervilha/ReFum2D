@@ -11,9 +11,11 @@ int main(void){
     BoundaryCondition right = BoundaryCondition("Dirichlet", 0.0);
     BoundaryCondition top = BoundaryCondition("Dirichlet", 80.0);
     BoundaryCondition left = BoundaryCondition("Dirichlet", 0.0);
-    FVMSolver sol = FVMSolver(mesh, &down, &right, &top, &left, 50);
+    FVMSolver sol = FVMSolver(mesh, &down, &right, &top, &left, 1);
+    double tol = 1e-3;
     sol.computeA();
     sol.computeb();
-    // sol.applyBoundariesConditions();
+    sol.applyBoundariesConditions();
+    // sol.GaussSeidel(tol);
     return 0;
 }

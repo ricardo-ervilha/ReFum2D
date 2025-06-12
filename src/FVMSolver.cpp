@@ -15,12 +15,14 @@ FVMSolver::FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition* rig
     b = new double[N];
     skew = new double[N];
     u = new double[N];
+    Qs = new double[N];
 
     /*inicialização com zeros de _A e b*/
     for(int i = 0; i < N; i++){
         b[i] = 0;
         skew[i] = 0;
         u[i] = 0; //inicializa a solução com 0
+        Qs[i] = 0;
         for(int j = 0; j < N; j++){
             _A[i*N + j] = 0;
         }
@@ -30,11 +32,33 @@ FVMSolver::FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition* rig
         b[i] = 0;
     }
 
-    // this->printA();
+    this->computeQs();
 }
 
 FVMSolver::~FVMSolver(){
 
+}
+
+double FVMSolver::calculateQ(double x, double y){
+    return -200*x*(1-x) - 200*y*(1-y);
+}
+
+void FVMSolver::computeQs(){
+    for(int i = 0; i < this->mesh->getNumCells(); i++){
+        int globalCellId = this->mesh->getGlobalCellId(i);
+        Element *cell = this->mesh->getCell(globalCellId);
+        vector<int>* nodeIds = cell->getNodes();
+
+        Node* n1 = this->mesh->get_node((*nodeIds)[0]);
+        Node* n2 = this->mesh->get_node((*nodeIds)[1]);
+        Node* n3 = this->mesh->get_node((*nodeIds)[2]);
+
+        double Q1 = this->calculateQ(n1->getX(), n1->getY());
+        double Q2 = this->calculateQ(n2->getX(), n2->getY());
+        double Q3 = this->calculateQ(n3->getX(), n3->getY());
+
+        this->Qs[i] = (Q1 + Q2 + Q3)/3.0;
+    }
 }
 
 void FVMSolver::printA(){
@@ -151,6 +175,65 @@ void FVMSolver::computeb(){
 
             skew[globalCellID - offset] += -this->gamma * utf_dot_Lf * (phiv(vaN) - phiv(vbN)) / this->mesh->get_deltaf(gface);
         }
+        b[globalCellID - offset] = skew[globalCellID - offset] - Qs[globalCellID - offset]*this->mesh->get_volume(globalCellID - offset);
     }
     this->printB();
+}
+
+double* FVMSolver::copyVector(double* M, int N){
+    double* X = new double[N];
+
+    for(int i = 0; i < N; i++)  
+        X[i] = M[i];
+
+    return X;
+}
+
+double FVMSolver::max_norm_difference(double* u, double* u_old, int N){
+    /*Computa a norma do máximo da diferença entre dois vetores*/
+    double max_diff = 0.0;
+    for (int i = 0; i < N; ++i) {
+        double diff = std::abs(u[i] - u_old[i]);
+        if (diff > max_diff) {
+            max_diff = diff;
+        }
+    }
+    return max_diff;
+}
+
+void FVMSolver::GaussSeidel(double tol) {
+    double error = 1.0;
+    int N = this->mesh->getNumCells();
+    double sum;
+
+    // Cria uma cópia da solução inicial para cálculo do erro
+    double* tmp = this->copyVector(this->u, N);
+
+    while (error > tol) {
+        // Salva a solução anterior em tmp
+        for (int i = 0; i < N; i++) {
+            tmp[i] = u[i];
+        }
+
+        for (int i = 0; i < N; i++) {
+            sum = 0.0;
+            for (int j = 0; j < N; j++) {
+                if (j != i)
+                    sum += A[i][j] * u[j];
+            }
+            u[i] = (b[i] - sum) / A[i][i];
+        }
+
+        error = max_norm_difference(u, tmp, N);
+        std::cout << "Valor do erro: " << error << std::endl;
+    }
+
+    std::cout << "Solução final: " << std::endl;
+    std::cout << " [";
+    for (int i = 0; i < N; i++) {
+        std::cout << std::setw(8) << std::fixed << std::setprecision(2) << u[i];
+    }
+    std::cout << "]" << std::endl << std::endl;
+
+    delete[] tmp;  // Libera a memória alocada para tmp
 }

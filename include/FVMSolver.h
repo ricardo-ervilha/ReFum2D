@@ -16,7 +16,12 @@ class FVMSolver {
         double gamma; // constante de difusividade
         double *u; // vetor solução (acompanha indexação das células, ou seja, cada entrada sua é a solução correspondente do valor de u para o centroid daquele determinado volume de controle)
 
-        double phiv(Node* n); // função auxiliar para calcular o valor de phi nos nós
+        double *Qs;
+        
+        double calculateQ(double x, double y);
+        double phiv(Node* n); // função auxiliar para calcular o valor de phi nos nós~
+        double* copyVector(double *M, int N); 
+        double max_norm_difference(double* u, double* u_old, int N);
     public:
         FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double gamma);
         ~FVMSolver();
@@ -25,6 +30,8 @@ class FVMSolver {
         void computeb();
         void printA();
         void printB();
+        void computeQs();
+        void GaussSeidel(double tol);
 };
 
 #endif

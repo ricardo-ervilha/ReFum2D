@@ -120,6 +120,7 @@ class Mesh{
         Node* get_node(int id) {return &this->nodes[id];};
         int get_num_boundary_faces() {return this->nbfaces;};
         int get_link_bface_to_face(int id) {return this->link_bface_to_face[id];};
+        double get_volume(int id) {return this->volumes[id];};
 };
 
 #endif
