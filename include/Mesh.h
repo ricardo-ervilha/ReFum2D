@@ -121,6 +121,11 @@ class Mesh{
         int get_num_boundary_faces() {return this->nbfaces;};
         int get_link_bface_to_face(int id) {return this->link_bface_to_face[id];};
         double get_volume(int id) {return this->volumes[id];};
-};
+        Node* get_middle_points(int id) {return &this->faceMiddlePoints[id];};
+        tuple<double, double>* get_normal(int id) {return &this->normals[id];};
+        int getNumPoints() {return this->nnodes;};
+        vector<Node>* getNodes() {return &this->nodes;};
+        vector<Node>* getCentroids()  {return &this->centroids;};
+};      
 
 #endif

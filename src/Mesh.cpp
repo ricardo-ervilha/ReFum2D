@@ -508,19 +508,19 @@ void Mesh::printInfoDistanceNodeToCentroids(){
 }
 
 void Mesh::meshSummary(){
-    this->printInfoGeral();
-    this->printInfoNodes();
-    this->printInfoElements();
-    this->printInfoPhyisicalGroups();
-    this->printInfoCells();
-    this->printInfoFaces();
+    // this->printInfoGeral();
+    // this->printInfoNodes();
+    // this->printInfoElements();
+    // this->printInfoPhyisicalGroups();
+    // this->printInfoCells();
+    // this->printInfoFaces();
     this->printInfoCentroids();
-    this->printInfoLinkFaceToCell();
-    this->printinfoNormalSigns();
-    this->printInfoNormalValues();
-    this->printInfoVolumes();
-    this->printInfoLinkFaceToBface();
-    this->printInfoLinkBfaceToFace();
-    this->printDeltaFs();
-    this->printInfoDistanceNodeToCentroids();
+    // this->printInfoLinkFaceToCell();
+    // this->printinfoNormalSigns();
+    // this->printInfoNormalValues();
+    // this->printInfoVolumes();
+    // this->printInfoLinkFaceToBface();
+    // this->printInfoLinkBfaceToFace();
+    // this->printDeltaFs();
+    // this->printInfoDistanceNodeToCentroids();
 }

@@ -69,7 +69,7 @@ void FVMSolver::printA(){
         cout << " [";
         for (int j = 0; j < N; j++)
         {
-            cout << setw(8) << fixed << setprecision(2) << A[i][j];
+            cout << setw(8) << fixed << setprecision(3) << A[i][j];
             if (j < N - 1)
                 cout << ", ";
         }
@@ -82,7 +82,7 @@ void FVMSolver::printB(){
     int N = this->mesh->getNumCells();
     cout << " [";
     for(int i = 0; i < N; i++){
-        cout << setw(8) << fixed << setprecision(2) << b[i];
+        cout << setw(8) << fixed << setprecision(3) << b[i];
     }
     cout << "]" << endl;
     cout << endl;
@@ -110,18 +110,33 @@ void FVMSolver::computeA(){
         for(int j = 0; j < (*faceIdsFromCell).size(); j++){
             int gface = (*faceIdsFromCell)[j]; // global index da face
             if(this->mesh->get_link_face_to_bface(gface) != -1) // face de contorno
-                continue;
-            pair<int, int>* idCellsThatShareThatFace = this->mesh->get_link_face_to_cell(gface);
-            int ic1 = idCellsThatShareThatFace->first; 
-            int ic2 = idCellsThatShareThatFace->second;
-            
-            int nb = ic1 == globalCellID ? ic2 : ic1;
+            {   
+                Node* centroid = this->mesh->get_centroid(globalCellID - offset);
 
-            A[i][globalCellID - offset] += this->gamma * this->mesh->get_face_area(gface) / this->mesh->get_deltaf(gface); // diagonal
-            A[i][nb - offset] = -this->gamma *  this->mesh->get_face_area(gface) / this->mesh->get_deltaf(gface); // off-diagonal
+                Node* middleOfTheFace = this->mesh->get_middle_points(gface);
+
+                double lb1 = middleOfTheFace->getX() - centroid->getX();
+                double lb2 = middleOfTheFace->getY() - centroid->getY();
+
+                tuple<double, double>* normals = this->mesh->get_normal(gface);
+
+                double deltaB = lb1 * get<0>(*normals) + lb2 * get<1>(*normals);
+
+                A[i][globalCellID - offset] += this->gamma * this->mesh->get_face_area(gface) / deltaB;
+
+            }else{
+                pair<int, int>* idCellsThatShareThatFace = this->mesh->get_link_face_to_cell(gface);
+                int ic1 = idCellsThatShareThatFace->first; 
+                int ic2 = idCellsThatShareThatFace->second;
+                
+                int nb = ic1 == globalCellID ? ic2 : ic1;
+
+                A[i][globalCellID - offset] += this->gamma * this->mesh->get_face_area(gface) / this->mesh->get_deltaf(gface); // diagonal
+                A[i][nb - offset] = -this->gamma *  this->mesh->get_face_area(gface) / this->mesh->get_deltaf(gface); // off-diagonal
+            }
         }
     }
-    this->printA();
+    // this->printA();
 }
 
 double FVMSolver::phiv(Node* n){
@@ -205,7 +220,7 @@ void FVMSolver::GaussSeidel(double tol) {
     double error = 1.0;
     int N = this->mesh->getNumCells();
     double sum;
-
+    int iter = 0; 
     // Cria uma cópia da solução inicial para cálculo do erro
     double* tmp = this->copyVector(this->u, N);
 
@@ -223,7 +238,8 @@ void FVMSolver::GaussSeidel(double tol) {
             }
             u[i] = (b[i] - sum) / A[i][i];
         }
-
+        
+        iter += 1;
         error = max_norm_difference(u, tmp, N);
         std::cout << "Valor do erro: " << error << std::endl;
     }
@@ -236,4 +252,64 @@ void FVMSolver::GaussSeidel(double tol) {
     std::cout << "]" << std::endl << std::endl;
 
     delete[] tmp;  // Libera a memória alocada para tmp
+}
+
+void FVMSolver::saveSolution(){
+    string filename = "../inputs/solution.vtk";
+    ofstream vtk_file(filename);
+
+    if (!vtk_file.is_open()) {
+        std::cerr << "Erro ao criar o arquivo '" << filename << "'.\n";
+        exit(1);
+    }
+
+    vtk_file << "# vtk DataFile Version 3.0\n";
+    vtk_file << "Malha 2D com triângulos e temperatura\n";
+    vtk_file << "ASCII\n";
+    vtk_file << "DATASET UNSTRUCTURED_GRID\n\n";
+
+    vtk_file << "POINTS " << this->mesh->getNumCells()  << " double" << endl;
+    vector<Node>* nodes = this->mesh->getNodes();
+    for(int i = 0; i < this->mesh->getNumCells(); i++){
+        vtk_file << (*nodes)[i].getX() << " " << (*nodes)[i].getY() << " " << (*nodes)[i].getZ() << endl;
+    }
+    vtk_file << endl;
+
+    vtk_file << "CELLS " << this->mesh->getNumCells() << " " <<  4 * this->mesh->getNumCells() << endl;
+    for(int i = 0; i < this->mesh->getNumCells(); i++){
+        int gcell = this->mesh->getGlobalCellId(i);
+        Element* e = this->mesh->getCell(gcell);
+        vector<int>* nodeIds = e->getNodes();
+        vtk_file << "3" << " " << (*nodeIds)[0] << " " << (*nodeIds)[1] << " " << (*nodeIds)[2] << endl;
+    }
+
+    vtk_file << endl;
+
+    vtk_file << "CELL_TYPES " << this->mesh->getNumCells() << endl;
+    for(int i = 0; i < this->mesh->getNumCells(); i++){
+        vtk_file << "5" << endl;
+    }
+
+    vtk_file << endl;
+    vtk_file << "CELL_DATA " << this->mesh->getNumCells() << endl;
+    vtk_file << "SCALARS Temperatura double 1\n";
+    vtk_file << "LOOKUP_TABLE default\n";
+    for(int i = 0; i < this->mesh->getNumCells(); i++){
+        vtk_file << this->u[i] << endl;
+    }
+
+    vtk_file.close();
+}
+
+void FVMSolver::computeErrorExact(){
+    vector<Node>* centroids = this->mesh->getCentroids();
+    int n = this->mesh->getNumCells();
+    double* exact = new double[n]; 
+    for(int i = 0; i < (*centroids).size(); i++){
+        double x = (*centroids)[i].getX();
+        double y = (*centroids)[i].getY();
+        exact[i] = 100*x*(1-x)*y*(1-y);
+    }
+    double error = this->max_norm_difference(exact, this->u, n);
+    cout << "Erro máximo: " << error << endl;
 }

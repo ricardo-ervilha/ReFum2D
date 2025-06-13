@@ -4,6 +4,8 @@
 #include "Mesh.h"
 #include "BoundaryCondition.h"
 #include <iomanip>
+#include <fstream>
+#include <filesystem>
 
 class FVMSolver {
     private:
@@ -32,6 +34,8 @@ class FVMSolver {
         void printB();
         void computeQs();
         void GaussSeidel(double tol);
+        void saveSolution();
+        void computeErrorExact();
 };
 
 #endif
