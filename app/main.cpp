@@ -3,7 +3,9 @@
 #include "../include/BoundaryCondition.h"
 
 int main(void){
-
+    //mesh 1 => 120 triangles (0.15) : erro máx: 0.13
+    //mesh 2 => 944 triangles (0.05) : erro máx: 0.23
+    //mesh 3 => 1478 triangles (0.04): erro máx: 0.17
     Mesh* mesh = new Mesh();
     mesh->readMesh("../inputs/mesh1.msh");
     mesh->meshSummary();
@@ -17,7 +19,7 @@ int main(void){
     sol.computeb();
     // sol.applyBoundariesConditions();
     sol.GaussSeidel(tol);
-    sol.saveSolution();
+    sol.saveSolution("../outputs/mesh1.vtk");
     sol.computeErrorExact();
     return 0;
 }

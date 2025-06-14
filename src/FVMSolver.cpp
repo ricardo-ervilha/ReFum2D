@@ -254,8 +254,7 @@ void FVMSolver::GaussSeidel(double tol) {
     delete[] tmp;  // Libera a memória alocada para tmp
 }
 
-void FVMSolver::saveSolution(){
-    string filename = "../inputs/solution.vtk";
+void FVMSolver::saveSolution(string filename){
     ofstream vtk_file(filename);
 
     if (!vtk_file.is_open()) {

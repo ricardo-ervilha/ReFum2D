@@ -34,7 +34,7 @@ class FVMSolver {
         void printB();
         void computeQs();
         void GaussSeidel(double tol);
-        void saveSolution();
+        void saveSolution(string filename);
         void computeErrorExact();
 };
 
