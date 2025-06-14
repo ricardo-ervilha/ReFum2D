@@ -28,16 +28,22 @@ class FVMSolver {
         double phiv(Node* n); // Função auxiliar para calcular o valor de phi nos nós.
 
         double max_norm_diff(vector<double>& u1, vector<double>& u2);
+        void print_matrix(vector<vector<double>>* m);
+        void print_vector(vector<double> *v);
     
     public:    
         FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();
         
-        void print_matrix(vector<vector<double>>* m);
-        void print_vector(vector<double> *v);
+
+        void print_A() {this->print_matrix(&this->A);};
+        void print_b() {this->print_vector(&this->b);};
 
         void assembly_A();
         void assembly_b();
+
+        /*Resolve sem considerar a difusão cruzada...*/
+        void iterative_solver(double tol);
 
         // recebe o caminho e nome do arquivo
         void save_solution(string filepath);

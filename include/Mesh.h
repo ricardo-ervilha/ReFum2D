@@ -96,14 +96,14 @@ class Mesh{
         // Função para ler os dados da malha .msh, passar o nome do arquivo e caminho até ele.
         void read_mesh(string filepath); 
         
-        void mesh_sumarry();
+        void mesh_summary();
 
         void print_info_geral();
         void print_info_nodes();
         void print_info_elements();
         void print_info_physical_groups();
         void print_info_cells();
-        void print_info_face();
+        void print_info_faces();
         void print_info_centroids();
         void print_info_link_face_to_cell();
         void print_info_normal_signs();

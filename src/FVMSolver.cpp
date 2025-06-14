@@ -20,7 +20,9 @@ FVMSolver::FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition* rig
     this->u = vector<double>(ncells, 0); // 1 x n: 0's
     this->source = vector<double>(ncells, 0); // 1 x n: 0's
     this->gamma = vector<double>(ncells, 0); // 1 x n : 0's
+    this->skew = vector<double>(ncells, 0);
 
+    // chama para fazer o pré-processamento
     this->pre_processing();
 }
 
@@ -129,7 +131,7 @@ void FVMSolver::assembly_A(){
             }else{
                 // Contribuição da face do interior
                 pair<int,int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
-
+                
                 int ic1 = idCellsShareFace.first; 
                 int ic2 = idCellsShareFace.second;
                 
@@ -137,7 +139,7 @@ void FVMSolver::assembly_A(){
                 int lnb = mesh->get_local_cell_id(nb);
 
                 A[i][i] += (gamma[i] * mesh->get_face_area(gface)) / mesh->get_deltaf(gface); // diagonal
-                A[i][lnb] = - (gamma[i] *  mesh->get_face_area(gface)) / this->mesh->get_deltaf(gface); // off-diagonal
+                A[i][lnb] = -(gamma[i] *  mesh->get_face_area(gface)) / this->mesh->get_deltaf(gface); // off-diagonal
             }
         }
     }
@@ -154,7 +156,7 @@ void FVMSolver::assembly_b(){
             if(mesh->get_link_face_to_bface(gface) != -1) // face de contorno
                 continue; // não faz nada
 
-            /*Parte do skew... (REVER ISSO DEPOIS)*/
+            /*Parte do skew... (REVER ISSO DEPOIS), pois por enquanto está tudo zerado e não atualiza.*/
             pair<int, int>& idNodes = mesh->get_link_face_to_vertex(gface);
             int va = idNodes.first;
             int vb = idNodes.second;
@@ -163,8 +165,8 @@ void FVMSolver::assembly_b(){
             int ic1 = idCellsShareFace.first; 
             int ic2 = idCellsShareFace.second;
             
-            Node* centroid1 = this->mesh->get_centroid(i);
-            Node* centroid2 = this->mesh->get_centroid(i);
+            Node* centroid1 = this->mesh->get_centroid(mesh->get_local_cell_id(ic1));
+            Node* centroid2 = this->mesh->get_centroid(mesh->get_local_cell_id(ic2));
 
             // calcula vetor Lb
             double Lb1 = centroid2->get_x() - centroid1->get_x();
@@ -181,6 +183,7 @@ void FVMSolver::assembly_b(){
 
             skew[i] += -(this->gamma[i] * dot_tf_Lb * (phiv(vaNode) - phiv(vbNode))) / mesh->get_deltaf(gface);
         }
+        b[i] = skew[i] - source[i] * mesh->get_volume(i);
     }
 }
 
@@ -191,6 +194,35 @@ double FVMSolver::max_norm_diff(vector<double>& u1, vector<double>& u2){
         max_diff = max(max_diff, fabs(u1[i] - u2[i]));
     }
     return max_diff;
+}
+
+void FVMSolver::iterative_solver(double tol){
+    double error = 1.0; 
+    int iter = 0;
+    int ncells = this->mesh->get_num_cells();
+    vector<double> tmp; // copia u para tmp
+    double sum;
+
+    while(error > tol){
+        tmp = this->u;
+
+        for(int i = 0; i < ncells; i++){
+            sum = 0.0;
+            for(int j = 0; j < ncells; j++){
+                if (j != i)
+                    sum += A[i][j] * u[j];
+            }   
+            u[i] = (b[i] - sum) / A[i][i]; 
+        }
+        error = max_norm_diff(u, tmp);
+        iter += 1;
+        if(iter % 250 == 0)
+            cout << "Valor do erro: " << error << endl;
+    }
+
+    cout << endl;
+    cout << "Vetor solução:\n";
+    this->print_vector(&this->u);
 }
 
 void FVMSolver::save_solution(string filename){
