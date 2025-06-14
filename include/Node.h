@@ -6,17 +6,17 @@
 using namespace std;
 class Node{
     private:
-        /*coordenadas*/
         double x; 
         double y;
         double z;
+
         vector<double> distance_centroids; //guarda a distância para o centroide
         vector<int> id_cell_relative_to_centroids; //guarda para qual célula correspondente é aquela distância.
         /*
-            exemplo de possíveis vetores:
-            - 0.25, 0.3, 0.4
-            - 15, 19, 24
-            Assim é possível ir iterando para preencher a matriz futuramente.
+            #Exemplo de possíveis vetores:
+            -> 0.25, 0.3, 0.4
+            -> 15, 19, 24
+            #Significam que esse nó faz parte das células 15, 15 e 24; e as distâncias desse nó aos centróides dessas células respectivamente são 0.25, 0.3 e 0.4.
         */
     public:
         Node(double x, double y, double z)  

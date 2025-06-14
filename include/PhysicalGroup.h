@@ -11,25 +11,26 @@ class PhysicalGroup{
         int id; // identificador numérico
         string name; //nome para referir a condição de contorno
         vector<int> elementIds;
+    
     public:
         PhysicalGroup(int dimension, int id, string name) {
             this->dimension = dimension;
             this->id = id;
             this->name = name;
         };
-        PhysicalGroup(){
+        PhysicalGroup(){ //construtor default para o map
             this->dimension = 0;
             this->id = 0;
             this->name = "";
         }
         ~PhysicalGroup() {};
-        void insertElementId(int id) {
-            this->elementIds.push_back(id);
-        }
-        int getDimension()  {return this->dimension;};
-        int getId()         {return this->id;};
-        string getName()    {return this->name;};
-        vector<int>* getElementIds()    {return &this->elementIds;};
+        
+        int get_dimension()  {return this->dimension;};
+        int get_id()         {return this->id;};
+        string get_name()    {return this->name;};
+        vector<int>& get_element_ids()    {return this->elementIds;};
+        
+        void insert_element_id(int id) {this->elementIds.push_back(id);}
 };
 
 

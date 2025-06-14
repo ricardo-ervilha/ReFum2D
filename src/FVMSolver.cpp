@@ -60,7 +60,7 @@ void FVMSolver::pre_processing(){
 
 double FVMSolver::phiv(Node* n){
     vector<double>& distCentroids = n->get_distance_centroids();
-    vector<double>& idRelativeCentroids = n->get_id_relative_to_centroids();
+    vector<int>& idRelativeCentroids = n->get_id_relative_to_centroids();
 
     double phiv = 0;
 
@@ -74,18 +74,19 @@ double FVMSolver::phiv(Node* n){
 
 void FVMSolver::print_matrix(vector<vector<double>> *m){
     auto& mat = *m;
-    
+    int n = mat.size();
+
     cout << "[" << endl;
-    for (int i = 0; i < mat.size(); i++)
+    for (int i = 0; i < n; i++)
     {
         cout << " [";
-        for (int j = 0; j < mat[i].size(); j++)
+        for (int j = 0; j < n; j++)
         {
             cout << setw(8) << fixed << setprecision(3) << mat[i][j];
-            if (j < size - 1)
+            if (j < n - 1)
                 cout << ", ";
         }
-        cout << "]" << (i < size - 1 ? "," : "") << endl;
+        cout << "]" << (i < n - 1 ? "," : "") << endl;
     }
     cout << "]" << endl;
 }
@@ -93,9 +94,11 @@ void FVMSolver::print_matrix(vector<vector<double>> *m){
 void FVMSolver::print_vector(vector<double> *v){
     auto& vet = *v;
     cout << " [";
-    for(int i = 0; i < vet.size(); i++){
+    int n = vet.size();
+    
+    for(int i = 0; i < n; i++){
         cout << setw(8) << fixed << setprecision(3) << vet[i];
-        if (i < size - 1)
+        if (i < n - 1)
                 cout << ", ";
     }
     cout << "]" << endl;
@@ -172,7 +175,7 @@ void FVMSolver::assembly_b(){
 
             // calcula vetor tangente a face (unitária)
             double tf1 = (vaNode->get_x() - vbNode->get_x()) / this->mesh->get_face_area(gface);
-            double tf2 = (vaNode->get_y() - vbNode->get_y()) / / this->mesh->get_face_area(gface);
+            double tf2 = (vaNode->get_y() - vbNode->get_y()) / this->mesh->get_face_area(gface);
 
             double dot_tf_Lb = tf1 * Lb1 + tf2 * Lb2;
 
@@ -209,7 +212,7 @@ void FVMSolver::save_solution(string filename){
     vtk_file << "POINTS " << nnodes << " double" << endl;
     vector<Node>& nodes = this->mesh->get_nodes();
     for(int i = 0; i < nnodes; i++){
-        vtk_file << nodes[i].get_x() << " " << nodes[i].get_y() << " " << nodes[i].getZ() << endl;
+        vtk_file << nodes[i].get_x() << " " << nodes[i].get_y() << " " << nodes[i].get_z() << endl;
     }
     vtk_file << endl;
 

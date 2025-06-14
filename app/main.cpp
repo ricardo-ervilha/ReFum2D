@@ -32,10 +32,10 @@ double Q(double x, double y){
 int main(void){
     // Declara um ponteiro para malha (Idealmente depois era passar isso pra dentro do FVMSolver... e só fornecer o path)
     Mesh* mesh = new Mesh();
-    mesh->readMesh("../inputs/mesh1.msh");
+    mesh->read_mesh("../inputs/mesh1.msh");
 
     // Opção de gerar um sumário com as estatísticas da malha
-    // mesh->meshSummary();
+    // mesh->mesh_summary();
 
     BoundaryCondition down = BoundaryCondition("Dirichlet", DirichletDown);
     BoundaryCondition right = BoundaryCondition("Dirichlet", DirichletRight);
@@ -43,8 +43,6 @@ int main(void){
     BoundaryCondition left = BoundaryCondition("Dirichlet", DirichletLeft);    
     
     /*Aplicação das condições de contorno: passar sempre em sentido anti-horário a partir do down.*/
-    /* Por enquanto funciona só para problemas de difusão com gamma cte.*/
-    double gamma = 1.0;
     FVMSolver* solver = new FVMSolver(mesh, &down, &right, &top, &left, Gamma, Q);
 
     /* A partir daqui já temos a malha com as respectivas condições de contorno implementadas. */
