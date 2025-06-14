@@ -225,6 +225,17 @@ void FVMSolver::iterative_solver(double tol){
     this->print_vector(&this->u);
 }
 
+double FVMSolver::compute_error(double (*exact)(double, double)){
+    int ncells = mesh->get_num_cells();
+    vector<Node>& centroids = mesh->get_centroids();
+    vector<double> exact_solution(ncells, 0);
+    for(int i = 0; i < ncells; i++){
+        exact_solution[i] = exact(centroids[i].get_x(), centroids[i].get_y());
+    }
+
+    return this->max_norm_diff(this->u, exact_solution);
+}
+
 void FVMSolver::save_solution(string filename){
     
     ofstream vtk_file(filename);

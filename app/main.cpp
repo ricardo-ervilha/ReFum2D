@@ -30,6 +30,10 @@ double Q(double x, double y){
     // return 0.0;
     return -200*x*(1 - x) - 200*y*(1 - y);
 }
+/*==================================================================================================================*/
+double exact_solution(double x, double y){
+    return 100*x*(1-x)*y*(1-y);
+}
 
 int main(void){
     // Declara um ponteiro para malha (Idealmente depois era passar isso pra dentro do FVMSolver... e só fornecer o path)
@@ -55,4 +59,7 @@ int main(void){
     double tolerance = 1e-3;
     solver->iterative_solver(tolerance);
     solver->save_solution("../outputs/result.vtk");
+
+    double error = solver->compute_error(exact_solution);
+    cout << "Valor do erro entre exata e aproximada: " << error << endl;
 }

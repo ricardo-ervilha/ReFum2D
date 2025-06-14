@@ -47,6 +47,8 @@ class FVMSolver {
 
         // recebe o caminho e nome do arquivo
         void save_solution(string filepath);
+
+        double compute_error(double (*exact)(double, double));
 };
 
 #endif
