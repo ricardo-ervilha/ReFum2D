@@ -9,33 +9,38 @@
 
 class FVMSolver {
     private:
-        Mesh* mesh;
-        double** A; //ponteiro
-        double* _A; //ponteiro auxiliar
-        double* b;
-        double* skew;
+        // Informações do problema: malha, constantes, etc.
+        Mesh* mesh; // Estruturas de dados pré-processadas pela leitura da malha
+        double (*gammafunc)(double, double); // Constante de difusão
+        double (*sourcefunc)(double, double); // Termo fonte
         vector<BoundaryCondition*> boundaries;
-        double gamma; // constante de difusividade
-        double *u; // vetor solução (acompanha indexação das células, ou seja, cada entrada sua é a solução correspondente do valor de u para o centroid daquele determinado volume de controle)
 
-        double *Qs;
+        // Estruturas de dados relacionadas a montagem e solução do problema.
+        vector<vector<double>> A;
+        vector<double> b;
+        vector<double> u;
+        vector<double> source; // pré-processa no FVMSolver os termos fontes das células.
+        vector<double> gamma; // pré-processa no FVMSolver os gammas das células;
+        vector<double> skew; // relacionado a angulosidade da malha, computa a difusão cruzada.
+
+        void pre_processing(); // Função para realizar o pré-processamento de gamma, source.
         
-        double calculateQ(double x, double y);
-        double phiv(Node* n); // função auxiliar para calcular o valor de phi nos nós~
-        double* copyVector(double *M, int N); 
-        double max_norm_difference(double* u, double* u_old, int N);
-    public:
-        FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double gamma);
+        double phiv(Node* n); // Função auxiliar para calcular o valor de phi nos nós.
+
+        double max_norm_diff(vector<double>& u1, vector<double>& u2);
+    
+    public:    
+        FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();
-        void applyBoundariesConditions();
-        void computeA();
-        void computeb();
-        void printA();
-        void printB();
-        void computeQs();
-        void GaussSeidel(double tol);
-        void saveSolution(string filename);
-        void computeErrorExact();
+        
+        void print_matrix(vector<vector<double>>* m);
+        void print_vector(vector<double> *v);
+
+        void assembly_A();
+        void assembly_b();
+
+        // recebe o caminho e nome do arquivo
+        void save_solution(string filepath);
 };
 
 #endif

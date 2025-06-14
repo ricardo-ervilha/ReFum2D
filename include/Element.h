@@ -26,12 +26,14 @@ class Element{
             this->nodes = nodes;
         };
         ~Element() {};
-        int getElementType()    {return this->elementType;};
-        vector<int>* getNodes() {return &this->nodes;};
-        void insertFace(int idFace) {this->facesIds.push_back(idFace);};
-        vector<int>* getFaceIds() {return &this->facesIds;};
-        void insertNormalSign(int normalSign) {this->normalSigns.push_back(normalSign);};
-        vector<int>* getNormalSigns() {return &this->normalSigns;};
+        
+        int get_element_type()    {return this->elementType;};
+        vector<int>* get_normal_sign() {return &this->normalSigns;};
+        vector<int>& get_nodes() {return this->nodes;};
+        vector<int>* get_face_ids() {return &this->facesIds;};
+        
+        void insert_face(int idFace) {this->facesIds.push_back(idFace);};
+        void insert_normal_sign(int normalSign) {this->normalSigns.push_back(normalSign);};
 };
 
 #endif
