@@ -120,10 +120,9 @@ void Mesh::read_mesh(string filepath){
     }
 
     this->offset = this->totalElements - this->ncells;
-    this->pre_processing();
 }
 
-void Mesh::pre_processing(){
+void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
     /*PRIMEIRA COISA: Computa o conjunto de todas as faces, e para cada célula, já guarda quais faces pertencem a ela.*/
     /*
     Estratégia: -iterar células
@@ -329,6 +328,7 @@ void Mesh::pre_processing(){
     int contBFaces = 0;
     vector<int> aux_link_face_to_bface(this->nfaces, -1);
     this->link_face_to_bface = aux_link_face_to_bface;
+    int contPG = 0;
     for(auto it = this->physicalGroups.begin(); it != this->physicalGroups.end() && it->second.get_dimension() != 2; ++it){ // para cada grupo físico
         vector<int>& elements = it->second.get_element_ids();
         for(int j = 0; j < elements.size(); j++){ // para cada id de elemento
@@ -339,9 +339,23 @@ void Mesh::pre_processing(){
             pair<int, int> faceToTest = make_pair(n1,n2);
             int key = this->facesPairToKey[faceToTest]; //retorna o índice GLOBAL dessa face
             this->link_bface_to_face.push_back(key);
+            
+            Node* v1 = this->get_node(n1);
+            Node* v2 = this->get_node(n2);
+            Node* middle = this->get_middle_face(key);
+            
+            double d1 = sqrt(pow(v1->get_x() - middle->get_x(), 2) + pow(v1->get_y() - middle->get_y(), 2));
+            double d2 = sqrt(pow(v2->get_x() - middle->get_x(), 2) + pow(v2->get_y() - middle->get_y(), 2));
+            double boundary1 = (*boundaries)[contPG]->apply(v1->get_x(), v1->get_y());
+            double boundary2 = (*boundaries)[contPG]->apply(v2->get_x(), v2->get_y());
+            double interpolation = (boundary1/d1 + boundary2/d2)/(1/d1 + 1/d2);
+            
+            this->phib.push_back(interpolation);
+            
             this->link_face_to_bface[key] = contBFaces;
             contBFaces++;
         }
+        contPG++;
     }
 
     this->nbfaces = contBFaces;

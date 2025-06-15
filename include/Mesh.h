@@ -12,6 +12,7 @@
 #include "PhysicalGroup.h"
 #include "Element.h"
 #include <utility>
+#include "BoundaryCondition.h"
 
 using namespace std;
 
@@ -69,6 +70,7 @@ class Mesh{
         int nbfaces; // registra quantidad etotal de faces de contorno
         vector<int> link_face_to_bface; //vetor que acompanha a indexação das faces, e em cada entrada correspondendo a id face global, diz qual id da bface, ou retorna -1 caso não seja boundary face.
         vector<int> link_bface_to_face; // vetor do tamanho de faces de contorno. Para cada indice do vetor, diz qual o indice global da boundary face.
+        vector<double> phib;
         unordered_map<pair<int,int>, int, CantorPairingFunction> facesPairToKey; // dado o par de chaves retorna o índice => útil na hora das faces de contorno
 
         /*Centroides*/
@@ -84,17 +86,17 @@ class Mesh{
         vector<Node> faceMiddlePoints; //armazena o ponto central das faces. 
 
         /*Funções privadas*/
-        void pre_processing(); //Calcula valores de diversas coisas que não foram feitos no readMesh
-
+        
         /*Calcula da projeção do vetor que une dois centroides na direção normal.*/
         vector<double> deltafs; // acompanha a indexação da face 
-
-    public:
+        
+        public:
         Mesh();
         ~Mesh();
-
+        
         // Função para ler os dados da malha .msh, passar o nome do arquivo e caminho até ele.
         void read_mesh(string filepath); 
+        void pre_processing(vector<BoundaryCondition*> *boundaries); //Calcula valores de diversas coisas que não foram feitos no readMesh
         
         void mesh_summary();
 
@@ -125,6 +127,8 @@ class Mesh{
         double get_volume(int id) {return this->volumes[id];};
         int get_num_nodes() {return this->nnodes;};
         int get_local_cell_id(int globalId)   {return globalId - this->offset;};
+        int get_num_faces() {return this->faces.size();};
+        double get_phib(int id) {return this->phib[id];};
 
         Element* get_cell(int id) {return &this->elements[id];};
         pair<int, int>& get_link_face_to_cell(int id) {return this->link_face_to_cell[id];};

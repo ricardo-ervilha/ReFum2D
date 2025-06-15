@@ -1,7 +1,8 @@
 #include "../include/FVMSolver.h"
 
-FVMSolver::FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition* right, BoundaryCondition* top, BoundaryCondition *left, double (*g)(double, double), double (*sourceTerm)(double, double)){
-    this->mesh = mesh;
+FVMSolver::FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition* right, BoundaryCondition* top, BoundaryCondition *left, double (*g)(double, double), double (*sourceTerm)(double, double)){
+    this->mesh = new Mesh();
+    mesh->read_mesh(filepath);
 
     /*Salva as condições usando a mesma orientação definida.*/
     this->boundaries.push_back(down);
@@ -9,17 +10,20 @@ FVMSolver::FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition* rig
     this->boundaries.push_back(top);
     this->boundaries.push_back(left);
 
+    mesh->pre_processing(&boundaries);
+
     this->gammafunc = g;
     this->sourcefunc = sourceTerm;
 
     int ncells = this->mesh->get_num_cells();
+    int nfaces = mesh->get_num_faces();
 
     /*Inicialização das EDs associadas a resolução do problema...*/
     this->A = vector<vector<double>>(ncells, vector<double>(ncells, 0)); // ncells x ncells : 0's
     this->b = vector<double>(ncells, 0); // 1 x n : 0's
     this->u = vector<double>(ncells, 0); // 1 x n: 0's
     this->source = vector<double>(ncells, 0); // 1 x n: 0's
-    this->gamma = vector<double>(ncells, 0); // 1 x n : 0's
+    this->gammaf = vector<double>(nfaces, 0); 
     this->skew = vector<double>(ncells, 0);
 
     // chama para fazer o pré-processamento
@@ -31,6 +35,8 @@ FVMSolver::~FVMSolver(){
 
 void FVMSolver::pre_processing(){
     int ncells = mesh->get_num_cells();
+    int nfaces = mesh->get_num_faces();
+
     int gcell;
     Element* cell;
     double source1, source2, source3;
@@ -48,15 +54,23 @@ void FVMSolver::pre_processing(){
         source2 = this->sourcefunc(n2->get_x(), n2->get_y());
         source3 = this->sourcefunc(n3->get_x(), n3->get_y());
 
-        gamma1 = this->gammafunc(n1->get_x(), n1->get_y());
-        gamma2 = this->gammafunc(n2->get_x(), n2->get_y());
-        gamma3 = this->gammafunc(n3->get_x(), n3->get_y());
-
         /*Interpolação das fontes é só usando uma média mesmo dos valores nos nós.*/
         this->source[i] = (source1 + source2 + source3) / 3;
+    }
 
-        /*Interpolação do gamma é só usando a média por enquanto.*/
-        this->gamma[i] = (gamma1 + gamma2 + gamma3) / 3;
+    for(int i = 0; i < nfaces; i++){
+        pair<int,int>& nodeIds = mesh->get_link_face_to_vertex(i);
+        Node* n1 = mesh->get_node(nodeIds.first);
+        Node* n2 = mesh->get_node(nodeIds.second);
+        Node* middle = mesh->get_middle_face(i);
+
+        double d1 = sqrt(pow(n1->get_x() - middle->get_x(), 2) + pow(n1->get_y() - middle->get_y(), 2));
+        double d2 = sqrt(pow(n2->get_x() - middle->get_x(), 2) + pow(n2->get_y() - middle->get_y(), 2));
+
+        double gamma1 = gammafunc(n1->get_x(), n1->get_y());
+        double gamma2 = gammafunc(n2->get_x(), n2->get_y());
+
+        this->gammaf[i] = (gamma1/d1 + gamma2/d2)/(1/d1 + 1/d2);
     }
 }
 
@@ -127,7 +141,7 @@ void FVMSolver::assembly_A(){
 
                 double deltab = lb1 * get<0>(normal) + lb2 * get<1>(normal);
 
-                A[i][i] += (gamma[i] * mesh->get_face_area(gface)) / deltab;
+                A[i][i] += (gammaf[gface] * mesh->get_face_area(gface)) / deltab;
             }else{
                 // Contribuição da face do interior
                 pair<int,int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
@@ -138,8 +152,8 @@ void FVMSolver::assembly_A(){
                 int nb = ic1 == gcell ? ic2 : ic1; //pegando o vizinho do gcell
                 int lnb = mesh->get_local_cell_id(nb);
 
-                A[i][i] += (gamma[i] * mesh->get_face_area(gface)) / mesh->get_deltaf(gface); // diagonal
-                A[i][lnb] = -(gamma[i] *  mesh->get_face_area(gface)) / this->mesh->get_deltaf(gface); // off-diagonal
+                A[i][i] += (gammaf[gface] * mesh->get_face_area(gface)) / mesh->get_deltaf(gface); // diagonal
+                A[i][lnb] = -(gammaf[gface] *  mesh->get_face_area(gface)) / this->mesh->get_deltaf(gface); // off-diagonal
             }
         }
     }
@@ -181,9 +195,32 @@ void FVMSolver::assembly_b(){
 
             double dot_tf_Lb = tf1 * Lb1 + tf2 * Lb2;
 
-            skew[i] += -(this->gamma[i] * dot_tf_Lb * (phiv(vaNode) - phiv(vbNode))) / mesh->get_deltaf(gface);
+            skew[i] += -(this->gammaf[gface] * dot_tf_Lb * (phiv(vaNode) - phiv(vbNode))) / mesh->get_deltaf(gface);
         }
         b[i] = skew[i] - source[i] * mesh->get_volume(i);
+    }
+    this->apply_boundaries();
+}
+
+void FVMSolver::apply_boundaries(){
+    int nbfaces = this->mesh->get_num_boundary_faces();
+    for(int i = 0; i < nbfaces; i++){ //PARA TODA FACE DE CONTORNO NUMERADA LOCALMENTE
+        int gface = this->mesh->get_link_bface_to_face(i); //PEGA A NUMERACAO GLOBAL
+        pair<int,int>& cell = this->mesh->get_link_face_to_cell(gface); //PEGA AS CELULAS QUE FAZEM INTERSEÇÃO NAQUELA FACE
+        int gcell = cell.first != -1 ? cell.first : cell.second;
+        int lcell = mesh->get_local_cell_id(gcell);
+
+        Node* centroid = mesh->get_centroid(lcell);
+        Node* middleFace = mesh->get_middle_face(gface);
+
+        double lb1 = middleFace->get_x() - centroid->get_x();
+        double lb2 = middleFace->get_y() - centroid->get_y();
+
+        tuple<double, double>& normal = mesh->get_normal(gface);
+
+        double deltab = lb1 * get<0>(normal) + lb2 * get<1>(normal);
+
+        b[lcell] += gammaf[gface] * mesh->get_face_area(gface) * mesh->get_phib(i) / deltab;
     }
 }
 
@@ -216,6 +253,7 @@ void FVMSolver::iterative_solver(double tol){
         }
         error = max_norm_diff(u, tmp);
         iter += 1;
+        cout << iter << endl;        
         if(iter % 250 == 0)
             cout << "Valor do erro: " << error << endl;
     }

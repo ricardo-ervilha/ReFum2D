@@ -20,7 +20,7 @@ class FVMSolver {
         vector<double> b;
         vector<double> u;
         vector<double> source; // pré-processa no FVMSolver os termos fontes das células.
-        vector<double> gamma; // pré-processa no FVMSolver os gammas das células;
+        vector<double> gammaf; // pré-processa no FVMSolver os gammas das faces;
         vector<double> skew; // relacionado a angulosidade da malha, computa a difusão cruzada.
 
         void pre_processing(); // Função para realizar o pré-processamento de gamma, source.
@@ -32,15 +32,15 @@ class FVMSolver {
         void print_vector(vector<double> *v);
     
     public:    
-        FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*sourceTerm)(double, double));
+        FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();
         
-
         void print_A() {this->print_matrix(&this->A);};
         void print_b() {this->print_vector(&this->b);};
 
         void assembly_A();
         void assembly_b();
+        void apply_boundaries();
 
         /*Resolve sem considerar a difusão cruzada...*/
         void iterative_solver(double tol);
