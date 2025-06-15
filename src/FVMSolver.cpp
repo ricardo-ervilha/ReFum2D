@@ -80,10 +80,13 @@ double FVMSolver::phiv(Node* n){
 
     double phiv = 0;
 
+    double sum = 0;
     for(int i = 0; i < distCentroids.size(); i++){
         int lcell = mesh->get_local_cell_id(idRelativeCentroids[i]);
-        phiv += distCentroids[i] * u[lcell];
+        phiv += (1/distCentroids[i]) * u[lcell];
+        sum += (1/distCentroids[i]);
     }
+    phiv = phiv/sum;
 
     return phiv;
 }
@@ -161,6 +164,8 @@ void FVMSolver::assembly_A(){
 
 void FVMSolver::assembly_b(){
     int ncells = mesh->get_num_cells();
+    b.assign(ncells, 0); //reseta
+    skew.assign(ncells, 0); //reseta
     for(int i = 0; i < ncells; i++){
         int gcell = mesh->get_global_cell_id(i);
         vector<int>& faceIds = mesh->get_cell(gcell)->get_face_ids();
@@ -195,9 +200,9 @@ void FVMSolver::assembly_b(){
 
             double dot_tf_Lb = tf1 * Lb1 + tf2 * Lb2;
 
-            skew[i] += -(this->gammaf[gface] * dot_tf_Lb * (phiv(vaNode) - phiv(vbNode))) / mesh->get_deltaf(gface);
+            skew[i] += (this->gammaf[gface] * dot_tf_Lb * (phiv(vaNode) - phiv(vbNode))) / mesh->get_deltaf(gface);
         }
-        b[i] = skew[i] - source[i] * mesh->get_volume(i);
+        b[i] = 0.15*skew[i] - source[i] * mesh->get_volume(i);
     }
     this->apply_boundaries();
 }
@@ -234,28 +239,35 @@ double FVMSolver::max_norm_diff(vector<double>& u1, vector<double>& u2){
 }
 
 void FVMSolver::iterative_solver(double tol){
-    double error = 1.0; 
-    int iter = 0;
+    double error; 
+    int iter;
     int ncells = this->mesh->get_num_cells();
     vector<double> tmp; // copia u para tmp
     double sum;
 
-    while(error > tol){
-        tmp = this->u;
+    for(int k=0; k < 1; k++){
+        
+        this->assembly_b(); //atualiza b com o skew
+        error = 1.0;
+        iter = 0;
 
-        for(int i = 0; i < ncells; i++){
-            sum = 0.0;
-            for(int j = 0; j < ncells; j++){
-                if (j != i)
-                    sum += A[i][j] * u[j];
-            }   
-            u[i] = (b[i] - sum) / A[i][i]; 
+        while(error > tol){
+            tmp = this->u;
+
+            for(int i = 0; i < ncells; i++){
+                sum = 0.0;
+                for(int j = 0; j < ncells; j++){
+                    if (j != i)
+                        sum += A[i][j] * u[j];
+                }   
+                u[i] = (b[i] - sum) / A[i][i]; 
+            }
+            error = max_norm_diff(u, tmp);
+            iter += 1;
+            cout << iter << endl;        
+            if(iter % 250 == 0)
+                cout << "Valor do erro: " << error << endl;
         }
-        error = max_norm_diff(u, tmp);
-        iter += 1;
-        cout << iter << endl;        
-        if(iter % 250 == 0)
-            cout << "Valor do erro: " << error << endl;
     }
 
     cout << endl;
