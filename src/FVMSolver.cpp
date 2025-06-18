@@ -19,12 +19,12 @@ FVMSolver::FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition
     int nfaces = mesh->get_num_faces();
 
     /*Inicialização das EDs associadas a resolução do problema...*/
-    this->A = vector<vector<double>>(ncells, vector<double>(ncells, 0)); // ncells x ncells : 0's
-    this->b = vector<double>(ncells, 0); // 1 x n : 0's
-    this->u = vector<double>(ncells, 0); // 1 x n: 0's
-    this->source = vector<double>(ncells, 0); // 1 x n: 0's
-    this->gammaf = vector<double>(nfaces, 0); 
-    this->skew = vector<double>(ncells, 0);
+    this->A = Eigen::MatrixXd(ncells, ncells); // ncells x ncells : 0's
+    this->b = Eigen::VectorXd(ncells); // 1 x n : 0's
+    this->u = Eigen::VectorXd(ncells); // 1 x n: 0's
+    this->source = Eigen::VectorXd(ncells); // 1 x n: 0's
+    this->gammaf = Eigen::VectorXd(nfaces); 
+    this->skew = Eigen::VectorXd(ncells);
 
     // chama para fazer o pré-processamento
     this->pre_processing();
@@ -42,20 +42,17 @@ void FVMSolver::pre_processing(){
     double source1, source2, source3;
     double gamma1, gamma2, gamma3;
     for(int i = 0; i < ncells; i++){ // itera pelos índices locais
-        gcell = mesh->get_global_cell_id(i);
-        cell = mesh->get_cell(gcell);
-        vector<int>& nodeIds = cell->get_nodes();
-
+        int gcell = mesh->get_global_cell_id(i);
+        vector<int>& nodeIds = mesh->get_cell(gcell)->get_nodes();
         Node* n1 = mesh->get_node(nodeIds[0]);
         Node* n2 = mesh->get_node(nodeIds[1]);
         Node* n3 = mesh->get_node(nodeIds[2]);
 
-        source1 = this->sourcefunc(n1->get_x(), n1->get_y());
-        source2 = this->sourcefunc(n2->get_x(), n2->get_y());
-        source3 = this->sourcefunc(n3->get_x(), n3->get_y());
+        double s1 = this->sourcefunc(n1->get_x(), n1->get_y());
+        double s2 = this->sourcefunc(n2->get_x(), n2->get_y());
+        double s3 = this->sourcefunc(n3->get_x(), n3->get_y());
 
-        /*Interpolação das fontes é só usando uma média mesmo dos valores nos nós.*/
-        this->source[i] = (source1 + source2 + source3) / 3;
+        this->source[i] = (s1+s2+s3)/3.0;
     }
 
     for(int i = 0; i < nfaces; i++){
@@ -98,7 +95,7 @@ void FVMSolver::print_matrix(vector<vector<double>> *m){
         cout << " [";
         for (int j = 0; j < n; j++)
         {
-            cout << setw(8) << fixed << setprecision(3) << mat[i][j];
+            cout << setw(8) << fixed << setprecision(8) << mat[i][j];
             if (j < n - 1)
                 cout << ", ";
         }
@@ -113,7 +110,7 @@ void FVMSolver::print_vector(vector<double> *v){
     int n = vet.size();
     
     for(int i = 0; i < n; i++){
-        cout << setw(8) << fixed << setprecision(3) << vet[i];
+        cout << setw(8) << fixed << setprecision(8) << vet[i];
         if (i < n - 1)
                 cout << ", ";
     }
@@ -141,7 +138,7 @@ void FVMSolver::assembly_A(){
 
                 double deltab = lb1 * get<0>(normal) + lb2 * get<1>(normal);
 
-                A[i][i] += (gammaf[gface] * mesh->get_face_area(gface)) / deltab;
+                A(i,i) += (gammaf[gface] * mesh->get_face_area(gface)) / deltab;
             }else{
                 // Contribuição da face do interior
                 pair<int,int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
@@ -152,8 +149,8 @@ void FVMSolver::assembly_A(){
                 int nb = ic1 == gcell ? ic2 : ic1; //pegando o vizinho do gcell
                 int lnb = mesh->get_local_cell_id(nb);
 
-                A[i][i] += (gammaf[gface] * mesh->get_face_area(gface)) / mesh->get_deltaf(gface); // diagonal
-                A[i][lnb] = -(gammaf[gface] *  mesh->get_face_area(gface)) / this->mesh->get_deltaf(gface); // off-diagonal
+                A(i,i) += (gammaf[gface] * mesh->get_face_area(gface)) / mesh->get_deltaf(gface); // diagonal
+                A(i, lnb) = -(gammaf[gface] *  mesh->get_face_area(gface)) / this->mesh->get_deltaf(gface); // off-diagonal
             }
         }
     }
@@ -163,41 +160,42 @@ void FVMSolver::assembly_b(){
     int ncells = mesh->get_num_cells();
     for(int i = 0; i < ncells; i++){
         int gcell = mesh->get_global_cell_id(i);
-        vector<int>& faceIds = mesh->get_cell(gcell)->get_face_ids();
-        for(int j = 0; j < faceIds.size(); j++){
-            int gface = faceIds[j];
+        // vector<int>& faceIds = mesh->get_cell(gcell)->get_face_ids();
+        // for(int j = 0; j < faceIds.size(); j++){
+        //     int gface = faceIds[j];
             
-            if(mesh->get_link_face_to_bface(gface) != -1) // face de contorno
-                continue; // não faz nada
+        //     if(mesh->get_link_face_to_bface(gface) != -1) // face de contorno
+        //         continue; // não faz nada
 
-            /*Parte do skew... (REVER ISSO DEPOIS), pois por enquanto está tudo zerado e não atualiza.*/
-            pair<int, int>& idNodes = mesh->get_link_face_to_vertex(gface);
-            int va = idNodes.first;
-            int vb = idNodes.second;
+        //     /*Parte do skew... (REVER ISSO DEPOIS), pois por enquanto está tudo zerado e não atualiza.*/
+        //     pair<int, int>& idNodes = mesh->get_link_face_to_vertex(gface);
+        //     int va = idNodes.first;
+        //     int vb = idNodes.second;
 
-            pair<int, int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
-            int ic1 = idCellsShareFace.first; 
-            int ic2 = idCellsShareFace.second;
+        //     pair<int, int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
+        //     int ic1 = idCellsShareFace.first; 
+        //     int ic2 = idCellsShareFace.second;
             
-            Node* centroid1 = this->mesh->get_centroid(mesh->get_local_cell_id(ic1));
-            Node* centroid2 = this->mesh->get_centroid(mesh->get_local_cell_id(ic2));
+        //     Node* centroid1 = this->mesh->get_centroid(mesh->get_local_cell_id(ic1));
+        //     Node* centroid2 = this->mesh->get_centroid(mesh->get_local_cell_id(ic2));
 
-            // calcula vetor Lb
-            double Lb1 = centroid2->get_x() - centroid1->get_x();
-            double Lb2 = centroid2->get_y() - centroid1->get_y();
+        //     // calcula vetor Lb
+        //     double Lb1 = centroid2->get_x() - centroid1->get_x();
+        //     double Lb2 = centroid2->get_y() - centroid1->get_y();
 
-            Node* vaNode = mesh->get_node(va);
-            Node* vbNode = mesh->get_node(vb);
+        //     Node* vaNode = mesh->get_node(va);
+        //     Node* vbNode = mesh->get_node(vb);
 
-            // calcula vetor tangente a face (unitária)
-            double tf1 = (vaNode->get_x() - vbNode->get_x()) / this->mesh->get_face_area(gface);
-            double tf2 = (vaNode->get_y() - vbNode->get_y()) / this->mesh->get_face_area(gface);
+        //     // calcula vetor tangente a face (unitária)
+        //     double tf1 = (vaNode->get_x() - vbNode->get_x()) / this->mesh->get_face_area(gface);
+        //     double tf2 = (vaNode->get_y() - vbNode->get_y()) / this->mesh->get_face_area(gface);
 
-            double dot_tf_Lb = tf1 * Lb1 + tf2 * Lb2;
+        //     double dot_tf_Lb = tf1 * Lb1 + tf2 * Lb2;
 
-            skew[i] += -(this->gammaf[gface] * dot_tf_Lb * (phiv(vaNode) - phiv(vbNode))) / mesh->get_deltaf(gface);
-        }
-        b[i] = skew[i] - source[i] * mesh->get_volume(i);
+        //     skew[i] += -(this->gammaf[gface] * dot_tf_Lb * (phiv(vaNode) - phiv(vbNode))) / mesh->get_deltaf(gface);
+        // }
+        cout << "[" << i << "] - Source: " << source[i] << " Volume: " << mesh->get_volume(i) << endl;
+        b[i] = - source[i] * mesh->get_volume(i);
     }
     this->apply_boundaries();
 }
@@ -234,44 +232,36 @@ double FVMSolver::max_norm_diff(vector<double>& u1, vector<double>& u2){
 }
 
 void FVMSolver::iterative_solver(double tol){
-    double error = 1.0; 
-    int iter = 0;
-    int ncells = this->mesh->get_num_cells();
-    vector<double> tmp; // copia u para tmp
-    double sum;
+    cout << "Simetrica: " <<  A.isApprox(A.transpose()) << endl;
+    u = A.colPivHouseholderQr().solve(b);
+    std::cout.precision(8);
+    std::cout << std::fixed;
 
-    while(error > tol){
-        tmp = this->u;
-
-        for(int i = 0; i < ncells; i++){
-            sum = 0.0;
-            for(int j = 0; j < ncells; j++){
-                if (j != i)
-                    sum += A[i][j] * u[j];
-            }   
-            u[i] = (b[i] - sum) / A[i][i]; 
-        }
-        error = max_norm_diff(u, tmp);
-        iter += 1;
-        cout << iter << endl;        
-        if(iter % 250 == 0)
-            cout << "Valor do erro: " << error << endl;
-    }
-
-    cout << endl;
-    cout << "Vetor solução:\n";
-    this->print_vector(&this->u);
+    // Imprima a solução x
+    cout << "Determinante: " << A.determinant() << endl;
+    std::cout << "A solucao u é:" << std::endl;
+    std::cout << u << std::endl;
 }
 
 double FVMSolver::compute_error(double (*exact)(double, double)){
-    int ncells = mesh->get_num_cells();
-    vector<Node>& centroids = mesh->get_centroids();
-    vector<double> exact_solution(ncells, 0);
-    for(int i = 0; i < ncells; i++){
-        exact_solution[i] = exact(centroids[i].get_x(), centroids[i].get_y());
-    }
+    Eigen::VectorXd exact_vect(mesh->get_num_cells());
+    for(int i = 0; i < mesh->get_num_cells(); i++){
+        int gcell = mesh->get_global_cell_id(i);
+        vector<int>& nodeIds = mesh->get_cell(gcell)->get_nodes();
+        Node* n1 = mesh->get_node(nodeIds[0]);
+        Node* n2 = mesh->get_node(nodeIds[1]);
+        Node* n3 = mesh->get_node(nodeIds[2]);
+        double e1 = exact(n1->get_x(), n1->get_y());
+        double e2 = exact(n2->get_x(), n2->get_y());
+        double e3 = exact(n3->get_x(), n3->get_y());
 
-    return this->max_norm_diff(this->u, exact_solution);
+        exact_vect[i] = (e1 + e2 + e3)/3.0;
+    }
+    double max_diff = 0.0;
+    for (int i = 0; i < u.size(); ++i) {
+        max_diff = max(max_diff, fabs(u[i] - exact_vect[i]));
+    }
+    return max_diff;
 }
 
 void FVMSolver::save_solution(string filename){
@@ -321,4 +311,13 @@ void FVMSolver::save_solution(string filename){
     }
 
     vtk_file.close();
+}
+
+bool FVMSolver::is_simetric(){
+    for(int i = 0, j = this->u.size() - 1; i < j; i++, j--)
+    {
+        if(u[i] - u[j] > 1e-2)
+            return false;
+    }
+    return true;
 }

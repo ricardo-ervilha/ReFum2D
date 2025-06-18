@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <fstream>
 #include <filesystem>
+#include "../eigen-3.4.0/Eigen/Dense"
 
 class FVMSolver {
     private:
@@ -16,12 +17,12 @@ class FVMSolver {
         vector<BoundaryCondition*> boundaries;
 
         // Estruturas de dados relacionadas a montagem e solução do problema.
-        vector<vector<double>> A;
-        vector<double> b;
-        vector<double> u;
-        vector<double> source; // pré-processa no FVMSolver os termos fontes das células.
-        vector<double> gammaf; // pré-processa no FVMSolver os gammas das faces;
-        vector<double> skew; // relacionado a angulosidade da malha, computa a difusão cruzada.
+        Eigen::MatrixXd A;
+        Eigen::VectorXd b;
+        Eigen::VectorXd u;
+        Eigen::VectorXd source; // pré-processa no FVMSolver os termos fontes das células.
+        Eigen::VectorXd gammaf; // pré-processa no FVMSolver os gammas das faces;
+        Eigen::VectorXd skew; // relacionado a angulosidade da malha, computa a difusão cruzada.
 
         void pre_processing(); // Função para realizar o pré-processamento de gamma, source.
         
@@ -35,8 +36,9 @@ class FVMSolver {
         FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();
         
-        void print_A() {this->print_matrix(&this->A);};
-        void print_b() {this->print_vector(&this->b);};
+        void print_A() { cout << A << endl;};
+        void print_b() { cout << b << endl;};
+        void print_Q() { cout << source << endl;};
 
         void assembly_A();
         void assembly_b();
@@ -48,7 +50,10 @@ class FVMSolver {
         // recebe o caminho e nome do arquivo
         void save_solution(string filepath);
 
+        void summary() {this->mesh->mesh_summary();};
+
         double compute_error(double (*exact)(double, double));
+        bool is_simetric();
 };
 
 #endif

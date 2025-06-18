@@ -193,8 +193,7 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
         Node n1 = this->nodes[n1Id];
         Node n2 = this->nodes[n2Id];
 
-        // calcula área da face
-        double A_f = sqrt(pow(n1.get_x() - n2.get_x(), 2) + pow(n1.get_y() - n2.get_y(), 2) + pow(n1.get_z() - n2.get_z(), 2)); 
+        double A_f = hypot(n1.get_x() - n2.get_x(), n1.get_y() - n2.get_y());
 
         this->faceAreas.push_back(A_f);
 
@@ -272,20 +271,33 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
     for(int i = 0; i < this->ncells; i++){ // PARA CADA CÉLULA
         int cellId = this->cells[i]; //conversão do loop index para cell index
         Element& cell = this->elements[cellId]; //recupera célula
-        double volume = 0;
-        vector<int>& faceIds = cell.get_face_ids(); 
-        vector<int>& normalSigns = cell.get_normal_sign();
-        for(int j = 0; j < faceIds.size(); j++){ //PARA CADA FACE DA CÉLULA
-            int gface = faceIds[j];
-            //equação 7.39
-            volume += get<0>(this->normals[gface]) * normalSigns[j] * this->faceMiddlePoints[gface].get_x() * this->faceAreas[gface];
-        }
+        vector<int>& nodeIds = this->elements[cellId].get_nodes();
+        Node& n1 = this->nodes[nodeIds[0]];
+        Node& n2 = this->nodes[nodeIds[1]];
+        Node& n3 = this->nodes[nodeIds[2]];
+        double x1 = n1.get_x();
+        double y1 = n1.get_y();
+        double x2 = n2.get_x();
+        double y2 = n2.get_y();
+        double x3 = n3.get_x();
+        double y3 = n3.get_y();
+
+        double xc = (x1 + x2 + x3) / 3.0;
+        double yc = (y1 + y2 + y3) / 3.0;
+
+        x1 -= xc; x2 -= xc; x3 -= xc;
+        y1 -= yc; y2 -= yc; y3 -= yc;
+
+        double volume = 0.5 * std::abs(
+                        x1 * (y2 - y3) +
+                        x2 * (y3 - y1) +
+                        x3 * (y1 - y2));
         this->volumes.push_back(volume);
     }
 
     /*Calculando o df*/
     int offset = this->totalElements - this->ncells;
-    // cout << offset << endl;
+
     for(int i = 0; i < this->nfaces; i++){ // PARA CADA FACE
         pair<int,int> cells = this->link_face_to_cell[i];
         int cell1 = cells.first - offset; //ids globais 
@@ -348,7 +360,7 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
             double d2 = sqrt(pow(v2->get_x() - middle->get_x(), 2) + pow(v2->get_y() - middle->get_y(), 2));
             double boundary1 = (*boundaries)[contPG]->apply(v1->get_x(), v1->get_y());
             double boundary2 = (*boundaries)[contPG]->apply(v2->get_x(), v2->get_y());
-            double interpolation = (boundary1/d1 + boundary2/d2)/(1/d1 + 1/d2);
+            double interpolation = (boundary1*d2 + boundary2*d1)/(d1+d2);
             
             this->phib.push_back(interpolation);
             
@@ -526,16 +538,16 @@ void Mesh::mesh_summary(){
     print_info_geral();
     print_info_nodes();
     print_info_elements();
-    print_info_physical_groups();
+    // print_info_physical_groups();
     print_info_cells();
     print_info_faces();
     print_info_centroids();
-    print_info_link_face_to_cell();
-    print_info_normal_signs();
-    print_info_normal_values();
+    // print_info_link_face_to_cell();
+    // print_info_normal_signs();
+    // print_info_normal_values();
     print_info_volumes();
-    print_info_link_face_to_bface();
-    print_info_link_bface_to_face();
+    // print_info_link_face_to_bface();
+    // print_info_link_bface_to_face();
     print_deltafs();
     print_info_distance_node_to_centroids();
 }

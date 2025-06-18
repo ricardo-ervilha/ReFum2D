@@ -13,6 +13,7 @@
 #include "Element.h"
 #include <utility>
 #include "BoundaryCondition.h"
+#include "../eigen-3.4.0/Eigen/Dense"
 
 using namespace std;
 
