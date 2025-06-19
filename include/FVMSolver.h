@@ -45,7 +45,7 @@ class FVMSolver {
         void apply_boundaries();
 
         /*Resolve sem considerar a difusão cruzada...*/
-        void iterative_solver(double tol);
+        void iterative_solver();
 
         // recebe o caminho e nome do arquivo
         void save_solution(string filepath);

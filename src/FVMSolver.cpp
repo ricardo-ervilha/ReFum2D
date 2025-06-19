@@ -44,15 +44,13 @@ void FVMSolver::pre_processing(){
     for(int i = 0; i < ncells; i++){ // itera pelos índices locais
         int gcell = mesh->get_global_cell_id(i);
         vector<int>& nodeIds = mesh->get_cell(gcell)->get_nodes();
-        Node* n1 = mesh->get_node(nodeIds[0]);
-        Node* n2 = mesh->get_node(nodeIds[1]);
-        Node* n3 = mesh->get_node(nodeIds[2]);
+        double s;
+        for(int j = 0; j < nodeIds.size(); j++){
+            Node* n = mesh->get_node(nodeIds[j]);
+            s += this->sourcefunc(n->get_x(), n->get_y());
+        }
 
-        double s1 = this->sourcefunc(n1->get_x(), n1->get_y());
-        double s2 = this->sourcefunc(n2->get_x(), n2->get_y());
-        double s3 = this->sourcefunc(n3->get_x(), n3->get_y());
-
-        this->source[i] = (s1+s2+s3)/3.0;
+        this->source[i] = s/3.0;
     }
 
     for(int i = 0; i < nfaces; i++){
@@ -231,7 +229,7 @@ double FVMSolver::max_norm_diff(vector<double>& u1, vector<double>& u2){
     return max_diff;
 }
 
-void FVMSolver::iterative_solver(double tol){
+void FVMSolver::iterative_solver(){
     cout << "Simetrica: " <<  A.isApprox(A.transpose()) << endl;
     u = A.colPivHouseholderQr().solve(b);
     std::cout.precision(8);

@@ -141,23 +141,17 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
     unordered_map<pair<int,int>, int, CantorPairingFunction> facesUM; //para recuperar o índice dos elementos já inseridos
     
     int qtdFaces = 0;
-    
     for(int i = 0; i < this->ncells; i++){
         int idCell = this->cells[i]; //converte id do loop para id da célula
         Element& cell = this->elements[idCell]; //recupera a celula como Element
 
         vector<int>& nodeIds = cell.get_nodes(); //obtém o id dos nodes dessa célula
 
-        /*separa o id dos três nós que compõem o triângulo. Pela leitura do gmsh, a->b b->c e c->a já estão no sentido anti-horário*/
-        int a =  nodeIds[0];
-        int b =  nodeIds[1];
-        int c =  nodeIds[2];
-
-        Edge ab(a, b);
-        Edge bc(b, c);
-        Edge ca(c, a);
-
-        vector<Edge> facesToIterate = {ab, bc, ca};
+        /*separa o id dos nós que compõem o polígono. Pela leitura do gmsh, a->b b->c, c->d, ... já estão no sentido anti-horário*/
+        vector<Edge> facesToIterate;
+        for(int j = 1; j < nodeIds.size(); j++)
+            facesToIterate.push_back(Edge(nodeIds[j-1], nodeIds[j]));
+        facesToIterate.push_back(Edge(nodeIds[nodeIds.size()-1], nodeIds[0]));
 
         for (const Edge& face : facesToIterate) {
             pair<int,int> key = face.asKey(); // chave ordenada
@@ -223,13 +217,16 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
         Element& cell = this->elements[idCell];
         vector<int>& nodesFromTheCell = cell.get_nodes();
 
-        Node& n1 = this->nodes[nodesFromTheCell[0]]; 
-        Node& n2 = this->nodes[nodesFromTheCell[1]]; 
-        Node& n3 = this->nodes[nodesFromTheCell[2]]; 
-
-        double xc = (n1.get_x() + n2.get_x() + n3.get_x())/3.0;
-        double yc = (n1.get_y() + n2.get_y() + n3.get_y())/3.0;
-        double zc = (n1.get_z() + n2.get_z() + n3.get_z())/3.0;
+        double xc, yc, zc;
+        for(int j = 0; j < nodesFromTheCell.size(); j++){
+            Node& n = this->nodes[nodesFromTheCell[j]]; // recupera o nó do polígono 
+            xc += n.get_x();
+            yc += n.get_y();
+            zc += n.get_z();
+        }
+        xc = xc / nodesFromTheCell.size();
+        yc = yc / nodesFromTheCell.size();
+        zc = zc / nodesFromTheCell.size();
 
         Node nc = Node(xc, yc, zc);
         this->centroids.push_back(nc);
@@ -268,30 +265,18 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
         }
     }
 
+    /*Cálculo do volume das células...*/
     for(int i = 0; i < this->ncells; i++){ // PARA CADA CÉLULA
         int cellId = this->cells[i]; //conversão do loop index para cell index
         Element& cell = this->elements[cellId]; //recupera célula
-        vector<int>& nodeIds = this->elements[cellId].get_nodes();
-        Node& n1 = this->nodes[nodeIds[0]];
-        Node& n2 = this->nodes[nodeIds[1]];
-        Node& n3 = this->nodes[nodeIds[2]];
-        double x1 = n1.get_x();
-        double y1 = n1.get_y();
-        double x2 = n2.get_x();
-        double y2 = n2.get_y();
-        double x3 = n3.get_x();
-        double y3 = n3.get_y();
-
-        double xc = (x1 + x2 + x3) / 3.0;
-        double yc = (y1 + y2 + y3) / 3.0;
-
-        x1 -= xc; x2 -= xc; x3 -= xc;
-        y1 -= yc; y2 -= yc; y3 -= yc;
-
-        double volume = 0.5 * std::abs(
-                        x1 * (y2 - y3) +
-                        x2 * (y3 - y1) +
-                        x3 * (y1 - y2));
+        double volume = 0;
+        vector<int>& faceIds = cell.get_face_ids(); 
+        vector<int>& normalSigns = cell.get_normal_sign();
+        for(int j = 0; j < faceIds.size(); j++){ //PARA CADA FACE DA CÉLULA
+            int gface = faceIds[j];
+            //equação 7.39
+            volume += get<0>(this->normals[gface]) * normalSigns[j] * this->faceMiddlePoints[gface].get_x() * this->faceAreas[gface];
+        }
         this->volumes.push_back(volume);
     }
 
@@ -310,7 +295,7 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
             //calculando vetor If
             double Ifx = c2->get_x() - c1->get_x();
             double Ify = c2->get_y() - c1->get_y();
-            // cout << Ifx << " " << Ify << endl;
+            
             tuple<double, double> normal = this->normals[i]; //obtém as componentes da normal daquela face
 
             double df = Ifx * get<0>(normal) + Ify * get<1>(normal);
@@ -538,16 +523,16 @@ void Mesh::mesh_summary(){
     print_info_geral();
     print_info_nodes();
     print_info_elements();
-    // print_info_physical_groups();
+    print_info_physical_groups();
     print_info_cells();
     print_info_faces();
     print_info_centroids();
-    // print_info_link_face_to_cell();
-    // print_info_normal_signs();
-    // print_info_normal_values();
+    print_info_link_face_to_cell();
+    print_info_normal_signs();
+    print_info_normal_values();
     print_info_volumes();
-    // print_info_link_face_to_bface();
-    // print_info_link_bface_to_face();
+    print_info_link_face_to_bface();
+    print_info_link_bface_to_face();
     print_deltafs();
     print_info_distance_node_to_centroids();
 }

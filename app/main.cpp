@@ -33,6 +33,7 @@ double Q(double x, double y){
 /*==================================================================================================================*/
 double exact_solution(double x, double y){
     return 100*x*(1-x)*y*(1-y); //PROBLEMA 1
+    // return sin(M_PI * x) * sinh(M_PI * y);
 }
 
 int main(void){
@@ -42,16 +43,17 @@ int main(void){
     BoundaryCondition left = BoundaryCondition("Dirichlet", DirichletLeft);    
     
     // /*Aplicação das condições de contorno: passar sempre em sentido anti-horário a partir do down.*/
-    FVMSolver* solver = new FVMSolver("../inputs/6x6.msh", &down, &right, &top, &left, Gamma, Q);
+    FVMSolver* solver = new FVMSolver("../inputs/quad3x3.msh", &down, &right, &top, &left, Gamma, Q);
     solver->summary();
+
+    /*Solução...*/
     solver->assembly_A();
-    solver->assembly_b();
     solver->print_A();
+    solver->assembly_b();
     solver->print_b();
 
-    double tolerance = 1e-4;
-    solver->iterative_solver(tolerance);
+    solver->iterative_solver();
     solver->save_solution("../outputs/result.vtk");
-    cout << endl;
-    cout << "ERRO: " << solver->compute_error(exact_solution) << endl;
+    // cout << endl;
+    // cout << "ERRO: " << solver->compute_error(exact_solution) << endl;
 }
