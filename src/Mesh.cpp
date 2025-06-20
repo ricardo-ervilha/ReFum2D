@@ -297,13 +297,8 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
             Node* c1 = &this->centroids[cell1]; // centroid da célula 1
             Node* c2 = &this->centroids[cell2]; // centroid da célula 2
             
-            //calculando vetor If
-            double Ifx = c2->get_x() - c1->get_x();
-            double Ify = c2->get_y() - c1->get_y();
-            
-            tuple<double, double> normal = this->normals[i]; //obtém as componentes da normal daquela face
-
-            double df = Ifx * get<0>(normal) + Ify * get<1>(normal);
+            /*calcula a distancia unindo o centro das duas celulas que compartilham aquela face.*/
+            double df = sqrt(pow(c2->get_x() - c1->get_x(), 2) + pow(c2->get_y() - c1->get_y(), 2));
             this->deltafs.push_back(df);
         }else{
             this->deltafs.push_back(-1);

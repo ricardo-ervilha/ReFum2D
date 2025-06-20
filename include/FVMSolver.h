@@ -25,10 +25,7 @@ class FVMSolver {
         Eigen::VectorXd skew; // relacionado a angulosidade da malha, computa a difusão cruzada.
 
         void pre_processing(); // Função para realizar o pré-processamento de gamma, source.
-        
-        double phiv(Node* n); // Função auxiliar para calcular o valor de phi nos nós.
 
-        double max_norm_diff(vector<double>& u1, vector<double>& u2);
         void print_matrix(vector<vector<double>>* m);
         void print_vector(vector<double> *v);
     
@@ -45,7 +42,7 @@ class FVMSolver {
         void apply_boundaries();
 
         /*Resolve sem considerar a difusão cruzada...*/
-        void iterative_solver();
+        void solve_system();
 
         // recebe o caminho e nome do arquivo
         void save_solution(string filepath);

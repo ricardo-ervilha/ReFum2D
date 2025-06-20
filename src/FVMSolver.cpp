@@ -70,20 +70,6 @@ void FVMSolver::pre_processing(){
     }
 }
 
-double FVMSolver::phiv(Node* n){
-    vector<double>& distCentroids = n->get_distance_centroids();
-    vector<int>& idRelativeCentroids = n->get_id_relative_to_centroids();
-
-    double phiv = 0;
-
-    for(int i = 0; i < distCentroids.size(); i++){
-        int lcell = mesh->get_local_cell_id(idRelativeCentroids[i]);
-        phiv += distCentroids[i] * u[lcell];
-    }
-
-    return phiv;
-}
-
 void FVMSolver::print_matrix(vector<vector<double>> *m){
     auto& mat = *m;
     int n = mat.size();
@@ -121,7 +107,7 @@ void FVMSolver::assembly_A(){
     for(int i = 0; i < ncells; i++){
         int gcell = mesh->get_global_cell_id(i); 
         vector<int>& faceIds = mesh->get_cell(gcell)->get_face_ids();
-        
+        vector<int>& normalSigns = mesh->get_cell(gcell)->get_normal_sign();
         for(int j = 0; j < faceIds.size(); j++){
             int gface = faceIds[j];
 
@@ -129,17 +115,33 @@ void FVMSolver::assembly_A(){
                 // Contribuição da face de contorno
                 Node* centroid = mesh->get_centroid(i);
                 Node* middleFace = mesh->get_middle_face(gface);
-
-                double lb1 = middleFace->get_x() - centroid->get_x();
-                double lb2 = middleFace->get_y() - centroid->get_y();
-
+                
+                /*cálculo da n1*/
                 tuple<double, double>& normal = mesh->get_normal(gface);
+                
+                //correção do sinal da normal para apontar para fora de P corretamente.
+                get<0>(normal) *= normalSigns[j];
+                get<1>(normal) *= normalSigns[j];
+                
+                double dpnx = middleFace->get_x() - centroid->get_x(); 
+                double dpny = middleFace->get_y() - centroid->get_y();
 
-                double deltab = lb1 * get<0>(normal) + lb2 * get<1>(normal);
+                double normnfsquare = get<0>(normal)*get<0>(normal) + get<1>(normal)*get<1>(normal);
+                
+                double nfdotdpn = get<0>(normal)*dpnx + get<1>(normal)*dpny;
+                
+                double n1x = dpnx * (normnfsquare/nfdotdpn);
+                double n1y = dpny * (normnfsquare/nfdotdpn);
 
-                A(i,i) += (gammaf[gface] * mesh->get_face_area(gface)) / deltab;
+                double normn1 = n1x*n1x + n1y*n1y;
+                /*fim cálculo da n1*/
+
+                // distância entre o centroide de P e a face de contorno.
+                double deltab = sqrt(pow(centroid->get_x() - middleFace->get_x(), 2) + pow(centroid->get_y() - middleFace->get_y(), 2));
+
+                A(i,i) -= (gammaf[gface] * mesh->get_face_area(gface) * normn1) / deltab;
             }else{
-                // Contribuição da face do interior
+                // Contribuição de uma face que NÃO é face de contorno.
                 pair<int,int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
                 
                 int ic1 = idCellsShareFace.first; 
@@ -147,9 +149,30 @@ void FVMSolver::assembly_A(){
                 
                 int nb = ic1 == gcell ? ic2 : ic1; //pegando o vizinho do gcell
                 int lnb = mesh->get_local_cell_id(nb);
+                
+                /*cálculo de |n1|*/
+                Node *centroidP = mesh->get_centroid(i);
+                Node *centroidN = mesh->get_centroid(lnb);
+                tuple<double, double>& normal = mesh->get_normal(gface);
+                
+                //correção do sinal da normal para apontar para fora de P corretamente.
+                get<0>(normal) *= normalSigns[j];
+                get<1>(normal) *= normalSigns[j];
 
-                A(i,i) += (gammaf[gface] * mesh->get_face_area(gface)) / mesh->get_deltaf(gface); // diagonal
-                A(i, lnb) = -(gammaf[gface] *  mesh->get_face_area(gface)) / this->mesh->get_deltaf(gface); // off-diagonal
+                double dpnx = centroidN->get_x() - centroidP->get_x();
+                double dpny = centroidN->get_y() - centroidP->get_y();
+                
+                double normnfsquare = get<0>(normal)*get<0>(normal) + get<1>(normal)*get<1>(normal);
+                double nfdotdpn = get<0>(normal)*dpnx + get<1>(normal)*dpny;
+                
+                double n1x = dpnx * (normnfsquare/nfdotdpn);
+                double n1y = dpny * (normnfsquare/nfdotdpn);
+
+                double normn1 = n1x*n1x + n1y*n1y;
+                /*fim do cálculo de |n1|*/
+
+                A(i,i) -= (gammaf[gface] * mesh->get_face_area(gface) * normn1) / mesh->get_deltaf(gface); // diagonal
+                A(i, lnb) = (gammaf[gface] *  mesh->get_face_area(gface) * normn1) / this->mesh->get_deltaf(gface); // off-diagonal
             }
         }
     }
@@ -159,41 +182,8 @@ void FVMSolver::assembly_b(){
     int ncells = mesh->get_num_cells();
     for(int i = 0; i < ncells; i++){
         int gcell = mesh->get_global_cell_id(i);
-        // vector<int>& faceIds = mesh->get_cell(gcell)->get_face_ids();
-        // for(int j = 0; j < faceIds.size(); j++){
-        //     int gface = faceIds[j];
-            
-        //     if(mesh->get_link_face_to_bface(gface) != -1) // face de contorno
-        //         continue; // não faz nada
-
-        //     /*Parte do skew... (REVER ISSO DEPOIS), pois por enquanto está tudo zerado e não atualiza.*/
-        //     pair<int, int>& idNodes = mesh->get_link_face_to_vertex(gface);
-        //     int va = idNodes.first;
-        //     int vb = idNodes.second;
-
-        //     pair<int, int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
-        //     int ic1 = idCellsShareFace.first; 
-        //     int ic2 = idCellsShareFace.second;
-            
-        //     Node* centroid1 = this->mesh->get_centroid(mesh->get_local_cell_id(ic1));
-        //     Node* centroid2 = this->mesh->get_centroid(mesh->get_local_cell_id(ic2));
-
-        //     // calcula vetor Lb
-        //     double Lb1 = centroid2->get_x() - centroid1->get_x();
-        //     double Lb2 = centroid2->get_y() - centroid1->get_y();
-
-        //     Node* vaNode = mesh->get_node(va);
-        //     Node* vbNode = mesh->get_node(vb);
-
-        //     // calcula vetor tangente a face (unitária)
-        //     double tf1 = (vaNode->get_x() - vbNode->get_x()) / this->mesh->get_face_area(gface);
-        //     double tf2 = (vaNode->get_y() - vbNode->get_y()) / this->mesh->get_face_area(gface);
-
-        //     double dot_tf_Lb = tf1 * Lb1 + tf2 * Lb2;
-
-        //     skew[i] += -(this->gammaf[gface] * dot_tf_Lb * (phiv(vaNode) - phiv(vbNode))) / mesh->get_deltaf(gface);
-        // }
-        b[i] = - source[i] * mesh->get_volume(i);
+        
+        b[i] = source[i] * mesh->get_volume(i);
     }
     this->apply_boundaries();
 }
@@ -220,21 +210,14 @@ void FVMSolver::apply_boundaries(){
     }
 }
 
-/*Computa a norma infinito da diferença entre dois vetores u1 e u2*/
-double FVMSolver::max_norm_diff(vector<double>& u1, vector<double>& u2){
-    double max_diff = 0.0;
-    for (int i = 0; i < u1.size(); ++i) {
-        max_diff = max(max_diff, fabs(u1[i] - u2[i]));
-    }
-    return max_diff;
-}
-
-void FVMSolver::iterative_solver(){
+void FVMSolver::solve_system(){
     Eigen::LDLT<Eigen::MatrixXd> ldlt(A);
+
     if(ldlt.info() != Eigen::Success) {
         std::cerr << "Erro na decomposição LDLT!" << std::endl;
         exit(-1);
     }
+
     this->u = ldlt.solve(b);
 
     if(ldlt.info() != Eigen::Success) {
@@ -242,14 +225,7 @@ void FVMSolver::iterative_solver(){
         exit(-1);
     }
 
-    // cout << "Simetrica: " <<  A.isApprox(A.transpose()) << endl;
-    // u = A.LDLT().solve(b);
-    // std::cout.precision(8);
-    // std::cout << std::fixed;
-
-    // Imprima a solução x
-    // cout << "Determinante: " << A.determinant() << endl;
-    // std::cout << "A solucao u é:" << std::endl;
+    cout << "\nSolução obtida:\n";
     std::cout << u << std::endl;
 }
 
