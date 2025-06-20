@@ -43,14 +43,15 @@ void FVMSolver::pre_processing(){
     double gamma1, gamma2, gamma3;
     for(int i = 0; i < ncells; i++){ // itera pelos índices locais
         int gcell = mesh->get_global_cell_id(i);
-        vector<int>& nodeIds = mesh->get_cell(gcell)->get_nodes();
-        double s;
-        for(int j = 0; j < nodeIds.size(); j++){
-            Node* n = mesh->get_node(nodeIds[j]);
-            s += this->sourcefunc(n->get_x(), n->get_y());
+        Element* cell = mesh->get_cell(gcell);
+        vector<int>& faces = cell->get_face_ids();
+        double sum = 0;
+        for(int j = 0; j < faces.size(); j++){
+            Node* midFace = mesh->get_middle_face(faces[j]);
+            sum += this->sourcefunc(midFace->get_x(), midFace->get_y());
         }
 
-        this->source[i] = s/3.0;
+        this->source[i] = sum / faces.size();
     }
 
     for(int i = 0; i < nfaces; i++){
@@ -192,7 +193,6 @@ void FVMSolver::assembly_b(){
 
         //     skew[i] += -(this->gammaf[gface] * dot_tf_Lb * (phiv(vaNode) - phiv(vbNode))) / mesh->get_deltaf(gface);
         // }
-        cout << "[" << i << "] - Source: " << source[i] << " Volume: " << mesh->get_volume(i) << endl;
         b[i] = - source[i] * mesh->get_volume(i);
     }
     this->apply_boundaries();
@@ -230,33 +230,46 @@ double FVMSolver::max_norm_diff(vector<double>& u1, vector<double>& u2){
 }
 
 void FVMSolver::iterative_solver(){
-    cout << "Simetrica: " <<  A.isApprox(A.transpose()) << endl;
-    u = A.colPivHouseholderQr().solve(b);
-    std::cout.precision(8);
-    std::cout << std::fixed;
+    Eigen::LDLT<Eigen::MatrixXd> ldlt(A);
+    if(ldlt.info() != Eigen::Success) {
+        std::cerr << "Erro na decomposição LDLT!" << std::endl;
+        exit(-1);
+    }
+    this->u = ldlt.solve(b);
+
+    if(ldlt.info() != Eigen::Success) {
+        std::cerr << "Erro na resolução do sistema!" << std::endl;
+        exit(-1);
+    }
+
+    // cout << "Simetrica: " <<  A.isApprox(A.transpose()) << endl;
+    // u = A.LDLT().solve(b);
+    // std::cout.precision(8);
+    // std::cout << std::fixed;
 
     // Imprima a solução x
-    cout << "Determinante: " << A.determinant() << endl;
-    std::cout << "A solucao u é:" << std::endl;
+    // cout << "Determinante: " << A.determinant() << endl;
+    // std::cout << "A solucao u é:" << std::endl;
     std::cout << u << std::endl;
 }
 
 double FVMSolver::compute_error(double (*exact)(double, double)){
     Eigen::VectorXd exact_vect(mesh->get_num_cells());
-    for(int i = 0; i < mesh->get_num_cells(); i++){
+    for(int i = 0; i < mesh->get_num_cells(); i++){ //para cada célula
         int gcell = mesh->get_global_cell_id(i);
-        vector<int>& nodeIds = mesh->get_cell(gcell)->get_nodes();
-        Node* n1 = mesh->get_node(nodeIds[0]);
-        Node* n2 = mesh->get_node(nodeIds[1]);
-        Node* n3 = mesh->get_node(nodeIds[2]);
-        double e1 = exact(n1->get_x(), n1->get_y());
-        double e2 = exact(n2->get_x(), n2->get_y());
-        double e3 = exact(n3->get_x(), n3->get_y());
-
-        exact_vect[i] = (e1 + e2 + e3)/3.0;
+        Element* cell = mesh->get_cell(gcell);
+        vector<int>& faces = cell->get_face_ids();
+        double sum = 0;
+        for(int j = 0; j < faces.size(); j++){
+            Node* midFace = mesh->get_middle_face(faces[j]);
+            sum += exact(midFace->get_x(), midFace->get_y());
+        }
+        exact_vect[i] = sum / faces.size();
     }
+
+    /*calcula norma do máximo*/
     double max_diff = 0.0;
-    for (int i = 0; i < u.size(); ++i) {
+    for (int i = 0; i < mesh->get_num_cells(); ++i) {
         max_diff = max(max_diff, fabs(u[i] - exact_vect[i]));
     }
     return max_diff;
@@ -286,18 +299,37 @@ void FVMSolver::save_solution(string filename){
     vtk_file << endl;
 
     int ncells = this->mesh->get_num_cells();
-    vtk_file << "CELLS " << ncells << " " <<  4 * ncells << endl;
+    vtk_file << "CELLS " << ncells << " ";
+    int sum = 0;
+    for(int i = 0; i < ncells; i++)
+    {
+        int gcell = this->mesh->get_global_cell_id(i);
+        Element* e = this->mesh->get_cell(gcell);
+        if(e->get_element_type() == 2)
+            sum += 4;
+        else if(e->get_element_type() == 3)
+            sum += 5;
+    }
+    vtk_file << sum << endl;
     for(int i = 0; i < ncells; i++){
         int gcell = this->mesh->get_global_cell_id(i);
         Element* e = this->mesh->get_cell(gcell);
         vector<int>& nodeIds = e->get_nodes();
-        vtk_file << "3" << " " << nodeIds[0] << " " << nodeIds[1] << " " << nodeIds[2] << endl;
+        vtk_file << nodeIds.size(); 
+        for(int j = 0; j < nodeIds.size(); j++)
+            vtk_file << " " << nodeIds[j];
+        vtk_file << endl;
     }
     vtk_file << endl;
 
     vtk_file << "CELL_TYPES " << ncells << endl;
     for(int i = 0; i < ncells; i++){
-        vtk_file << "5" << endl;
+        int gcell = mesh->get_global_cell_id(i);
+        Element* cell = mesh->get_cell(gcell);
+        if(cell->get_element_type() == 2)
+            vtk_file << "5" << endl;
+        else if(cell->get_element_type() == 3)
+            vtk_file << "9" << endl;
     }
     vtk_file << endl;
     

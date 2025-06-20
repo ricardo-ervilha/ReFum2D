@@ -43,17 +43,17 @@ int main(void){
     BoundaryCondition left = BoundaryCondition("Dirichlet", DirichletLeft);    
     
     // /*Aplicação das condições de contorno: passar sempre em sentido anti-horário a partir do down.*/
-    FVMSolver* solver = new FVMSolver("../inputs/quad3x3.msh", &down, &right, &top, &left, Gamma, Q);
-    solver->summary();
+    FVMSolver* solver = new FVMSolver("../inputs/6x6.msh", &down, &right, &top, &left, Gamma, Q);
+    // solver->summary();
 
     /*Solução...*/
     solver->assembly_A();
-    solver->print_A();
+    // solver->print_A();
     solver->assembly_b();
-    solver->print_b();
+    // solver->print_b();
 
     solver->iterative_solver();
     solver->save_solution("../outputs/result.vtk");
-    // cout << endl;
-    // cout << "ERRO: " << solver->compute_error(exact_solution) << endl;
+    cout << endl;
+    cout << "ERRO: " << solver->compute_error(exact_solution) << endl;
 }

@@ -202,6 +202,11 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
         double tx = (n2.get_x() - n1.get_x())/A_f;
         double ty = (n2.get_y() - n1.get_y())/A_f;
 
+        if(fabs(tx) < 1e-12)
+            tx = 0;
+        if(fabs(ty) < 1e-12)
+            ty = 0;
+
         // calcula normal
         tuple<double, double> normal = make_tuple(ty, -tx);
         this->normals.push_back(normal);
@@ -217,7 +222,7 @@ void Mesh::pre_processing(vector<BoundaryCondition*> *boundaries){
         Element& cell = this->elements[idCell];
         vector<int>& nodesFromTheCell = cell.get_nodes();
 
-        double xc, yc, zc;
+        double xc = 0, yc = 0, zc = 0;
         for(int j = 0; j < nodesFromTheCell.size(); j++){
             Node& n = this->nodes[nodesFromTheCell[j]]; // recupera o nó do polígono 
             xc += n.get_x();
