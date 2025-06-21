@@ -43,9 +43,8 @@ int main(void){
     BoundaryCondition left = BoundaryCondition("Dirichlet", DirichletLeft);    
     
     // /*Aplicação das condições de contorno: passar sempre em sentido anti-horário a partir do down.*/
-    FVMSolver* solver = new FVMSolver("../inputs/24x24.msh", &down, &right, &top, &left, Gamma, Q);
+    FVMSolver* solver = new FVMSolver("../inputs/1026tri.msh", &down, &right, &top, &left, Gamma, Q);
     
-
     /*Solução...*/
     solver->assembly_A();
     solver->assembly_b();

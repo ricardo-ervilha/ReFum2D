@@ -24,8 +24,8 @@ FVMSolver::FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition
     this->u = Eigen::VectorXd(ncells); // 1 x n: 0's
     this->source = Eigen::VectorXd(ncells); // 1 x n: 0's
     this->gammaf = Eigen::VectorXd(nfaces); 
-    this->skew = Eigen::VectorXd(ncells);
-
+    this->b_with_cd = Eigen::VectorXd(ncells);
+    
     // chama para fazer o pré-processamento
     this->pre_processing();
 }
@@ -120,15 +120,15 @@ void FVMSolver::assembly_A(){
                 tuple<double, double>& normal = mesh->get_normal(gface);
                 
                 //correção do sinal da normal para apontar para fora de P corretamente.
-                get<0>(normal) *= normalSigns[j];
-                get<1>(normal) *= normalSigns[j];
+                double nx = get<0>(normal)*normalSigns[j];
+                double ny = get<1>(normal)*normalSigns[j];
                 
                 double dpnx = middleFace->get_x() - centroid->get_x(); 
                 double dpny = middleFace->get_y() - centroid->get_y();
 
-                double normnfsquare = get<0>(normal)*get<0>(normal) + get<1>(normal)*get<1>(normal);
+                double normnfsquare = nx*nx + ny*ny;
                 
-                double nfdotdpn = get<0>(normal)*dpnx + get<1>(normal)*dpny;
+                double nfdotdpn = nx*dpnx + ny*dpny;
                 
                 double n1x = dpnx * (normnfsquare/nfdotdpn);
                 double n1y = dpny * (normnfsquare/nfdotdpn);
@@ -156,14 +156,14 @@ void FVMSolver::assembly_A(){
                 tuple<double, double>& normal = mesh->get_normal(gface);
                 
                 //correção do sinal da normal para apontar para fora de P corretamente.
-                get<0>(normal) *= normalSigns[j];
-                get<1>(normal) *= normalSigns[j];
+                double nx = get<0>(normal)*normalSigns[j];
+                double ny = get<1>(normal)*normalSigns[j];
 
                 double dpnx = centroidN->get_x() - centroidP->get_x();
                 double dpny = centroidN->get_y() - centroidP->get_y();
                 
-                double normnfsquare = get<0>(normal)*get<0>(normal) + get<1>(normal)*get<1>(normal);
-                double nfdotdpn = get<0>(normal)*dpnx + get<1>(normal)*dpny;
+                double normnfsquare = nx*nx + ny*ny;
+                double nfdotdpn = nx*dpnx + ny*dpny;
                 
                 double n1x = dpnx * (normnfsquare/nfdotdpn);
                 double n1y = dpny * (normnfsquare/nfdotdpn);
@@ -188,6 +188,146 @@ void FVMSolver::assembly_b(){
     this->apply_boundaries();
 }
 
+/*Uso da reconstrução com least squares, e interpolação da phif usando os valores dos centroides.*/
+/*Least squares irá resolver Mx=y*/
+void FVMSolver::compute_gradients(){
+    int ncells = mesh->get_num_cells();
+    this->gradients = vector<std::pair<double, double>>(ncells, std::make_pair(0.0, 0.0));
+
+    //construirá o vetor b_with_cd para ter a difusão cruzada.
+    for(int i = 0; i < ncells; i++){ // para cada célula
+        int gcell = mesh->get_global_cell_id(i);
+        Element* cell = mesh->get_cell(gcell);
+        vector<int> faceIds = cell->get_face_ids();
+        
+        Eigen::MatrixXd M(faceIds.size(), 2);
+        Eigen::VectorXd y(faceIds.size());
+        
+        for(int j = 0; j < faceIds.size(); j++){ // para cada face
+            int gface = faceIds[j];
+            if(mesh->get_link_face_to_bface(gface) != -1){
+                // Contribuição da face de contorno
+                Node* centroid = mesh->get_centroid(i);
+                Node* middleFace = mesh->get_middle_face(gface);
+                
+                double dx = middleFace->get_x() - centroid->get_x();
+                double dy = middleFace->get_y() - centroid->get_y(); 
+
+                M(j,0) = dx;
+                M(j, 1) = dy;
+                y[j] = -u[i]; // u_B (0 por enquanto !) - u_P  
+            }else{
+                pair<int,int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
+                    
+                int ic1 = idCellsShareFace.first; 
+                int ic2 = idCellsShareFace.second;
+                
+                int nb = ic1 == gcell ? ic2 : ic1; //pegando o vizinho do gcell
+                int lnb = mesh->get_local_cell_id(nb);
+                
+                /*cálculo de |n1|*/
+                Node *centroidP = mesh->get_centroid(i);
+                Node *centroidN = mesh->get_centroid(lnb);
+
+                double dx = centroidN->get_x() - centroidP->get_x();
+                double dy = centroidN->get_y() - centroidP->get_y();
+
+                M(j,0) = dx;
+                M(j, 1) = dy;
+                y[j] = u[lnb] - u[i]; //u_N - u_P  
+            }
+        }
+
+        // M x = y
+        Eigen::Vector2d x = M.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(y);
+        this->gradients[i] = make_pair(x[0], x[1]);
+    }
+}
+
+void FVMSolver::compute_cross_diffusion(){
+    int ncells = mesh->get_num_cells();
+    b_with_cd.setZero(ncells);
+    for(int i = 0; i < ncells; i++){
+        int gcell = mesh->get_global_cell_id(i);
+        Element* cell = mesh->get_cell(gcell);
+        vector<int> faceIds = cell->get_face_ids();
+        vector<int>& normalSigns = mesh->get_cell(gcell)->get_normal_sign();
+        for(int j = 0; j < faceIds.size(); j++){ // para cada face
+            int gface = faceIds[j];
+            if(mesh->get_link_face_to_bface(gface) != -1){
+                //face de contorno
+                Node* centroid = mesh->get_centroid(i);
+                Node* middleFace = mesh->get_middle_face(gface);
+                
+                /*cálculo da n1*/
+                tuple<double, double>& normal = mesh->get_normal(gface);
+                
+                //correção do sinal da normal para apontar para fora de P corretamente.
+                double nx = get<0>(normal)*normalSigns[j];
+                double ny = get<1>(normal)*normalSigns[j];
+                
+                double dpnx = middleFace->get_x() - centroid->get_x(); 
+                double dpny = middleFace->get_y() - centroid->get_y();
+
+                double normnfsquare = nx*nx + ny*ny;
+                
+                double nfdotdpn = nx*dpnx + ny*dpny;
+                
+                double n1x = dpnx * (normnfsquare/nfdotdpn);
+                double n1y = dpny * (normnfsquare/nfdotdpn);
+
+                double n2x = nx - n1x;
+                double n2y = ny - n1y;
+
+                double graddotnormal = gradients[i].first * n2x + gradients[i].second * n2y;
+
+                this->b_with_cd[i] += (gammaf[gface] * mesh->get_face_area(gface) * graddotnormal);
+            }else{
+                pair<int,int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
+                Node* middleFace = mesh->get_middle_face(gface);
+                
+                int ic1 = idCellsShareFace.first; 
+                int ic2 = idCellsShareFace.second;
+                
+                int nb = ic1 == gcell ? ic2 : ic1; //pegando o vizinho do gcell
+                int lnb = mesh->get_local_cell_id(nb);
+                
+                /*cálculo de |n1|*/
+                Node *centroidP = mesh->get_centroid(i);
+                Node *centroidN = mesh->get_centroid(lnb);
+                tuple<double, double>& normal = mesh->get_normal(gface);
+                
+                //correção do sinal da normal para apontar para fora de P corretamente.
+                double nx = get<0>(normal)*normalSigns[j];
+                double ny = get<1>(normal)*normalSigns[j];
+
+                double dpnx = centroidN->get_x() - centroidP->get_x();
+                double dpny = centroidN->get_y() - centroidP->get_y();
+                
+                double normnfsquare = nx*nx + ny*ny;
+                double nfdotdpn = nx*dpnx +ny*dpny;
+                
+                double n1x = dpnx * (normnfsquare/nfdotdpn);
+                double n1y = dpny * (normnfsquare/nfdotdpn);
+
+                double n2x = nx - n1x;
+                double n2y = ny - n1y;
+
+                double d1 = sqrt(pow(middleFace->get_x() - centroidN->get_x(),2) + pow(middleFace->get_y() - centroidN->get_y(),2));
+                double d2 = sqrt(pow(middleFace->get_x() - centroidP->get_x(),2) + pow(middleFace->get_y() - centroidP->get_y(),2));
+
+                double gradx = (gradients[i].first*d1 + gradients[lnb].first*d2)/(d1+d2);
+                double grady = (gradients[i].second*d1 + gradients[lnb].second*d2)/(d1+d2);
+
+                double graddotnormal = gradx * n2x + grady * n2y;
+
+                this->b_with_cd[i] += (gammaf[gface] * mesh->get_face_area(gface) * graddotnormal);
+            }
+        }
+        this->b_with_cd[i] = this->b[i] - this->b_with_cd[i];
+    }
+}
+
 void FVMSolver::apply_boundaries(){
     int nbfaces = this->mesh->get_num_boundary_faces();
     for(int i = 0; i < nbfaces; i++){ //PARA TODA FACE DE CONTORNO NUMERADA LOCALMENTE
@@ -208,25 +348,31 @@ void FVMSolver::apply_boundaries(){
 
         b[lcell] += gammaf[gface] * mesh->get_face_area(gface) * mesh->get_phib(i) / deltab;
     }
+
+    //CORRIGIR ESSA FUNÇÃO POIS ELA ESTÁ DESATUALIZADA
 }
 
 void FVMSolver::solve_system(){
-    Eigen::LDLT<Eigen::MatrixXd> ldlt(A);
+    for(int k = 0; k < 100; k++){
+        Eigen::LDLT<Eigen::MatrixXd> ldlt(A);
 
-    if(ldlt.info() != Eigen::Success) {
-        std::cerr << "Erro na decomposição LDLT!" << std::endl;
-        exit(-1);
+        if(ldlt.info() != Eigen::Success) {
+            std::cerr << "Erro na decomposição LDLT!" << std::endl;
+            exit(-1);
+        }
+
+        this->compute_gradients();
+        this->compute_cross_diffusion();
+        this->u = ldlt.solve(b_with_cd);
+
+        if(ldlt.info() != Eigen::Success) {
+            std::cerr << "Erro na resolução do sistema!" << std::endl;
+            exit(-1);
+        }
+
+        cout << "\nSolução obtida:\n";
+        std::cout << u << std::endl;
     }
-
-    this->u = ldlt.solve(b);
-
-    if(ldlt.info() != Eigen::Success) {
-        std::cerr << "Erro na resolução do sistema!" << std::endl;
-        exit(-1);
-    }
-
-    cout << "\nSolução obtida:\n";
-    std::cout << u << std::endl;
 }
 
 double FVMSolver::compute_error(double (*exact)(double, double)){

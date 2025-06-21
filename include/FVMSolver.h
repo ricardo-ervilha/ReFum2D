@@ -22,8 +22,9 @@ class FVMSolver {
         Eigen::VectorXd u;
         Eigen::VectorXd source; // pré-processa no FVMSolver os termos fontes das células.
         Eigen::VectorXd gammaf; // pré-processa no FVMSolver os gammas das faces;
-        Eigen::VectorXd skew; // relacionado a angulosidade da malha, computa a difusão cruzada.
-
+        Eigen::VectorXd b_with_cd; // relacionado a angulosidade da malha, computa a difusão cruzada.
+        vector<pair<double,double>> gradients; // vetor com os gradientes daquela iteração.
+        
         void pre_processing(); // Função para realizar o pré-processamento de gamma, source.
 
         void print_matrix(vector<vector<double>>* m);
@@ -39,6 +40,8 @@ class FVMSolver {
 
         void assembly_A();
         void assembly_b();
+        void compute_gradients();
+        void compute_cross_diffusion();
         void apply_boundaries();
 
         /*Resolve sem considerar a difusão cruzada...*/

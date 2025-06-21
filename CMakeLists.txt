@@ -4,9 +4,6 @@ project(TCC)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# adicionando o diretório de include do GMSH
-# set(GMSH_SDK_DIR "./gmsh-4.12.2-Linux64-sdk")
-
 # diretório do eigen
 include_directories(eigen-3.4.0)
 
@@ -30,5 +27,3 @@ set(HEADER_FILES
 )
 
 add_executable(${PROJECT_NAME}.exe app/main.cpp ${SOURCE_FILES})
-
-# target_link_libraries(${PROJECT_NAME}.exe gmsh dl stdc++fs)
