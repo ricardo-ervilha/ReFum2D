@@ -1,8 +1,4 @@
 #include "../include/Mesh.h"
-#include <fstream>
-#include <string>
-#include <sstream>
-#include <algorithm>
 
 Mesh::Mesh(){
     this->elementTypeToNumNodes[1] = 2; //linha

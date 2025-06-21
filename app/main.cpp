@@ -1,6 +1,4 @@
-#include "../include/Mesh.h"
-#include "../include/FVMSolver.h"
-#include "../include/BoundaryCondition.h"
+#include "FVMSolver.h"
 
 /*==================================================================================================================*/
 /*Condições de Contorno*/
@@ -48,8 +46,8 @@ int main(void){
     /*Solução...*/
     solver->assembly_A();
     solver->assembly_b();
-    solver->print_A();
-    solver->print_b();
+    // solver->print_A();
+    // solver->print_b();
 
     solver->solve_system();
     solver->save_solution("../outputs/result.vtk");

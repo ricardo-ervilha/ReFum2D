@@ -1,12 +1,9 @@
 #ifndef FVMSOLVER_H
 #define FVMSOLVER_H
 
+#include "pch.h"
 #include "Mesh.h"
-#include "BoundaryCondition.h"
-#include <iomanip>
-#include <fstream>
-#include <filesystem>
-#include "../eigen-3.4.0/Eigen/Dense"
+#include <armadillo>
 
 class FVMSolver {
     private:
@@ -17,12 +14,12 @@ class FVMSolver {
         vector<BoundaryCondition*> boundaries;
 
         // Estruturas de dados relacionadas a montagem e solução do problema.
-        Eigen::MatrixXd A;
-        Eigen::VectorXd b;
-        Eigen::VectorXd u;
-        Eigen::VectorXd source; // pré-processa no FVMSolver os termos fontes das células.
-        Eigen::VectorXd gammaf; // pré-processa no FVMSolver os gammas das faces;
-        Eigen::VectorXd b_with_cd; // relacionado a angulosidade da malha, computa a difusão cruzada.
+        arma::mat A;
+        arma::vec b;
+        arma::vec u;
+        arma::vec source; // pré-processa no FVMSolver os termos fontes das células.
+        arma::vec gammaf; // pré-processa no FVMSolver os gammas das faces;
+        arma::vec b_with_cd; // relacionado a angulosidade da malha, computa a difusão cruzada.
         vector<pair<double,double>> gradients; // vetor com os gradientes daquela iteração.
         
         void pre_processing(); // Função para realizar o pré-processamento de gamma, source.

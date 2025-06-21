@@ -1,21 +1,11 @@
 #ifndef MESH_H
 #define MESH_H
 
-#include <iostream>
-#include <vector>
-#include <map>
-#include <unordered_set>
-#include <unordered_map>
-#include <tuple>
-#include <math.h>
-#include "Node.h"
+#include "pch.h"
 #include "PhysicalGroup.h"
 #include "Element.h"
-#include <utility>
+#include "Node.h"
 #include "BoundaryCondition.h"
-#include "../eigen-3.4.0/Eigen/Dense"
-
-using namespace std;
 
 /*Função hash para uso no unordered set posteriormente...*/
 struct CantorPairingFunction {

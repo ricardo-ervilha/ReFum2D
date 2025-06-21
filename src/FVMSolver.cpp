@@ -19,12 +19,12 @@ FVMSolver::FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition
     int nfaces = mesh->get_num_faces();
 
     /*Inicialização das EDs associadas a resolução do problema...*/
-    this->A = Eigen::MatrixXd(ncells, ncells); // ncells x ncells : 0's
-    this->b = Eigen::VectorXd(ncells); // 1 x n : 0's
-    this->u = Eigen::VectorXd(ncells); // 1 x n: 0's
-    this->source = Eigen::VectorXd(ncells); // 1 x n: 0's
-    this->gammaf = Eigen::VectorXd(nfaces); 
-    this->b_with_cd = Eigen::VectorXd(ncells);
+    this->A = arma::mat(ncells, ncells); // ncells x ncells : 0's
+    this->b = arma::vec(ncells); // 1 x n : 0's
+    this->u = arma::vec(ncells); // 1 x n: 0's
+    this->source = arma::vec(ncells); // 1 x n: 0's
+    this->gammaf = arma::vec(nfaces); 
+    this->b_with_cd = arma::vec(ncells);
     
     // chama para fazer o pré-processamento
     this->pre_processing();
@@ -200,8 +200,8 @@ void FVMSolver::compute_gradients(){
         Element* cell = mesh->get_cell(gcell);
         vector<int> faceIds = cell->get_face_ids();
         
-        Eigen::MatrixXd M(faceIds.size(), 2);
-        Eigen::VectorXd y(faceIds.size());
+        arma::mat M(faceIds.size(), 2);
+        arma::vec y(faceIds.size());
         
         for(int j = 0; j < faceIds.size(); j++){ // para cada face
             int gface = faceIds[j];
@@ -239,14 +239,14 @@ void FVMSolver::compute_gradients(){
         }
 
         // M x = y
-        Eigen::Vector2d x = M.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(y);
+        arma::vec x = arma::solve(M, y);
         this->gradients[i] = make_pair(x[0], x[1]);
     }
 }
 
 void FVMSolver::compute_cross_diffusion(){
     int ncells = mesh->get_num_cells();
-    b_with_cd.setZero(ncells);
+    b_with_cd.zeros();
     for(int i = 0; i < ncells; i++){
         int gcell = mesh->get_global_cell_id(i);
         Element* cell = mesh->get_cell(gcell);
@@ -354,29 +354,18 @@ void FVMSolver::apply_boundaries(){
 
 void FVMSolver::solve_system(){
     for(int k = 0; k < 100; k++){
-        Eigen::LDLT<Eigen::MatrixXd> ldlt(A);
-
-        if(ldlt.info() != Eigen::Success) {
-            std::cerr << "Erro na decomposição LDLT!" << std::endl;
-            exit(-1);
-        }
-
+        
         this->compute_gradients();
         this->compute_cross_diffusion();
-        this->u = ldlt.solve(b_with_cd);
-
-        if(ldlt.info() != Eigen::Success) {
-            std::cerr << "Erro na resolução do sistema!" << std::endl;
-            exit(-1);
-        }
-
-        cout << "\nSolução obtida:\n";
-        std::cout << u << std::endl;
+        this->u = arma::solve(A,b);
     }
+
+    cout << "\nSolução obtida:\n";
+    cout << u << endl;
 }
 
 double FVMSolver::compute_error(double (*exact)(double, double)){
-    Eigen::VectorXd exact_vect(mesh->get_num_cells());
+    arma::vec exact_vect(mesh->get_num_cells());
     for(int i = 0; i < mesh->get_num_cells(); i++){ //para cada célula
         int gcell = mesh->get_global_cell_id(i);
         Element* cell = mesh->get_cell(gcell);
@@ -391,9 +380,15 @@ double FVMSolver::compute_error(double (*exact)(double, double)){
 
     /*calcula norma do máximo*/
     double max_diff = 0.0;
+    double norml2 = 0;
+    double sumAreas = 0;
     for (int i = 0; i < mesh->get_num_cells(); ++i) {
         max_diff = max(max_diff, fabs(u[i] - exact_vect[i]));
+        norml2 += pow(u[i] - exact_vect[i],2) * mesh->get_volume(i);
+        sumAreas +=  mesh->get_volume(i);
     }
+    norml2 = sqrt(norml2/sumAreas);
+    cout << "\nNorma L2: " << norml2 << endl;
     return max_diff;
 }
 

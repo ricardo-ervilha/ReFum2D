@@ -1,16 +1,12 @@
 #ifndef BOUNDARYCONDITION_H
 #define BOUNDARYCONDITION_H
 
-#include <iostream>
-#include <string>
-
-using namespace std;
+#include "pch.h"
 
 enum BoundaryType {
     DIRICHLET = 1,
     NEUMANN = 2
 };
-
 
 class BoundaryCondition {
     private:

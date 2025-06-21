@@ -1,9 +1,7 @@
 #ifndef PHYSICALGROUPS_H
 #define PHYSICALGROUPS_H
 
-#include <iostream>
-
-using namespace std;
+#include "pch.h"
 
 class PhysicalGroup{
     private:

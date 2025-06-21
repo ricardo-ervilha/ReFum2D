@@ -1,10 +1,7 @@
 #ifndef ELEMENT_H
 #define ELEMENT_H
 
-#include "Node.h"
-#include <vector>
-
-using namespace std;
+#include "pch.h"
 
 class Element{
     private:
