@@ -1,41 +1,53 @@
-# TCC-UFJF
+# TCC - UFJF
 
-## Aluno: Ricardo Ervilha Silva
-## Orientador: José Jerônimo Camata
+**Aluno:** Ricardo Ervilha Silva  
+**Orientador:** Prof. José Jerônimo Camata
 
-Repositório para o TCC 2025.3 da Universidade Federal de Juiz de Fora, curso Ciência da Computação.
+_Repositório do Trabalho de Conclusão de Curso (2025.3) da Universidade Federal de Juiz de Fora - Ciência da Computação_
 
-<!-- Baixar e extrair o SDK do libmesh na pasta FVM. -->
+![Status: Em desenvolvimento](https://img.shields.io/badge/status-Em%20Desenvolvimento-yellow)
+![GMSH v2](https://img.shields.io/badge/gmsh-v2%20ASCII-blue)
 
-Configuração das pastas:
-<ul>
-<li><b>app</b>: Arquivos principais vão aqui.</li>
-<li><b>build</b>: Contém arquivos objetos, e é limpado usando <i>clean</i>.</li>
-<li><b>docs</b>: Contém notas e outros arquivos para ajudar no desenvolvimento do tcc.</li>
-<li><b>include</b>: Arquivos de cabeçalho.</li>
-<li><b>inputs</b>: Arquivos fonte da linguagem para serem compilados e executados.</li>
-<li><b>src</b>: Arquivo fonte que implementam os includes.</li>
-</ul>
+---
 
-Guia básico de compilação:
+## 🎯 Objetivo
+
+Este projeto implementa um solucionador numérico baseado no **Método dos Volumes Finitos (FVM)**, focado na leitura e simulação de malhas `.msh` não estruturadas geradas pelo Gmsh (**versão 2 ASCII**).
+
+As geometrias devem ser criadas com **pontos, linhas e condições de contorno na ordem anti-horária**, o que facilita o processamento e interpretação dos dados da malha.
+
+---
+
+## 📁 Estrutura de Diretórios
+```
+📁 Estrutura do Projeto
+
+├── app/        # Contém o ponto de entrada principal do programa (main.cpp)
+├── build/      # Diretório gerado automaticamente com os arquivos de build pelo CMake
+├── docs/       # Documentação geral, imagens ilustrativas e arquivos auxiliares
+├── include/    # Arquivos de cabeçalho (.h) com definições de classes e interfaces
+├── inputs/     # Malhas de entrada no formato .msh (versão 2 ASCII, geradas com Gmsh)
+├── outputs/    # Arquivos de saída (.vtk) contendo os resultados da simulação para visualização no ParaView
+├── src/        # Implementações das classes e funções declaradas nos headers (arquivos .cpp)
+```
+
+## ⚙️ Como utilizar o projeto
+
+### Pré-requisitos
+
+- G++ (ou outro compilador C++ compatível)
+- CMake (>= 3.10)
+- [Gmsh](https://gmsh.info/) para gerar as malhas `.msh`
+- [ParaView](https://www.paraview.org/) (opcional, para visualização dos resultados `.vtk`)
+
+### Passos
 
 ```bash
-# Na raiz do projeto. -S indica onde achar o arquivo fonte e -B indica onde fará o build.
-$ cmake -S. -B ./build
+# Na raiz do projeto
+mkdir build
+cd build
+cmake ..
+make
 
-# Verificando se o build deu certo, o output deverá ser algo como:
-$ ls -l ./build
--rw-rw-r - 1 CMakeCache.txt
-drwxrwxr-x 5 CMakeFiles
--rw-rw-r - 1 cmake_install.cmake
--rw-rw-r - 1 Makefile
-
-# Agora entre no diretório build e dê make:
-$ cd ./build
-$ make
-[ 50%] Building CXX object CMakeFiles/hello_world.dir/hello_world.cpp.o
-[100%] Linking CXX executable hello_world
-[100%] Built target TCC
-
-$ ./TCC.exe
-```
+# Após compilado com sucesso
+./TCC.exe
