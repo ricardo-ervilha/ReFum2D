@@ -49,7 +49,7 @@ class FVMSolver {
 
         void summary() {this->mesh->mesh_summary();};
 
-        double compute_error(double (*exact)(double, double));
+        void compute_error(double (*exact)(double, double));
         bool is_simetric();
 };
 

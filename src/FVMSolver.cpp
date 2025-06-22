@@ -357,39 +357,28 @@ void FVMSolver::solve_system(){
         
         this->compute_gradients();
         this->compute_cross_diffusion();
-        this->u = arma::solve(A,b);
+        this->u = arma::solve(A,b_with_cd);
     }
 
     cout << "\nSolução obtida:\n";
     cout << u << endl;
 }
 
-double FVMSolver::compute_error(double (*exact)(double, double)){
+void FVMSolver::compute_error(double (*exact)(double, double)){
     arma::vec exact_vect(mesh->get_num_cells());
     for(int i = 0; i < mesh->get_num_cells(); i++){ //para cada célula
-        int gcell = mesh->get_global_cell_id(i);
-        Element* cell = mesh->get_cell(gcell);
-        vector<int>& faces = cell->get_face_ids();
-        double sum = 0;
-        for(int j = 0; j < faces.size(); j++){
-            Node* midFace = mesh->get_middle_face(faces[j]);
-            sum += exact(midFace->get_x(), midFace->get_y());
-        }
-        exact_vect[i] = sum / faces.size();
+        Node* centroid = mesh->get_centroid(i); // obtém o centroide da celula
+        exact_vect[i] = exact(centroid->get_x(), centroid->get_y());
     }
 
-    /*calcula norma do máximo*/
-    double max_diff = 0.0;
     double norml2 = 0;
     double sumAreas = 0;
     for (int i = 0; i < mesh->get_num_cells(); ++i) {
-        max_diff = max(max_diff, fabs(u[i] - exact_vect[i]));
         norml2 += pow(u[i] - exact_vect[i],2) * mesh->get_volume(i);
         sumAreas +=  mesh->get_volume(i);
     }
     norml2 = sqrt(norml2/sumAreas);
     cout << "\nNorma L2: " << norml2 << endl;
-    return max_diff;
 }
 
 void FVMSolver::save_solution(string filename){

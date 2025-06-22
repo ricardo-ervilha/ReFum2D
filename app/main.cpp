@@ -46,11 +46,9 @@ int main(void){
     /*Solução...*/
     solver->assembly_A();
     solver->assembly_b();
-    // solver->print_A();
-    // solver->print_b();
 
     solver->solve_system();
     solver->save_solution("../outputs/result.vtk");
-    
-    cout << "\nERRO: " << solver->compute_error(exact_solution) << endl;
+
+    solver->compute_error(exact_solution);
 }
