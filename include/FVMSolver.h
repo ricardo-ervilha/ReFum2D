@@ -11,6 +11,8 @@ class FVMSolver {
         Mesh* mesh; // Estruturas de dados pré-processadas pela leitura da malha
         double (*gammafunc)(double, double); // Constante de difusão
         double (*sourcefunc)(double, double); // Termo fonte
+        double (*rhofunc)(double, double); // Densidade do meio
+        pair<double,double> (*ufunc)(double, double); // Vetor velocidade 
         vector<BoundaryCondition*> boundaries;
 
         // Estruturas de dados relacionadas a montagem e solução do problema.
@@ -19,6 +21,8 @@ class FVMSolver {
         arma::vec u;
         arma::vec source; // pré-processa no FVMSolver os termos fontes das células.
         arma::vec gammaf; // pré-processa no FVMSolver os gammas das faces;
+        arma::vec rhof; // pré-processa no FVMSolver os rhos das faces;
+        arma::mat uf;    // pré-processa no FVMSolver os us das faces; 
         arma::vec b_with_cd; // relacionado a angulosidade da malha, computa a difusão cruzada.
         vector<pair<double,double>> gradients; // vetor com os gradientes daquela iteração.
         
@@ -28,7 +32,7 @@ class FVMSolver {
         void print_vector(vector<double> *v);
     
     public:    
-        FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*sourceTerm)(double, double));
+        FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*rho)(double,double), pair<double,double> (*U)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();
         
         void print_A() { cout << A << endl;};
@@ -39,7 +43,6 @@ class FVMSolver {
         void assembly_b();
         void compute_gradients();
         void compute_cross_diffusion();
-        void apply_boundaries();
 
         /*Resolve sem considerar a difusão cruzada...*/
         void solve_system();
