@@ -14,15 +14,14 @@ include_directories(include)
 # Fontes e cabeçalhos
 set(SOURCE_FILES
     src/Mesh.cpp
-    src/FVMSolver.cpp
 )
 set(HEADER_FILES
     include/Element.h
     include/PhysicalGroup.h
     include/Node.h
+    include/Edge.h
     include/Mesh.h
-    include/FVMSolver.h
-    include/BoundaryCondition.h
+    include/Cell.h  
 )
 
 add_executable(${PROJECT_NAME}.exe app/main.cpp ${SOURCE_FILES})
