@@ -42,8 +42,10 @@ void Mesh::read_mesh(string filepath){
                     iss >> dim >> id >> name;
                     name = name.substr(1, name.size() - 2); // Remoção das aspas duplas que vem junto com o nome.
                     
-                    PhysicalGroup* pg = new PhysicalGroup(id, dim, name);
-                    this->physicalgroups.emplace(id, pg);
+                    if(dim == 2){    
+                        PhysicalEntity* pg = new PhysicalEntity(id, name);
+                        this->physicalentities.emplace(id, pg);
+                    }
                 }
             } else if(line == "$Nodes"){
                 /*Inicia leitura dos nós*/
@@ -96,16 +98,10 @@ void Mesh::read_mesh(string filepath){
 
                     if(elementType == 2 || elementType == 3){
                         // é uma célula.
-                        Cell* c = new Cell(i, elementType, elNodes, idCell);
-                        this->elements.push_back(c);
+                        Cell* c = new Cell(idCell, elementType, elNodes);
                         this->cells.push_back(c);
                         idCell++; // incrementa 1
-                        this->physicalgroups[physicalGroupTag]->add_element(c);
-                    }else{
-                        // não é uma célula.
-                        Element* e = new Element(i, elementType, elNodes);
-                        this->elements.push_back(e);
-                        this->physicalgroups[physicalGroupTag]->add_element(e);
+                        this->physicalentities[physicalGroupTag]->add_element(c);
                     }
                 }
             }
@@ -117,6 +113,7 @@ void Mesh::read_mesh(string filepath){
 }
 
 void Mesh::pre_processing(){
+    
     // Quando dizer face, considere a mesma coisa que aresta (Edge).
     /*
         1ª etapa: Computa o conjunto de todas as faces, e para cada célula, já guarda quais faces pertencem a ela.
@@ -177,9 +174,9 @@ void Mesh::pre_processing(){
         for(int j = 0; j < facesFromCell.size(); j++){
             
             if(facesFromCell[j]->get_link_face_to_cell().first == -1) // verifica pra ver se a posição está vazia.
-                facesFromCell[j]->set_link_face_to_cell(cells[i]->idCell, 1);
+                facesFromCell[j]->set_link_face_to_cell(cells[i]->id, 1);
             else
-                facesFromCell[j]->set_link_face_to_cell(cells[i]->idCell, 2);
+                facesFromCell[j]->set_link_face_to_cell(cells[i]->id, 2);
         }
     }
 
@@ -189,7 +186,7 @@ void Mesh::pre_processing(){
         for(int j = 0; j < facesFromCell.size(); j++){
             int idCell1 = facesFromCell[j]->get_link_face_to_cell().first; // pega a primeira célula do link_face_to_cell
             
-            if(idCell1 == cells[i]->idCell) cells[i]->insert_nsign(1); // já aponta para fora
+            if(idCell1 == cells[i]->id) cells[i]->insert_nsign(1); // já aponta para fora
             else if(idCell1 != -1)  cells[i]->insert_nsign(-1); //conserta, fazendo apontar para fora
             else{
                 cout << "ERROR: Line 272 in mesh.cpp (problem in normal signs)!" << endl;

@@ -10,24 +10,22 @@ FVMSolver::FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition
     this->boundaries.push_back(top);
     this->boundaries.push_back(left);
 
-    mesh->pre_processing(&boundaries);
-
     this->gammafunc = g;
     this->sourcefunc = sourceTerm;
     this->rhofunc = rho;
     this->ufunc = U;
 
-    int ncells = this->mesh->get_num_cells();
-    int nfaces = mesh->get_num_faces();
+    int ncells = this->mesh->get_ncells();
+    int nfaces = mesh->get_nedges();
 
     /*Inicialização das EDs associadas a resolução do problema...*/
-    this->A = arma::mat(ncells, ncells); // ncells x ncells : 0's
-    this->b = arma::vec(ncells); // 1 x n : 0's
-    this->u = arma::vec(ncells); // 1 x n: 0's
-    this->source = arma::vec(ncells); // 1 x n: 0's
+    this->A = arma::mat(ncells, ncells); 
+    this->b = arma::vec(ncells);
+    this->u = arma::vec(ncells); 
+    this->source = arma::vec(ncells); 
     this->gammaf = arma::vec(nfaces); 
     this->rhof = arma::vec(nfaces); 
-    this->uf = arma::mat(nfaces,2); //VETOR
+    this->uf = arma::mat(nfaces,2); 
     this->b_with_cd = arma::vec(ncells);
     
     // chama para fazer o pré-processamento
@@ -38,83 +36,43 @@ FVMSolver::~FVMSolver(){
 }
 
 void FVMSolver::pre_processing(){
-    int ncells = mesh->get_num_cells();
-    int nfaces = mesh->get_num_faces();
+    int ncells = mesh->get_ncells();
+    int nfaces = mesh->get_nedges();
 
-    int gcell;
-    Element* cell;
-    double source1, source2, source3;
-    double gamma1, gamma2, gamma3;
+    vector<Cell*>& cells = mesh->get_cells();
+    vector<Edge*>& edges = mesh->get_edges();
+
     for(int i = 0; i < ncells; i++){ // itera pelos índices locais
-        Node* centroid = mesh->get_centroid(i);
-        this->source[i] = this->sourcefunc(centroid->get_x(), centroid->get_y());
+        pair<double,double>& centroid = cells[i]->get_centroid();
+        this->source[i] = this->sourcefunc(centroid.first, centroid.second);
     }
-
+    
     for(int i = 0; i < nfaces; i++){
-        if(mesh->get_link_face_to_bface(i) != -1){
+        if(edges[i]->is_boundary_face()){
             //face de contorno
-            Node* midface = mesh->get_middle_face(i);
-            gammaf[i] = gammafunc(midface->get_x(), midface->get_y());
-            rhof[i] = gammafunc(midface->get_x(), midface->get_y());
-            pair<double,double> u = ufunc(midface->get_x(), midface->get_y());
-            uf(i,0) = u.first;
-            uf(i,1) = u.second;
+            pair<double,double>& midface = edges[i]->get_middle();
+            gammaf[i] = gammafunc(midface.first, midface.second);
+            rhof[i] = gammafunc(midface.first, midface.second);
+            pair<double,double> u = ufunc(midface.first, midface.second);
+            uf(i,0) = u.first; uf(i,1) = u.second;
         }else{
             //não é face de contorno
-            Node* midface = mesh->get_middle_face(i);
-            pair<int,int>& idCellsShareFace = mesh->get_link_face_to_cell(i);
-                
-            int ic1 = idCellsShareFace.first; 
-            int ic2 = idCellsShareFace.second;
-            Node *centroidP = mesh->get_centroid(ic1);
-            Node *centroidN = mesh->get_centroid(ic2);
+            pair<double,double>& midface = edges[i]->get_middle();
+            pair<int,int>& idCellsShareFace = edges[i]->get_link_face_to_cell();
+              
+            pair<double,double>& centroidP = cells[idCellsShareFace.first]->get_centroid();
+            pair<double,double>& centroidN = cells[idCellsShareFace.second]->get_centroid();
 
-            double d1 = sqrt(pow(midface->get_x() - centroidP->get_x(),2) + pow(midface->get_y() - centroidP->get_y(),2));
-            double d2 = sqrt(pow(midface->get_x() - centroidN->get_x(),2) + pow(midface->get_y() - centroidN->get_y(),2));
+            double d1 = distance(midface.first, midface.second, centroidP.first, centroidP.second);
+            double d2 = distance(midface.first, midface.second, centroidN.first, centroidN.second);
+            double totaldist = d1+d2;
 
-            double Px = centroidP->get_x();
-            double Py = centroidP->get_y();
-            double Nx = centroidN->get_x();
-            double Ny = centroidN->get_y();
-            
-            gammaf[i] = (gammafunc(Px, Py)/d1 + gammafunc(Nx, Ny)/d2)/(1/d1+1/d2);
-            rhof[i] = (rhofunc(Px, Py)/d1 + rhofunc(Nx, Ny)/d2)/(1/d1+1/d2);
-            uf(i,0) = (ufunc(Px, Py).first/d1 + ufunc(Nx, Ny).first/d2)/(1/d1+1/d2);
-            uf(i,1) = (ufunc(Px, Py).second/d1 + ufunc(Nx, Ny).second/d2)/(1/d1+1/d2);
+            gammaf[i] = (gammafunc(centroidP.first, centroidP.second)*d2 + gammafunc(centroidN.first, centroidN.second)*d1)/totaldist;
+            rhof[i] = (rhofunc(centroidP.first, centroidP.second)*d2 + rhofunc(centroidN.first, centroidN.second)*d1)/totaldist;
+            uf(i,0) = (ufunc(centroidP.first, centroidP.second).first*d2 + ufunc(centroidN.first, centroidN.second).first*d1)/totaldist;
+            uf(i,1) = (ufunc(centroidP.first, centroidP.second).second*d2 + ufunc(centroidN.first, centroidN.second).second*d1)/totaldist;
         }
     }
-}
-
-void FVMSolver::print_matrix(vector<vector<double>> *m){
-    auto& mat = *m;
-    int n = mat.size();
-
-    cout << "[" << endl;
-    for (int i = 0; i < n; i++)
-    {
-        cout << " [";
-        for (int j = 0; j < n; j++)
-        {
-            cout << setw(8) << fixed << setprecision(8) << mat[i][j];
-            if (j < n - 1)
-                cout << ", ";
-        }
-        cout << "]" << (i < n - 1 ? "," : "") << endl;
-    }
-    cout << "]" << endl;
-}
-
-void FVMSolver::print_vector(vector<double> *v){
-    auto& vet = *v;
-    cout << " [";
-    int n = vet.size();
-    
-    for(int i = 0; i < n; i++){
-        cout << setw(8) << fixed << setprecision(8) << vet[i];
-        if (i < n - 1)
-                cout << ", ";
-    }
-    cout << "]" << endl;
 }
 
 void FVMSolver::assembly_A(){

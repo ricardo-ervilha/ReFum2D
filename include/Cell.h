@@ -2,14 +2,16 @@
 #define CELL_H
 
 #include "pch.h"
-#include "Element.h"
 #include "Edge.h"
 
-class Cell : public Element{
+class Cell{
     private:
         vector<int> nsigns;
         double area;
         pair<double, double> centroid;
+        vector<Node*> nodes;
+        vector<Edge*> edges;
+
         void compute_properties(){
             // centroide
             double xc = 0, yc = 0;
@@ -21,8 +23,10 @@ class Cell : public Element{
             centroid = make_pair(xc,yc);
         };
     public: 
-        const int idCell;
-        Cell(int id, int elementType, vector<Node*> nodes, int idCell) : Element(id, elementType, nodes), idCell(idCell) {
+        const int id;
+        const int cellType;
+        Cell(int id, int cellType, vector<Node*> nodes) : id(id), cellType(cellType) {
+            this->nodes = nodes;
             this->compute_properties();
         };
         ~Cell()     {};
@@ -34,6 +38,10 @@ class Cell : public Element{
 
         vector<int>& get_nsigns()   {return this->nsigns;};
         double get_area()   {return this->area;};
+
+        void insert_edge(Edge* edge)            {this->edges.push_back(edge);};
+        vector<Node*>& get_nodes()              {return this->nodes;};
+        vector<Edge*>& get_edges()              {return this->edges;};
 };
 
 #endif

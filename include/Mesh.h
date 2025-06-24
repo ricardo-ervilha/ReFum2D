@@ -2,10 +2,8 @@
 #define MESH_H
 
 #include "pch.h"
-#include "PhysicalGroup.h"
-#include "Element.h"
+#include "PhysicalEntity.h"
 #include "Node.h"
-#include "BoundaryCondition.h"
 #include "Cell.h"
 
 // Função de hash para a parte das faces únicas.
@@ -21,10 +19,9 @@ struct CantorPairingFunction {
 class Mesh{
     private:
         vector<Node*> nodes;
-        vector<Element*> elements;
         vector<Cell*> cells;
         vector<Edge*> edges;
-        map<int, PhysicalGroup*> physicalgroups;
+        map<int, PhysicalEntity*> physicalentities; //fluido, placa, aerofolio, etc.
 
         /*Mapeia de elemento p/ o número de nós que o elemento possui*/
         map<int,int> elementTypeToNumNodes;
@@ -35,6 +32,16 @@ class Mesh{
         Mesh();
         ~Mesh();
         void read_mesh(string filepath);
+
+        vector<Node*>& get_nodes() const { return nodes; }
+        vector<Cell*>& get_cells() const { return cells; }
+        vector<Edge*>& get_edges() const { return edges; }
+        map<int, PhysicalEntity*>& getPhysicalEntities() const { return physicalentities; }
+
+        int get_nnodes() const { return nodes.size(); }
+        int get_ncells() const { return cells.size(); }
+        int get_nedges() const { return edges.size(); }
+        int get_nphysicalentities() const { return physicalentities.size(); }
 };      
 
 #endif

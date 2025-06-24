@@ -17,7 +17,7 @@ set(SOURCE_FILES
 )
 set(HEADER_FILES
     include/Element.h
-    include/PhysicalGroup.h
+    include/PhysicalEntity.h
     include/Node.h
     include/Edge.h
     include/Mesh.h
