@@ -38,7 +38,7 @@ double exact(double x, double y){
 
 int main(void){
     Mesh* m = new Mesh();
-    m->read_mesh("../inputs/10x10.msh");
+    m->read_mesh("../inputs/20x20.msh");
 
     BoundaryCondition* downBC = new BoundaryCondition("Dirichlet", down);
     BoundaryCondition* rightBC = new BoundaryCondition("Dirichlet", right);
@@ -52,7 +52,11 @@ int main(void){
     solver->assembly_b();
     // solver->print_b();
 
-    solver->solve_system();
+    double tol = 1e-6;
+    solver->solve_system(tol);
     solver->compute_error(exact);
+
+    solver->save_solution("../outputs/result.vtk");
+
     return 0;
 }

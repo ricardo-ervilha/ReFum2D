@@ -18,14 +18,14 @@ FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *down, BoundaryCondition* rig
     int nfaces = mesh->get_nedges();
 
     /*Inicialização das EDs associadas a resolução do problema...*/
-    this->A = arma::mat(ncells, ncells); 
-    this->b = arma::vec(ncells);
-    this->u = arma::vec(ncells); 
-    this->source = arma::vec(ncells); 
-    this->gammaf = arma::vec(nfaces); 
-    this->rhof = arma::vec(nfaces); 
-    this->uf = arma::mat(nfaces,2); 
-    this->b_with_cd = arma::vec(ncells);
+    this->A = arma::mat(ncells, ncells, arma::fill::zeros); 
+    this->b = arma::vec(ncells, arma::fill::zeros);
+    this->u = arma::vec(ncells, arma::fill::zeros); 
+    this->source = arma::vec(ncells, arma::fill::zeros); 
+    this->gammaf = arma::vec(nfaces, arma::fill::zeros); 
+    this->rhof = arma::vec(nfaces, arma::fill::zeros); 
+    this->uf = arma::mat(nfaces,2, arma::fill::zeros); 
+    this->b_with_cd = arma::vec(ncells, arma::fill::zeros);
     
     // chama para fazer o pré-processamento
     this->pre_processing();
@@ -152,11 +152,6 @@ void FVMSolver::assembly_A(){
                 pair<double,double> n1 = compute_n1(centroidP, centroidN, normal_corrected);
                 double normn1 = sqrt(n1.first * n1.first + n1.second * n1.second); // |n1|
                 
-                /*Calculo da distancia de P até center(gface) & N até center(gface)*/
-                pair<double,double>& midFace = facesOfCell[j]->get_middle();
-                double d1 = distance(centroidP.first, centroidP.second, midFace.first, midFace.second);
-                double d2 = distance(centroidN.first, centroidN.second, midFace.first, midFace.second);
-                
                 /*Difusão*/
                 // na diagonal: -k_f * A_f * |n1| / delta_f
                 double coeff = (gammaf[gface] * facesOfCell[j]->get_length() * normn1) / facesOfCell[j]->get_df();
@@ -206,150 +201,156 @@ void FVMSolver::assembly_b(){
     */
 }
 
-// /*Uso da reconstrução com least squares, e interpolação da phif usando os valores dos centroides.*/
-// /*Least squares irá resolver Mx=y*/
-// void FVMSolver::compute_gradients(){
-//     int ncells = mesh->get_num_cells();
-//     this->gradients = vector<std::pair<double, double>>(ncells, std::make_pair(0.0, 0.0));
+/*
+    Uso da reconstrução com Least Squares, e interpolação da phi_f será feita usando os valores dos centroides.
+*/
+/*
+    Least squares irá resolver Mx = y.
+*/
+void FVMSolver::compute_gradients(){
+    vector<Cell*>& cells = mesh->get_cells();
+    this->gradients = vector<pair<double, double>>(cells.size(), std::make_pair(0.0, 0.0));
 
-//     //construirá o vetor b_with_cd para ter a difusão cruzada.
-//     for(int i = 0; i < ncells; i++){ // para cada célula
-//         int gcell = mesh->get_global_cell_id(i);
-//         Element* cell = mesh->get_cell(gcell);
-//         vector<int> faceIds = cell->get_face_ids();
+    for(int i = 0; i < cells.size(); i++){ // para cada célula
+        vector<Edge*>& edgesOfCell = cells[i]->get_edges();
         
-//         arma::mat M(faceIds.size(), 2);
-//         arma::vec y(faceIds.size());
+        // criação da M e da y.
+        arma::mat M(edgesOfCell.size(), 2);
+        arma::vec y(edgesOfCell.size());
         
-//         for(int j = 0; j < faceIds.size(); j++){ // para cada face
-//             int gface = faceIds[j];
-//             if(mesh->get_link_face_to_bface(gface) != -1){
-//                 // Contribuição da face de contorno
-//                 Node* centroid = mesh->get_centroid(i);
-//                 Node* middleFace = mesh->get_middle_face(gface);
+        for(int j = 0; j < edgesOfCell.size(); j++){ // para cada face
+            int gface = edgesOfCell[j]->id;
+
+            if(edgesOfCell[j]->is_boundary_face()){
+                // Contribuição da face de contorno
+                pair<double,double>& centroid = cells[i]->get_centroid();
+                pair<double,double>& middleFace = edgesOfCell[j]->get_middle();
                 
-//                 double dx = middleFace->get_x() - centroid->get_x();
-//                 double dy = middleFace->get_y() - centroid->get_y(); 
+                double dx = middleFace.first - centroid.first;
+                double dy = middleFace.second - centroid.second; 
+                
+                // [dx dy]
+                M(j,0) = dx;
+                M(j, 1) = dy;
 
-//                 M(j,0) = dx;
-//                 M(j, 1) = dy;
-//                 y[j] = -u[i]; // u_B (0 por enquanto !) - u_P  
-//             }else{
-//                 pair<int,int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
+                // [u_B - u_P]
+                y[j] = edgesOfCell[j]->get_phib() - u[i];  
+            }else{
+                pair<int,int>& idCellsShareFace = edgesOfCell[j]->get_link_face_to_cell();
                     
-//                 int ic1 = idCellsShareFace.first; 
-//                 int ic2 = idCellsShareFace.second;
+                int ic1 = idCellsShareFace.first; 
+                int ic2 = idCellsShareFace.second;
                 
-//                 int nb = ic1 == gcell ? ic2 : ic1; //pegando o vizinho do gcell
-//                 int lnb = mesh->get_local_cell_id(nb);
+                int nb = ic1 == i ? ic2 : ic1; //pegando o vizinho da célula P
                 
-//                 /*cálculo de |n1|*/
-//                 Node *centroidP = mesh->get_centroid(i);
-//                 Node *centroidN = mesh->get_centroid(lnb);
+                pair<double,double>& centroidP = cells[i]->get_centroid();
+                pair<double,double>& centroidN = cells[nb]->get_centroid();
 
-//                 double dx = centroidN->get_x() - centroidP->get_x();
-//                 double dy = centroidN->get_y() - centroidP->get_y();
-
-//                 M(j,0) = dx;
-//                 M(j, 1) = dy;
-//                 y[j] = u[lnb] - u[i]; //u_N - u_P  
-//             }
-//         }
-
-//         // M x = y
-//         arma::vec x = arma::solve(M, y);
-//         this->gradients[i] = make_pair(x[0], x[1]);
-//     }
-// }
-
-// void FVMSolver::compute_cross_diffusion(){
-//     int ncells = mesh->get_num_cells();
-//     b_with_cd.zeros();
-//     for(int i = 0; i < ncells; i++){
-//         int gcell = mesh->get_global_cell_id(i);
-//         Element* cell = mesh->get_cell(gcell);
-//         vector<int> faceIds = cell->get_face_ids();
-//         vector<int>& normalSigns = mesh->get_cell(gcell)->get_normal_sign();
-//         for(int j = 0; j < faceIds.size(); j++){ // para cada face
-//             int gface = faceIds[j];
-//             if(mesh->get_link_face_to_bface(gface) != -1){
-//                 //face de contorno
-//                 Node* centroid = mesh->get_centroid(i);
-//                 Node* middleFace = mesh->get_middle_face(gface);
+                double dx = centroidN.first - centroidP.first;
+                double dy = centroidN.second - centroidP.second;
                 
-//                 /*cálculo da n1*/
-//                 tuple<double, double>& normal = mesh->get_normal(gface);
+                // [dx dy]
+                M(j,0) = dx;
+                M(j, 1) = dy;
+
+                // [u_N - u_P]
+                y[j] = u[nb] - u[i];  
+            }
+        }
+
+        // Resolve sistema sobre-determinado M x = y.
+        arma::vec x = arma::solve(M, y);
+        this->gradients[i] = make_pair(x[0], x[1]);
+    }
+}
+
+/*
+    Cômputo da difusão cruzada após obtenção dos gradientes obtidos pelo método de reconstrução.
+*/
+void FVMSolver::compute_cross_diffusion(){
+    vector<Cell*> cells = mesh->get_cells();
+    b_with_cd.zeros(); // zera para a próxima iteração.
+    for(int i = 0; i < cells.size(); i++){ 
+        vector<Edge*> facesOfCell = cells[i]->get_edges();
+        vector<int>& nsigns = cells[i]->get_nsigns();
+        for(int j = 0; j < facesOfCell.size(); j++){ // para cada face
+            int gface = facesOfCell[j]->id;
+            
+            if(facesOfCell[j]->is_boundary_face()){
+                //face de contorno
+                pair<double,double>& centroid = cells[i]->get_centroid();
+                pair<double,double>& middleFace = facesOfCell[j]->get_middle();
+                pair<double, double>& normal = facesOfCell[j]->get_normal();
                 
-//                 //correção do sinal da normal para apontar para fora de P corretamente.
-//                 double nx = get<0>(normal)*normalSigns[j];
-//                 double ny = get<1>(normal)*normalSigns[j];
+                // correção da normal
+                pair<double,double> normal_corrected = make_pair(normal.first *  nsigns[j], normal.second * nsigns[j]);
                 
-//                 double dpnx = middleFace->get_x() - centroid->get_x(); 
-//                 double dpny = middleFace->get_y() - centroid->get_y();
+                pair<double,double> n1 = compute_n1(centroid, middleFace, normal_corrected);
 
-//                 double normnfsquare = nx*nx + ny*ny;
+                // encontrando o n2: n1 + n2 = nf => n2 = nf - n1
+                double n2x = normal_corrected.first - n1.first;
+                double n2y = normal_corrected.second - n1.second;
+
+                // grad(phi) . normal 
+                // estou assumindo que o gradiente da face é o gradiente da célula.
+                double graddotnormal = gradients[i].first * n2x + gradients[i].second * n2y;
                 
-//                 double nfdotdpn = nx*dpnx + ny*dpny;
+                // cálculo: k_f * A_f * (grad(phi) . n2)
+                this->b_with_cd[i] += (gammaf[gface] * facesOfCell[j]->get_length() * graddotnormal);
+            }else{
+                pair<int,int>& idCellsShareFace = facesOfCell[j]->get_link_face_to_cell();
                 
-//                 double n1x = dpnx * (normnfsquare/nfdotdpn);
-//                 double n1y = dpny * (normnfsquare/nfdotdpn);
-
-//                 double n2x = nx - n1x;
-//                 double n2y = ny - n1y;
-
-//                 double graddotnormal = gradients[i].first * n2x + gradients[i].second * n2y;
-
-//                 this->b_with_cd[i] += (gammaf[gface] * mesh->get_face_area(gface) * graddotnormal);
-//             }else{
-//                 pair<int,int>& idCellsShareFace = mesh->get_link_face_to_cell(gface);
-//                 Node* middleFace = mesh->get_middle_face(gface);
+                int ic1 = idCellsShareFace.first; 
+                int ic2 = idCellsShareFace.second;
                 
-//                 int ic1 = idCellsShareFace.first; 
-//                 int ic2 = idCellsShareFace.second;
+                int nb = ic1 == i ? ic2 : ic1; //pegando o vizinho da célula P
                 
-//                 int nb = ic1 == gcell ? ic2 : ic1; //pegando o vizinho do gcell
-//                 int lnb = mesh->get_local_cell_id(nb);
+                pair<double,double>& centroidP = cells[i]->get_centroid();
+                pair<double,double>& centroidN = cells[nb]->get_centroid();
+                pair<double, double>& normal = facesOfCell[j]->get_normal();
+                pair<double,double> normal_corrected = make_pair(normal.first *  nsigns[j], normal.second * nsigns[j]);
                 
-//                 /*cálculo de |n1|*/
-//                 Node *centroidP = mesh->get_centroid(i);
-//                 Node *centroidN = mesh->get_centroid(lnb);
-//                 tuple<double, double>& normal = mesh->get_normal(gface);
+                pair<double,double> n1 = compute_n1(centroidP, centroidN, normal_corrected);
                 
-//                 //correção do sinal da normal para apontar para fora de P corretamente.
-//                 double nx = get<0>(normal)*normalSigns[j];
-//                 double ny = get<1>(normal)*normalSigns[j];
+                double n2x = normal_corrected.first - n1.first;
+                double n2y = normal_corrected.second - n1.second;
 
-//                 double dpnx = centroidN->get_x() - centroidP->get_x();
-//                 double dpny = centroidN->get_y() - centroidP->get_y();
-                
-//                 double normnfsquare = nx*nx + ny*ny;
-//                 double nfdotdpn = nx*dpnx +ny*dpny;
-                
-//                 double n1x = dpnx * (normnfsquare/nfdotdpn);
-//                 double n1y = dpny * (normnfsquare/nfdotdpn);
+                /*Calculo da distancia de P até center(gface) & N até center(gface)*/
+                pair<double,double>& midFace = facesOfCell[j]->get_middle();
+                double d1 = distance(centroidP.first, centroidP.second, midFace.first, midFace.second);
+                double d2 = distance(centroidN.first, centroidN.second, midFace.first, midFace.second);
 
-//                 double n2x = nx - n1x;
-//                 double n2y = ny - n1y;
+                // interpolando grad_P e grad_N para obtenção do gradiente na face.
+                double gradx = (gradients[i].first*d2 + gradients[nb].first*d1)/(d1+d2);
+                double grady = (gradients[i].second*d2 + gradients[nb].second*d1)/(d1+d2);
 
-//                 double d1 = sqrt(pow(middleFace->get_x() - centroidN->get_x(),2) + pow(middleFace->get_y() - centroidN->get_y(),2));
-//                 double d2 = sqrt(pow(middleFace->get_x() - centroidP->get_x(),2) + pow(middleFace->get_y() - centroidP->get_y(),2));
+                double graddotnormal = gradx * n2x + grady * n2y;
 
-//                 double gradx = (gradients[i].first*d1 + gradients[lnb].first*d2)/(d1+d2);
-//                 double grady = (gradients[i].second*d1 + gradients[lnb].second*d2)/(d1+d2);
+                // cálculo: k_f * A_f * (grad(phi)_f . n2)
+                this->b_with_cd[i] += (gammaf[gface] * facesOfCell[j]->get_length() * graddotnormal);
+            }
+        }
+        // por fim, b_with_cd será o b (fixo) - sum(skew_P)
+        this->b_with_cd[i] = this->b[i] - this->b_with_cd[i];
+    }
+}
 
-//                 double graddotnormal = gradx * n2x + grady * n2y;
+void FVMSolver::solve_system(double tolerance){
+    double diff = 1;
+    arma::vec aux;
+    int iter = 0;
+    while(diff > tolerance){
+        aux = this->b_with_cd; // obtém a cópia com valores anteriores...
 
-//                 this->b_with_cd[i] += (gammaf[gface] * mesh->get_face_area(gface) * graddotnormal);
-//             }
-//         }
-//         this->b_with_cd[i] = this->b[i] - this->b_with_cd[i];
-//     }
-// }
+        this->compute_gradients(); // atualiza os gradientes na reconstrução
+        this->compute_cross_diffusion(); // usando os gradientes computa a difusão cruzada
+        this->u = arma::solve(A,b_with_cd); // resolvendo usando b atualizado com a difusão cruzada. 
 
-void FVMSolver::solve_system(){
-   
-    this->u = arma::solve(A,b);
+        diff = arma::norm(aux - this->b_with_cd, "inf");
+        iter += 1;
+    }
 
+    cout << "Convergiu em :" << iter << " iterações.\n";
     cout << "\nSolução obtida:\n";
     cout << u << endl;
 }
@@ -372,70 +373,64 @@ void FVMSolver::compute_error(double (*exact)(double, double)){
     cout << "\nNorma L2: " << norml2 << endl;
 }
 
-// void FVMSolver::save_solution(string filename){
+void FVMSolver::save_solution(string filename){
     
-//     ofstream vtk_file(filename);
+    ofstream vtk_file(filename);
 
-//     if (!vtk_file.is_open()) {
-//         std::cerr << "ERROR: failed to create file." << filename << "'.\n";
-//         exit(1);
-//     }
+    if (!vtk_file.is_open()) {
+        std::cerr << "ERROR: failed to create file." << filename << "'.\n";
+        exit(1);
+    }
 
-//     /*Informações padrão (REVER A QUESTÃO DA TEMPERATURA DEPOIS...)*/
-//     vtk_file << "# vtk DataFile Version 3.0\n";
-//     vtk_file << "Malha 2D com triângulos e temperatura\n";
-//     vtk_file << "ASCII\n";
-//     vtk_file << "DATASET UNSTRUCTURED_GRID\n\n";
+    /*Informações padrão*/
+    vtk_file << "# vtk DataFile Version 3.0\n";
+    vtk_file << "Malha 2D com triângulos e temperatura\n";
+    vtk_file << "ASCII\n";
+    vtk_file << "DATASET UNSTRUCTURED_GRID\n\n";
 
-//     int nnodes = this->mesh->get_num_nodes();
-//     vtk_file << "POINTS " << nnodes << " double" << endl;
-//     vector<Node>& nodes = this->mesh->get_nodes();
-//     for(int i = 0; i < nnodes; i++){
-//         vtk_file << nodes[i].get_x() << " " << nodes[i].get_y() << " " << nodes[i].get_z() << endl;
-//     }
-//     vtk_file << endl;
+    vector<Node*> nodes = this->mesh->get_nodes();
+    vtk_file << "POINTS " << nodes.size() << " double" << endl;
+    for(int i = 0; i < nodes.size(); i++){
+        vtk_file << nodes[i]->x << " " << nodes[i]->y << " " << 0 << endl;
+    }
+    vtk_file << endl;
 
-//     int ncells = this->mesh->get_num_cells();
-//     vtk_file << "CELLS " << ncells << " ";
-//     int sum = 0;
-//     for(int i = 0; i < ncells; i++)
-//     {
-//         int gcell = this->mesh->get_global_cell_id(i);
-//         Element* e = this->mesh->get_cell(gcell);
-//         if(e->get_element_type() == 2)
-//             sum += 4;
-//         else if(e->get_element_type() == 3)
-//             sum += 5;
-//     }
-//     vtk_file << sum << endl;
-//     for(int i = 0; i < ncells; i++){
-//         int gcell = this->mesh->get_global_cell_id(i);
-//         Element* e = this->mesh->get_cell(gcell);
-//         vector<int>& nodeIds = e->get_nodes();
-//         vtk_file << nodeIds.size(); 
-//         for(int j = 0; j < nodeIds.size(); j++)
-//             vtk_file << " " << nodeIds[j];
-//         vtk_file << endl;
-//     }
-//     vtk_file << endl;
-
-//     vtk_file << "CELL_TYPES " << ncells << endl;
-//     for(int i = 0; i < ncells; i++){
-//         int gcell = mesh->get_global_cell_id(i);
-//         Element* cell = mesh->get_cell(gcell);
-//         if(cell->get_element_type() == 2)
-//             vtk_file << "5" << endl;
-//         else if(cell->get_element_type() == 3)
-//             vtk_file << "9" << endl;
-//     }
-//     vtk_file << endl;
+    vector<Cell*> cells = mesh->get_cells();
+    vtk_file << "CELLS " << cells.size() << " ";
+    int sum = 0; // vai contar a quantidade de valores a serem lidos depois...
+    for(int i = 0; i < cells.size(); i++)
+    {
+        if(cells[i]->cellType == 2)
+            sum += 4;
+        else if(cells[i]->cellType == 3)
+            sum += 5;
+    }
+    vtk_file << sum << endl;
     
-//     vtk_file << "CELL_DATA " << ncells << endl;
-//     vtk_file << "SCALARS Temperatura double 1\n";
-//     vtk_file << "LOOKUP_TABLE default\n";
-//     for(int i = 0; i < ncells; i++){
-//         vtk_file << this->u[i] << endl;
-//     }
+    for(int i = 0; i < cells.size(); i++){
+        vector<Node*>& nodesOfCell = cells[i]->get_nodes();
+        vtk_file << nodesOfCell.size(); 
+        for(int j = 0; j < nodesOfCell.size(); j++)
+            vtk_file << " " << nodesOfCell[j]->id;
+        vtk_file << endl;
+    }
+    vtk_file << endl;
 
-//     vtk_file.close();
-// }
+    vtk_file << "CELL_TYPES " << cells.size() << endl;
+    for(int i = 0; i < cells.size(); i++){
+        if(cells[i]->cellType == 2)
+            vtk_file << "5" << endl;
+        else if(cells[i]->cellType == 3)
+            vtk_file << "9" << endl;
+    }
+    vtk_file << endl;
+    
+    vtk_file << "CELL_DATA " << cells.size() << endl;
+    vtk_file << "SCALARS Temperatura double 1\n";
+    vtk_file << "LOOKUP_TABLE default\n";
+    for(int i = 0; i < cells.size(); i++){
+        vtk_file << this->u[i] << endl;
+    }
+
+    vtk_file.close();
+}

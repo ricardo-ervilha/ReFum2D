@@ -46,12 +46,12 @@ class FVMSolver {
 
         void assembly_A();
         void assembly_b();
-        // void compute_gradients();
-        // void compute_cross_diffusion();
+        void compute_gradients();
+        void compute_cross_diffusion();
 
-        void solve_system();
+        void solve_system(double tolerance);
 
-        // void save_solution(string filepath);
+        void save_solution(string filepath);
 
         void compute_error(double (*exact)(double, double));
 };
