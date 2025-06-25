@@ -5,6 +5,12 @@ Mesh::Mesh(){
     this->elementTypeToNumNodes[2] = 3; //Triângulo tem três nós
     this->elementTypeToNumNodes[3] = 4; //Quadrilatero tem quatro nós
     this->elementTypeToNumNodes[15] = 1; //Ponto tem um nó
+
+    xmin = numeric_limits<double>::max();
+    ymin = numeric_limits<double>::max();
+
+    xmax = numeric_limits<double>::lowest();
+    ymax = numeric_limits<double>::lowest();
 }
 
 Mesh::~Mesh(){
@@ -62,6 +68,11 @@ void Mesh::read_mesh(string filepath){
                     iss >> id >> x >> y >> z;
                     Node* n = new Node(i, x, y);
                     this->nodes.push_back(n);
+
+                    if (x < xmin) xmin = x;
+                    if (x > xmax) xmax = x;
+                    if (y < ymin) ymin = y;
+                    if (y > ymax) ymax = y;
                 }
             } else if(line == "$Elements"){
                 int idCell = 0; // variável auxiliar para ir pegando o id das células.

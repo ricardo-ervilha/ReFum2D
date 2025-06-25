@@ -56,6 +56,7 @@ class Edge{
         }
 
         double get_phib()   {return this->phib;}
+        void set_phib(double phib)   {this->phib = phib;};
 };
 
 #endif

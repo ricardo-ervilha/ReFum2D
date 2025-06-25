@@ -31,20 +31,27 @@ class FVMSolver {
         void pre_processing(); // Função para realizar o pré-processamento dos dados do problema.
         void apply_boundaries_in_edges_from_mesh(); // Função para aplicar condições de contorno adequadamente.
     public:    
-        FVMSolver(string filepath, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*rho)(double,double), pair<double,double> (*U)(double, double), double (*sourceTerm)(double, double));
+        FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*rho)(double,double), pair<double,double> (*U)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();
         
-        void print_A() { cout << A << endl;};
-        void print_b() { cout << b << endl;};
+        void print_A() { 
+            cout << "#==================================================================================#" << endl;
+            cout << A << endl;
+            cout << "#==================================================================================#" << endl;
+        };
+        void print_b() { 
+            cout << "#==================================================================================#" << endl;
+            cout << b << endl;
+        };
 
         void assembly_A();
         void assembly_b();
-        void compute_gradients();
-        void compute_cross_diffusion();
+        // void compute_gradients();
+        // void compute_cross_diffusion();
 
         void solve_system();
 
-        void save_solution(string filepath);
+        // void save_solution(string filepath);
 
         void compute_error(double (*exact)(double, double));
 };

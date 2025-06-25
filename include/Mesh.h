@@ -23,6 +23,10 @@ class Mesh{
         vector<Edge*> edges;
         map<int, PhysicalEntity*> physicalentities; //fluido, placa, aerofolio, etc.
 
+        // variáveis para ajudar a aplicar BCs.
+        double xmin, xmax;
+        double ymin, ymax;
+
         /*Mapeia de elemento p/ o número de nós que o elemento possui*/
         map<int,int> elementTypeToNumNodes;
 
@@ -33,15 +37,20 @@ class Mesh{
         ~Mesh();
         void read_mesh(string filepath);
 
-        vector<Node*>& get_nodes() const { return nodes; }
-        vector<Cell*>& get_cells() const { return cells; }
-        vector<Edge*>& get_edges() const { return edges; }
-        map<int, PhysicalEntity*>& getPhysicalEntities() const { return physicalentities; }
+        vector<Node*>& get_nodes() { return nodes; }
+        vector<Cell*>& get_cells() { return cells; }
+        vector<Edge*>& get_edges() { return edges; }
+        map<int, PhysicalEntity*>& getPhysicalEntities() { return physicalentities; }
 
-        int get_nnodes() const { return nodes.size(); }
-        int get_ncells() const { return cells.size(); }
-        int get_nedges() const { return edges.size(); }
-        int get_nphysicalentities() const { return physicalentities.size(); }
+        int get_nnodes() { return nodes.size(); }
+        int get_ncells()  { return cells.size(); }
+        int get_nedges()  { return edges.size(); }
+        int get_nphysicalentities()  { return physicalentities.size(); }
+
+        int get_xmin() {return xmin;};
+        int get_xmax() {return xmax;};
+        int get_ymin() {return ymin;};
+        int get_ymax() {return ymax;};
 };      
 
 #endif
