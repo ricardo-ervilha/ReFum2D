@@ -32,7 +32,7 @@ class FVMSolver {
         void apply_boundaries_in_edges_from_mesh(); // Função para aplicar condições de contorno adequadamente.
         
         void diffusion(Cell* cell, Edge* edge, int nsign); // aplica a difusão na A (diferenças centradas)
-        void convection(Cell* cell, Edge* edge); // aplica a convecção na A (TVD)
+        void convection(Cell* cell, Edge* edge, int nsign); // aplica a convecção na A (Upwind)
     public:    
         FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*rho)(double,double), pair<double,double> (*U)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();

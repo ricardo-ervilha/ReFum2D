@@ -151,6 +151,28 @@ void FVMSolver::diffusion(Cell* cell, Edge* face, int nsign){
     }
 }
 
+void FVMSolver::convection(Cell* cell, Edge* face, int nsign){
+    pair<double, double>& normal = face->get_normal();
+    pair<double,double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
+    double Udotnormal = uf(face->id, 0) * normal_corrected.first + uf(face->id, 1) * normal_corrected.second;
+    double Gf = rhof[face->id] * Udotnormal * face->get_length();
+    if(!face->is_boundary_face()){
+        if(Gf > 0){
+            // phif = phi_P
+            A(cell->id, cell->id) -= Gf; 
+        }else {
+            // phif = phi_N
+            pair<int,int>& idCellsShareFace = face->get_link_face_to_cell();
+                    
+            int ic1 = idCellsShareFace.first; 
+            int ic2 = idCellsShareFace.second;
+            
+            int nb = ic1 == cell->id ? ic2 : ic1; //pegando o vizinho da célula P
+            A(cell->id, nb) -= Gf;
+        }
+    }
+}
+
 /*Pré-calcular n1 e n2.*/
 void FVMSolver::assembly_A(){
     vector<Cell*>& cells = mesh->get_cells();
@@ -160,6 +182,7 @@ void FVMSolver::assembly_A(){
         
         for(int j = 0; j < facesOfCell.size(); j++){
             this->diffusion(cells[i], facesOfCell[j], nsigns[j]);
+            this->convection(cells[i], facesOfCell[j], nsigns[j]);
         }
     }
 }
@@ -184,8 +207,16 @@ void FVMSolver::assembly_b(){
                 pair<double,double> n1 = compute_n1(centroid, middleFace, normal_corrected);
                 double normn1 = sqrt(n1.first * n1.first + n1.second * n1.second); // |n1|
 
+                // difusão
                 // no b da celula i, será: - k_B * A_B * |n1| * phi_B / delta_B
-                b[i] = - (gammaf[gface] * facesOfCell[j]->get_length() * normn1 * facesOfCell[j]->get_phib()) / facesOfCell[j]->get_df();
+                b[i] += -(gammaf[gface] * facesOfCell[j]->get_length() * normn1 * facesOfCell[j]->get_phib()) / facesOfCell[j]->get_df();
+                
+                // convecção
+                double Udotnormal = uf(gface, 0) * normal_corrected.first + uf(gface, 1) * normal_corrected.second;
+                double Gf = rhof[gface] * Udotnormal * facesOfCell[j]->get_length();
+
+                // convecção
+                b[i] += (Gf * facesOfCell[j]->get_phib());
             }
         }
         // acrescento agora o termo fonte: S_P * V_P.

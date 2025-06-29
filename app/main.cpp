@@ -9,36 +9,37 @@ double right(double x, double y) {
 }
 
 double top(double x, double y) {
-    return 0.0;
-}
-
-double left(double x, double y) {
-    return 0.0;
-}
-
-double gamma(double x, double y){
     return 1.0;
 }
 
+double left(double x, double y) {
+    return 1.0;
+}
+
+double gamma(double x, double y){
+    return 0.1;
+}
+
 double rho(double x, double y){
-    return 0.0;
+    return 1.0;
 }
 
 pair<double,double> U(double x, double y){
-    return make_pair(0.0,0.0);
+    return make_pair(1, 1);
 }
 
 double source(double x, double y){
-    return -200*x*(1-x) - 200*y*(1-y);
+    // return -200*x*(1-x) - 200*y*(1-y);
+    return 0.0;
 }
 
 double exact(double x, double y){
-    return 100*x*(1-x)*y*(1-y);
+    return 100*x*(1-x)*y*(1-y); // Exata do problema de Poisson.
 }
 
 int main(void){
     Mesh* m = new Mesh();
-    m->read_mesh("../inputs/20x20.msh");
+    m->read_mesh("../inputs/q5x5.msh");
 
     BoundaryCondition* downBC = new BoundaryCondition("Dirichlet", down);
     BoundaryCondition* rightBC = new BoundaryCondition("Dirichlet", right);
@@ -47,14 +48,14 @@ int main(void){
     FVMSolver* solver = new FVMSolver(m, downBC, rightBC, topBC, leftBC, gamma, rho, U, source);
 
     solver->assembly_A();
-    // solver->print_A();
+    solver->print_A();
 
     solver->assembly_b();
-    // solver->print_b();
+    solver->print_b();
 
     double tol = 1e-6;
     solver->solve_system(tol);
-    solver->compute_error(exact);
+    // solver->compute_error(exact);
 
     solver->save_solution("../outputs/result.vtk");
 
