@@ -222,7 +222,15 @@ void Mesh::pre_processing(){
     /*5ª etapa: calculo do df das arestas.*/
     for(int i = 0; i < this->edges.size(); i++){
         pair<int,int> cellIds = this->edges[i]->get_link_face_to_cell();
-        if(cellIds.first >= 0 && cellIds.second >= 0){
+        if(this->edges[i]->is_boundary_face()){
+            /*caso seja boundary face: calculo da unica celula adjacente e o centro da face. (dB)*/
+            int cellAdj = cellIds.first != -1 ? cellIds.first : cellIds.second;
+            pair<double,double>& cell = cells[cellAdj]->get_centroid();
+            pair<double,double>& mid = this->edges[i]->get_middle();
+            double db = distance(cell.first, cell.second, mid.first, mid.second);
+            this->edges[i]->set_df(db);
+        }else{
+            /*caso não seja boundary face: cálculo entre o centroid das 2 celulas adjacentes. (df)*/
             pair<double,double>& c1 = cells[cellIds.first]->get_centroid();
             pair<double,double>& c2 = cells[cellIds.second]->get_centroid();
             double df = distance(c1.first, c1.second, c2.first, c2.second);

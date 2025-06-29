@@ -28,8 +28,11 @@ class FVMSolver {
         arma::vec b_with_cd; // relacionado a angulosidade da malha, computa a difusão cruzada.
         vector<pair<double,double>> gradients; // vetor com os gradientes daquela iteração.
         
-        void pre_processing(); // Função para realizar o pré-processamento dos dados do problema.
+        void pre_processing(); // Função para realizar o pré-processamento dos dados do problema e colocar em ED's.
         void apply_boundaries_in_edges_from_mesh(); // Função para aplicar condições de contorno adequadamente.
+        
+        void diffusion(Cell* cell, Edge* edge, int nsign); // aplica a difusão na A (diferenças centradas)
+        void convection(Cell* cell, Edge* edge); // aplica a convecção na A (TVD)
     public:    
         FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*rho)(double,double), pair<double,double> (*U)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();
