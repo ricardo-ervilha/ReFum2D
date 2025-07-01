@@ -9,28 +9,29 @@ double right(double x, double y) {
 }
 
 double top(double x, double y) {
-    return 1.0;
+    // return sin(M_PI * x) * sin(M_PI);
+    return 0;
 }
 
 double left(double x, double y) {
-    return 1.0;
+    return 0.0;
 }
 
 double gamma(double x, double y){
-    return 0.1;
-}
-
-double rho(double x, double y){
     return 1.0;
 }
 
+double rho(double x, double y){
+    return 0.0;
+}
+
 pair<double,double> U(double x, double y){
-    return make_pair(1, 1);
+    return make_pair(0, 0);
 }
 
 double source(double x, double y){
-    // return -200*x*(1-x) - 200*y*(1-y);
-    return 0.0;
+    return -200*x*(1-x) - 200*y*(1-y);
+    // return 0;
 }
 
 double exact(double x, double y){
@@ -39,12 +40,12 @@ double exact(double x, double y){
 
 int main(void){
     Mesh* m = new Mesh();
-    m->read_mesh("../inputs/q5x5.msh");
+    m->read_mesh("../inputs/1026tri.msh");
 
-    BoundaryCondition* downBC = new BoundaryCondition("Dirichlet", down);
-    BoundaryCondition* rightBC = new BoundaryCondition("Dirichlet", right);
-    BoundaryCondition* topBC = new BoundaryCondition("Dirichlet", top);
-    BoundaryCondition* leftBC = new BoundaryCondition("Dirichlet", left);
+    BoundaryCondition* downBC = new BoundaryCondition(DIRICHLET, DOWN, down);
+    BoundaryCondition* rightBC = new BoundaryCondition(DIRICHLET, RIGHT, right);
+    BoundaryCondition* topBC = new BoundaryCondition(DIRICHLET, TOP, top);
+    BoundaryCondition* leftBC = new BoundaryCondition(DIRICHLET, LEFT, left);
     FVMSolver* solver = new FVMSolver(m, downBC, rightBC, topBC, leftBC, gamma, rho, U, source);
 
     solver->assembly_A();
@@ -61,3 +62,5 @@ int main(void){
 
     return 0;
 }
+
+/*Rever toda a conta que está sendo feita... Principalmente envolvendo as boundaries.*/

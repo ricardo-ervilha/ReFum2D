@@ -15,7 +15,7 @@ class FVMSolver {
         double (*rhofunc)(double, double); // Densidade do meio
         pair<double,double> (*ufunc)(double, double); // Vetor velocidade 
         
-        vector<BoundaryCondition*> boundaries; // Condições de contorno informados pelo usuário.
+        map<BoundaryLocation, BoundaryCondition*> boundaries; // Condições de contorno informados pelo usuário.
 
         // Estruturas de dados relacionadas a montagem e solução do problema.
         arma::mat A;
@@ -29,12 +29,11 @@ class FVMSolver {
         vector<pair<double,double>> gradients; // vetor com os gradientes daquela iteração.
         
         void pre_processing(); // Função para realizar o pré-processamento dos dados do problema e colocar em ED's.
-        void apply_boundaries_in_edges_from_mesh(); // Função para aplicar condições de contorno adequadamente.
         
         void diffusion(Cell* cell, Edge* edge, int nsign); // aplica a difusão na A (diferenças centradas)
         void convection(Cell* cell, Edge* edge, int nsign); // aplica a convecção na A (Upwind)
     public:    
-        FVMSolver(Mesh* mesh, BoundaryCondition *down, BoundaryCondition *right, BoundaryCondition *top, BoundaryCondition *left, double (*g)(double, double), double (*rho)(double,double), pair<double,double> (*U)(double, double), double (*sourceTerm)(double, double));
+        FVMSolver(Mesh* mesh, BoundaryCondition *bc1, BoundaryCondition *bc2, BoundaryCondition *bc3, BoundaryCondition *bc4, double (*g)(double, double), double (*rho)(double,double), pair<double,double> (*U)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();
         
         void print_A() { 

@@ -2,33 +2,60 @@
 #define BOUNDARYCONDITION_H
 
 #include "pch.h"
+#include "Edge.h"
 
 enum BoundaryType {
-    DIRICHLET = 1,
-    NEUMANN = 2
+    DIRICHLET,
+    NEUMANN
+};
+
+enum BoundaryLocation {
+    DOWN,
+    RIGHT, 
+    TOP,
+    LEFT
 };
 
 class BoundaryCondition {
     private:
-        string name; // O nome da boundary condition
-        BoundaryType type; //Infere o tipo numérico baseado no name, que pode ser: "Dirichlet" ou "Neumann"
+        BoundaryType type; 
+        BoundaryLocation location;
         double (*func)(double, double); // O valor a ser aplicado é uma função.
+        static double xmin, xmax, ymin, ymax;
 
     public: 
-        BoundaryCondition(string nameType, double (*f)(double, double)) {
-            this->name = nameType;
+        BoundaryCondition(BoundaryType type, BoundaryLocation location, double (*f)(double, double)) {
             this->func = f;
-
-            if(this->name == "Dirichlet")
-                this->type = DIRICHLET;
-            else if(this->name == "Neumann")
-                this->type = NEUMANN;
-            else
-                throw invalid_argument("BoundaryCondition: Incorrect type of boundary condition.");
+            this->location = location;
+            this->type = type;
         };
         ~BoundaryCondition() {};    
-        int get_type() { return type; }; 
+        BoundaryType get_type() { return type; }; 
+        BoundaryLocation get_location() { return location; }; 
         double apply(double x, double y) {  return func(x, y); };
+
+        static void apply_mins_maxs(double xmin, double xmax, double ymin, double ymax){
+            BoundaryCondition::xmin = xmin;
+            BoundaryCondition::xmax = xmax;
+            BoundaryCondition::ymin = ymin;
+            BoundaryCondition::ymax = ymax;
+        }
+
+        static BoundaryLocation find_location(Edge* e){
+            if(e->from->y == BoundaryCondition::ymin && e->to->y == BoundaryCondition::ymin){
+                // down boundary
+                return DOWN;
+            } else if(e->from->x == BoundaryCondition::xmax && e->to->x == BoundaryCondition::xmax){
+                // right boundary
+                return RIGHT;
+            } else if(e->from->y == BoundaryCondition::ymax && e->to->y == BoundaryCondition::ymax){
+                // top boundary
+                return TOP;
+            } else{
+                //left boundary
+                return LEFT;
+            };
+        }
 };
 
 #endif

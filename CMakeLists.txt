@@ -15,6 +15,7 @@ include_directories(include)
 set(SOURCE_FILES
     src/Mesh.cpp
     src/FVMSolver.cpp
+    src/BoundaryCondition.cpp
 )
 set(HEADER_FILES
     include/Element.h

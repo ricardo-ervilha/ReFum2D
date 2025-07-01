@@ -1,13 +1,15 @@
 #include "../include/FVMSolver.h"
 
-FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *down, BoundaryCondition* right, BoundaryCondition* top, BoundaryCondition *left, double (*g)(double, double), double(*rho)(double,double), pair<double,double>(*U)(double,double), double (*sourceTerm)(double, double)){
+FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition* bc2, BoundaryCondition* bc3, BoundaryCondition *bc4, double (*g)(double, double), double(*rho)(double,double), pair<double,double>(*U)(double,double), double (*sourceTerm)(double, double)){
     this->mesh = mesh;
 
     /*Salva as condições usando a mesma orientação definida.*/
-    this->boundaries.push_back(down);
-    this->boundaries.push_back(right);
-    this->boundaries.push_back(top);
-    this->boundaries.push_back(left);
+    this->boundaries.emplace(bc1->get_location(), bc1);
+    this->boundaries.emplace(bc2->get_location(), bc2);
+    this->boundaries.emplace(bc3->get_location(), bc3);
+    this->boundaries.emplace(bc4->get_location(), bc4);
+
+    BoundaryCondition::apply_mins_maxs(mesh->get_xmin(), mesh->get_xmax(), mesh->get_ymin(), mesh->get_ymax());
 
     this->gammafunc = g;
     this->sourcefunc = sourceTerm;
@@ -29,8 +31,6 @@ FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *down, BoundaryCondition* rig
     
     // chama para fazer o pré-processamento
     this->pre_processing();
-    // chama também para encontrar os phibs.
-    this->apply_boundaries_in_edges_from_mesh();
 }
 
 FVMSolver::~FVMSolver(){
@@ -72,30 +72,6 @@ void FVMSolver::pre_processing(){
             rhof[i] = (rhofunc(centroidP.first, centroidP.second)*d2 + rhofunc(centroidN.first, centroidN.second)*d1)/totaldist;
             uf(i,0) = (ufunc(centroidP.first, centroidP.second).first*d2 + ufunc(centroidN.first, centroidN.second).first*d1)/totaldist;
             uf(i,1) = (ufunc(centroidP.first, centroidP.second).second*d2 + ufunc(centroidN.first, centroidN.second).second*d1)/totaldist;
-        }
-    }
-}
-
-void FVMSolver::apply_boundaries_in_edges_from_mesh(){
-    /*Aplicando e tratando somente Dirichlet por enquanto.*/
-    vector<Edge*>& edges = mesh->get_edges();
-    for(int i = 0; i < edges.size(); i++){
-        if(edges[i]->is_boundary_face()){
-            // é face de contorno
-            pair<double,double> midFace = edges[i]->get_middle();
-            if(edges[i]->from->y == mesh->get_ymin() && edges[i]->to->y == mesh->get_ymin()){
-                // down boundary
-                edges[i]->set_phib(this->boundaries[0]->apply(midFace.first, midFace.second));
-            } else if(edges[i]->from->x == mesh->get_xmax() && edges[i]->to->x == mesh->get_xmax()){
-                // right boundary
-                edges[i]->set_phib(this->boundaries[1]->apply(midFace.first, midFace.second));
-            } else if(edges[i]->from->y == mesh->get_ymax() && edges[i]->to->y == mesh->get_ymax()){
-                // top boundary
-                edges[i]->set_phib(this->boundaries[2]->apply(midFace.first, midFace.second));
-            } else if(edges[i]->from->x == mesh->get_xmin() && edges[i]->to->x == mesh->get_xmin()){
-                //left boundary
-                edges[i]->set_phib(this->boundaries[3]->apply(midFace.first, midFace.second));
-            }
         }
     }
 }
@@ -182,7 +158,7 @@ void FVMSolver::assembly_A(){
         
         for(int j = 0; j < facesOfCell.size(); j++){
             this->diffusion(cells[i], facesOfCell[j], nsigns[j]);
-            this->convection(cells[i], facesOfCell[j], nsigns[j]);
+            // this->convection(cells[i], facesOfCell[j], nsigns[j]);
         }
     }
 }
@@ -208,15 +184,22 @@ void FVMSolver::assembly_b(){
                 double normn1 = sqrt(n1.first * n1.first + n1.second * n1.second); // |n1|
 
                 // difusão
-                // no b da celula i, será: - k_B * A_B * |n1| * phi_B / delta_B
-                b[i] += -(gammaf[gface] * facesOfCell[j]->get_length() * normn1 * facesOfCell[j]->get_phib()) / facesOfCell[j]->get_df();
+                BoundaryLocation local = BoundaryCondition::find_location(facesOfCell[j]);
+                BoundaryType bt = boundaries[local]->get_type();
+                if(bt == DIRICHLET){
+                    // no b da celula i, será: - k_B * A_B * |n1| * phi_B / delta_B
+                    b[i] += -(gammaf[gface] * facesOfCell[j]->get_length() * normn1 * boundaries[local]->apply(middleFace.first, middleFace.second)) / facesOfCell[j]->get_df();
+                }else{
+                    // no b da celula i, será: - k_B * A_B * grad(phi_b)
+                    b[i] += -(gammaf[gface] * facesOfCell[j]->get_length() * boundaries[local]->apply(middleFace.first, middleFace.second));
+                }
                 
                 // convecção
-                double Udotnormal = uf(gface, 0) * normal_corrected.first + uf(gface, 1) * normal_corrected.second;
-                double Gf = rhof[gface] * Udotnormal * facesOfCell[j]->get_length();
+                // double Udotnormal = uf(gface, 0) * normal_corrected.first + uf(gface, 1) * normal_corrected.second;
+                // double Gf = rhof[gface] * Udotnormal * facesOfCell[j]->get_length();
 
                 // convecção
-                b[i] += (Gf * facesOfCell[j]->get_phib());
+                // b[i] += (Gf * facesOfCell[j]->get_phib());
             }
         }
         // acrescento agora o termo fonte: S_P * V_P.
@@ -262,7 +245,8 @@ void FVMSolver::compute_gradients(){
                 M(j, 1) = dy;
 
                 // [u_B - u_P]
-                y[j] = edgesOfCell[j]->get_phib() - u[i];  
+                BoundaryLocation local = BoundaryCondition::find_location(edgesOfCell[j]);
+                y[j] = boundaries[local]->apply(middleFace.first, middleFace.second) - u[i];  
             }else{
                 pair<int,int>& idCellsShareFace = edgesOfCell[j]->get_link_face_to_cell();
                     

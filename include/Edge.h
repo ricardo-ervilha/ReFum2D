@@ -13,7 +13,6 @@ class Edge{
         pair<double,double> middle;
         pair<double,double> normal;
         pair<int,int> link_face_to_cell;
-        double phib;
 
         void compute_properties(){
             length = distance(from->x, from->y, to->x, to->y);
@@ -27,7 +26,6 @@ class Edge{
         
         Edge(int id, Node* from, Node* to) : id(id), from(from), to(to) {
             this->compute_properties();
-            this->phib = numeric_limits<double>::quiet_NaN();  //marcando com flag
             this->link_face_to_cell = make_pair(-1, -1); // inicializa com flag
         };
         ~Edge() {};
@@ -55,8 +53,6 @@ class Edge{
                 return false;
         }
 
-        double get_phib()   {return this->phib;}
-        void set_phib(double phib)   {this->phib = phib;};
 };
 
 #endif
