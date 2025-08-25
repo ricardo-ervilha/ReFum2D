@@ -20,7 +20,7 @@ FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition* bc2,
     int nfaces = mesh->get_nedges();
 
     /*Inicialização das ED's associadas a resolução do problema...*/
-    this->A = arma::mat(ncells, ncells, arma::fill::zeros); 
+    this->A = arma::sp_mat(ncells, ncells); 
     this->b = arma::vec(ncells, arma::fill::zeros);
     this->u = arma::vec(ncells, arma::fill::zeros); 
     this->source = arma::vec(ncells, arma::fill::zeros); 
@@ -356,7 +356,7 @@ void FVMSolver::solve_system(double tolerance){
 
         this->compute_gradients(); // atualiza os gradientes na reconstrução
         this->compute_cross_diffusion(); // usando os gradientes computa a difusão cruzada
-        this->u = arma::solve(A,b_with_cd); // resolvendo usando b atualizado com a difusão cruzada. 
+        this->u = arma::spsolve(A,b_with_cd); // resolvendo usando b atualizado com a difusão cruzada. 
 
         diff = arma::norm(aux - this->b_with_cd, "inf");
         iter += 1;

@@ -38,7 +38,7 @@ double exact(double x, double y){
 
 int main(void){
     Mesh* m = new Mesh();
-    m->read_mesh("../inputs/24x24.msh");
+    m->read_mesh("../inputs/1026tri.msh");
 
     BoundaryCondition* downBC = new BoundaryCondition(DIRICHLET, DOWN, down);
     BoundaryCondition* rightBC = new BoundaryCondition(DIRICHLET, RIGHT, right);

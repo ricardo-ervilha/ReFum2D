@@ -18,7 +18,7 @@ class FVMSolver {
         map<BoundaryLocation, BoundaryCondition*> boundaries; // Condições de contorno informados pelo usuário.
 
         // Estruturas de dados relacionadas a montagem e solução do problema.
-        arma::mat A;
+        arma::sp_mat A;
         arma::vec b;
         arma::vec u;
         arma::vec source; // pré-processa no FVMSolver os termos fontes das células.
