@@ -14,7 +14,25 @@ Mesh::Mesh(){
 }
 
 Mesh::~Mesh(){
+    for (Node* &p : nodes) {
+        delete p;
+    }
+    nodes.clear();
 
+    for (Cell* &c : cells) {
+        delete c;
+    }
+    cells.clear();
+
+    for (Edge* &e : edges) {
+        delete e;
+    }
+    edges.clear();
+
+    for (auto &kv : physicalentities) {
+        delete kv.second;       
+    }
+    physicalentities.clear();
 }
 
 void Mesh::read_mesh(string filepath){

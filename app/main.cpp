@@ -50,10 +50,17 @@ int main(void){
 
     solver->assembly_b();
 
-    double tol = 1e-6;
+    double tol = 1e-8;
     solver->solve_system(tol);
 
     solver->save_solution("../outputs/result.vtk");
+
+    delete m;
+    delete downBC;
+    delete rightBC;
+    delete topBC;
+    delete leftBC;
+    delete solver;
 
     return 0;
 }
