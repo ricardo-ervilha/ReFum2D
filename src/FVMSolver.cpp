@@ -137,13 +137,29 @@ void FVMSolver::convection_of_cell(Cell *c)
         double G_f = rhof[face->id] * UdotNormal * face->get_length();
         if (face->is_boundary_face())
         {
-            /*=-==-==-==-==-==-==-==-= contribuição em b =-==-==-==-==-==-==-==-==-=*/
             if(G_f > 0){
+                /*=-==-==-==-==-==-==-==-= contribuição em A =-==-==-==-==-==-==-==-==-=*/
                 A(c->id, c->id) += G_f;
             }else{
                 BoundaryLocation local = BoundaryCondition::find_location(face);
                 BoundaryType bt = boundaries[local]->get_type();
-                b[c->id] += - G_f * boundaries[local]->apply(middleFace.first, middleFace.second);
+                if(bt == DIRICHLET){
+                    /*=-==-==-==-==-==-==-==-= contribuição em b =-==-==-==-==-==-==-==-==-=*/
+                    b[c->id] += - G_f * boundaries[local]->apply(middleFace.first, middleFace.second);
+                }else if(bt == NEUMANN){
+                    // usar série de Taylor
+                    // * phi_f = phi_p + (\partial phi/ \partial n) \delta n
+                    // * ficará então: Gf * [phi_p + (\partial phi/ \partial n) \delta n]
+                    // ! = Gf * phi_p + Gf * \partial phi/ \partial n) \delta n
+                    // ? Gf * phi_p entra na A
+                    // ? Gf * \partial phi/ \partial n) \delta n entra na b
+                    
+                    /*=-==-==-==-==-==-==-==-= contribuição em A =-==-==-==-==-==-==-==-==-=*/
+                    A(c->id, c->id) += G_f;
+
+                    /*=-==-==-==-==-==-==-==-= contribuição em b =-==-==-==-==-==-==-==-==-=*/
+                    b[c->id] += - G_f * boundaries[local]->get_type() * face->get_df();
+                }
             }
         }
         else

@@ -1,23 +1,23 @@
 #include "../include/FVMSolver.h"
 
 double down(double x, double y) {
-    return x*x + y;
+    return 0.0;
 }
 
 double right(double x, double y) {
-    return 2.0 * x;
+    return 1.0;
 }
 
 double top(double x, double y) {
-    return  x*x + y;
+    return  0.0;
 }
 
 double left(double x, double y) {
-    return x*x + y;
+    return 0.0;
 }
 
 double gamma(double x, double y){
-    return 1.0;
+    return 0.04;
 }
 
 double rho(double x, double y){
@@ -25,11 +25,14 @@ double rho(double x, double y){
 }
 
 pair<double,double> U(double x, double y){
-    return make_pair(1.0, 1.0);
+    return make_pair(
+        -sin(M_PI * x) * cos(M_PI * y), 
+        cos(M_PI * x) * sin(M_PI * y)
+    );
 }
 
 double source(double x, double y){
-    return -2.0;
+    return 0;
 }
 
 double exact(double x, double y){
@@ -38,21 +41,21 @@ double exact(double x, double y){
 
 int main(void){
     Mesh* m = new Mesh();
-    m->read_mesh("../inputs/100x100.msh");
+    m->read_mesh("../inputs/quadStretchRefined.msh");
 
-    BoundaryCondition* downBC = new BoundaryCondition(DIRICHLET, DOWN, down);
-    BoundaryCondition* rightBC = new BoundaryCondition(NEUMANN, RIGHT, right);
-    BoundaryCondition* topBC = new BoundaryCondition(DIRICHLET, TOP, top);
+    BoundaryCondition* downBC = new BoundaryCondition(NEUMANN, DOWN, down);
+    BoundaryCondition* rightBC = new BoundaryCondition(DIRICHLET, RIGHT, right);
+    BoundaryCondition* topBC = new BoundaryCondition(NEUMANN, TOP, top);
     BoundaryCondition* leftBC = new BoundaryCondition(DIRICHLET, LEFT, left);
     FVMSolver* solver = new FVMSolver(m, downBC, rightBC, topBC, leftBC, gamma, rho, U, source);
 
     solver->diffusion(); // Calcula A e b com difusão fixa
-    // solver->convection(); // Adiciona em A e b convecção
+    solver->convection(); // Adiciona em A e b convecção
 
     double tol = 1e-8;
     solver->solve_system(tol); // resolve A e b, no meio do caminho computando skew e corrigindo.
 
-    solver->compute_error(exact);
+    // solver->compute_error(exact);
     solver->save_solution("../outputs/result.vtk");
 
     /* Limpando ponteiros antes declarados */
