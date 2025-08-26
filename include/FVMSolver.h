@@ -30,9 +30,8 @@ class FVMSolver {
         
         void pre_processing(); // Função para realizar o pré-processamento dos dados do problema e colocar em ED's.
         
-        void diffusion(Cell* cell, Edge* edge, int nsign); // aplica a difusão na A (diferenças centradas)
         void convection(Cell* cell, Edge* edge, int nsign); // aplica a convecção na A (Upwind)
-    public:    
+        public:    
         FVMSolver(Mesh* mesh, BoundaryCondition *bc1, BoundaryCondition *bc2, BoundaryCondition *bc3, BoundaryCondition *bc4, double (*g)(double, double), double (*rho)(double,double), pair<double,double> (*U)(double, double), double (*sourceTerm)(double, double));
         ~FVMSolver();
         
@@ -45,9 +44,10 @@ class FVMSolver {
             cout << "#==================================================================================#" << endl;
             cout << b << endl;
         };
-
-        void assembly_A();
-        void assembly_b();
+        
+        void diffusion_of_cell(Cell* c);
+        void diffusion(); 
+        
         void compute_gradients();
         void compute_cross_diffusion();
 
