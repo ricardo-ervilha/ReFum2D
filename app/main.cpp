@@ -17,7 +17,7 @@ double left(double x, double y) {
 }
 
 double gamma(double x, double y){
-    return 1e-6;
+    return 0.0001;
 }
 
 double rho(double x, double y){

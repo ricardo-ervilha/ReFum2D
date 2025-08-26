@@ -71,13 +71,11 @@ void FVMSolver::pre_processing(){
         // distância entre meio e to
         double w2 = distance(midface.first, midface.second, from->x, from->y)/totaldist;
 
-        double alpha = w1 / (w1 + w2);
-        
         // * LÓGICA GERAL: aplica a função no node e interpola os valores para a face.
-        this->gammaf[i] = gammafunc(to->x, to->y)*(1-alpha) + gammafunc(from->x, from->y)*alpha;  
-        this->rhof[i] = rhofunc(to->x, to->y)*(1-alpha) + rhofunc(from->x, from->y)*alpha;  
-        this->uf(i,0) = ufunc(to->x, to->y).first*(1-alpha) + ufunc(from->x, from->y).first*alpha;  
-        this->uf(i,1) = ufunc(to->x, to->y).second*(1-alpha) + ufunc(from->x, from->y).second*alpha;  
+        this->gammaf[i] = gammafunc(to->x, to->y)*w2 + gammafunc(from->x, from->y)*w1;  
+        this->rhof[i] = rhofunc(to->x, to->y)*w2 + rhofunc(from->x, from->y)*w1;  
+        this->uf(i,0) = ufunc(to->x, to->y).first*w2 + ufunc(from->x, from->y).first*w1;  
+        this->uf(i,1) = ufunc(to->x, to->y).second*w2 + ufunc(from->x, from->y).second*w1;  
     }
 
 }
