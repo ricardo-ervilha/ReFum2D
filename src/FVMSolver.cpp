@@ -53,7 +53,7 @@ void FVMSolver::pre_processing(){
             //face de contorno
             pair<double,double>& midface = edges[i]->get_middle();
             gammaf[i] = gammafunc(midface.first, midface.second);
-            rhof[i] = gammafunc(midface.first, midface.second);
+            rhof[i] = rhofunc(midface.first, midface.second);
             pair<double,double> u = ufunc(midface.first, midface.second);
             uf(i,0) = u.first; uf(i,1) = u.second;
         }else{
@@ -135,7 +135,7 @@ void FVMSolver::convection(Cell* cell, Edge* face, int nsign){
     if(!face->is_boundary_face()){
         if(Gf > 0){
             // phif = phi_P
-            A(cell->id, cell->id) -= Gf; 
+            A(cell->id, cell->id) += Gf; 
         }else {
             // phif = phi_N
             pair<int,int>& idCellsShareFace = face->get_link_face_to_cell();
@@ -144,7 +144,7 @@ void FVMSolver::convection(Cell* cell, Edge* face, int nsign){
             int ic2 = idCellsShareFace.second;
             
             int nb = ic1 == cell->id ? ic2 : ic1; //pegando o vizinho da célula P
-            A(cell->id, nb) -= Gf;
+            A(cell->id, nb) += Gf;
         }
     }
 }
@@ -158,7 +158,7 @@ void FVMSolver::assembly_A(){
         
         for(int j = 0; j < facesOfCell.size(); j++){
             this->diffusion(cells[i], facesOfCell[j], nsigns[j]);
-            // this->convection(cells[i], facesOfCell[j], nsigns[j]);
+            this->convection(cells[i], facesOfCell[j], nsigns[j]);
         }
     }
 }
@@ -195,11 +195,12 @@ void FVMSolver::assembly_b(){
                 }
                 
                 // convecção
-                // double Udotnormal = uf(gface, 0) * normal_corrected.first + uf(gface, 1) * normal_corrected.second;
-                // double Gf = rhof[gface] * Udotnormal * facesOfCell[j]->get_length();
+                double Udotnormal = uf(gface, 0) * normal_corrected.first + uf(gface, 1) * normal_corrected.second;
+
+                double Gf = rhof[gface] * Udotnormal * facesOfCell[j]->get_length();
 
                 // convecção
-                // b[i] += (Gf * facesOfCell[j]->get_phib());
+                b[i] -= (Gf * boundaries[local]->apply(middleFace.first, middleFace.second));
             }
         }
         // acrescento agora o termo fonte: S_P * V_P.
@@ -364,7 +365,7 @@ void FVMSolver::solve_system(double tolerance){
 
     cout << "Convergiu em :" << iter << " iterações.\n";
     cout << "\nSolução obtida:\n";
-    cout << u << endl;
+    // cout << u << endl;
 }
 
 void FVMSolver::compute_error(double (*exact)(double, double)){

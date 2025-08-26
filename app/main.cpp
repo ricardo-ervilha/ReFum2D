@@ -1,4 +1,4 @@
-#include "FVMSolver.h"
+#include "../include/FVMSolver.h"
 
 double down(double x, double y) {
     return 0.0;
@@ -9,27 +9,27 @@ double right(double x, double y) {
 }
 
 double top(double x, double y) {
-    return 0.0;
-}
-
-double left(double x, double y) {
-    return 0.0;
-}
-
-double gamma(double x, double y){
     return 1.0;
 }
 
+double left(double x, double y) {
+    return 1.0;
+}
+
+double gamma(double x, double y){
+    return 0.1;
+}
+
 double rho(double x, double y){
-    return 0.0;
+    return 1.0;
 }
 
 pair<double,double> U(double x, double y){
-    return make_pair(0, 0);
+    return make_pair(1.0, 1.0);
 }
 
 double source(double x, double y){
-    return -200*x*(1-x) - 200*y*(1-y);
+    return 0;
 }
 
 double exact(double x, double y){
@@ -38,7 +38,7 @@ double exact(double x, double y){
 
 int main(void){
     Mesh* m = new Mesh();
-    m->read_mesh("../inputs/1026tri.msh");
+    m->read_mesh("../inputs/q30x30.msh");
 
     BoundaryCondition* downBC = new BoundaryCondition(DIRICHLET, DOWN, down);
     BoundaryCondition* rightBC = new BoundaryCondition(DIRICHLET, RIGHT, right);
@@ -55,6 +55,7 @@ int main(void){
 
     solver->save_solution("../outputs/result.vtk");
 
+    /* Limpando ponteiros antes declarados */
     delete m;
     delete downBC;
     delete rightBC;
