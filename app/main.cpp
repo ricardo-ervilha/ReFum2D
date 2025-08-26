@@ -9,27 +9,27 @@ double right(double x, double y) {
 }
 
 double top(double x, double y) {
-    return 0.0;
-}
-
-double left(double x, double y) {
-    return 0.0;
-}
-
-double gamma(double x, double y){
     return 1.0;
 }
 
+double left(double x, double y) {
+    return 1.0;
+}
+
+double gamma(double x, double y){
+    return 1e-6;
+}
+
 double rho(double x, double y){
-    return 1.0; // NN usado
+    return 1.0; 
 }
 
 pair<double,double> U(double x, double y){
-    return make_pair(1.0, 1.0); // NN usado
+    return make_pair(1.0, 1.0);
 }
 
 double source(double x, double y){
-    return -200*x*(1-x) - 200*y*(1-y);
+    return 0;
 }
 
 double exact(double x, double y){
@@ -38,7 +38,7 @@ double exact(double x, double y){
 
 int main(void){
     Mesh* m = new Mesh();
-    m->read_mesh("../inputs/540tri.msh");
+    m->read_mesh("../inputs/q30x30.msh");
 
     BoundaryCondition* downBC = new BoundaryCondition(DIRICHLET, DOWN, down);
     BoundaryCondition* rightBC = new BoundaryCondition(DIRICHLET, RIGHT, right);
@@ -47,10 +47,12 @@ int main(void){
     FVMSolver* solver = new FVMSolver(m, downBC, rightBC, topBC, leftBC, gamma, rho, U, source);
 
     solver->diffusion(); // Calcula A e b com difusão fixa
+    solver->convection(); // Adiciona em A e b convecção
+
     double tol = 1e-8;
     solver->solve_system(tol); // resolve A e b, no meio do caminho computando skew e corrigindo.
 
-    solver->compute_error(exact);
+    // solver->compute_error(exact);
     solver->save_solution("../outputs/result.vtk");
 
     /* Limpando ponteiros antes declarados */

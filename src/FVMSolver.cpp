@@ -66,16 +66,18 @@ void FVMSolver::pre_processing(){
         double totaldist = edges[i]->get_length(); // tamanho total da aresta
         
         // distância entre meio e from
-        double w1 = distance(midface.first, midface.second, from->x, from->y)/totaldist;
+        double w1 = distance(midface.first, midface.second, to->x, to->y)/totaldist;
         
         // distância entre meio e to
-        double w2 = distance(midface.first, midface.second, to->x, to->y)/totaldist;
+        double w2 = distance(midface.first, midface.second, from->x, from->y)/totaldist;
+
+        double alpha = w1 / (w1 + w2);
         
         // * LÓGICA GERAL: aplica a função no node e interpola os valores para a face.
-        this->gammaf[i] = gammafunc(to->x, to->y)*w1 + gammafunc(from->x, from->y)*w2;  
-        this->rhof[i] = rhofunc(to->x, to->y)*w1 + rhofunc(from->x, from->y)*w2;  
-        this->uf(i,0) = ufunc(to->x, to->y).first*w1 + ufunc(from->x, from->y).first*w2;  
-        this->uf(i,1) = ufunc(to->x, to->y).second*w1 + ufunc(from->x, from->y).second*w2;  
+        this->gammaf[i] = gammafunc(to->x, to->y)*(1-alpha) + gammafunc(from->x, from->y)*alpha;  
+        this->rhof[i] = rhofunc(to->x, to->y)*(1-alpha) + rhofunc(from->x, from->y)*alpha;  
+        this->uf(i,0) = ufunc(to->x, to->y).first*(1-alpha) + ufunc(from->x, from->y).first*alpha;  
+        this->uf(i,1) = ufunc(to->x, to->y).second*(1-alpha) + ufunc(from->x, from->y).second*alpha;  
     }
 
 }
@@ -103,11 +105,65 @@ pair<double,double> compute_n1(pair<double,double>& p, pair<double,double>& n, p
     return make_pair(n1x, n1y);
 }
 
-// ! Acrescenta a difusão em A e b
+// ! Acrescenta a difusão centrada em A e b
 void FVMSolver::diffusion(){
     vector<Cell*>& cells = mesh->get_cells();
     for(int i = 0; i < cells.size(); i++){ // * PARA CADA CÉLULA
         this->diffusion_of_cell(cells[i]); // ? CALCULA A DIFUSÃO DA CÉLULA ADICIONANDO na A e b
+    }
+}
+
+// ! Acrescenta a convecção upwind em A e b
+void FVMSolver::convection(){
+    vector<Cell*>& cells = mesh->get_cells();
+    for(int i = 0; i < cells.size(); i++){ // * PARA CADA CÉLULA
+        this->convection_of_cell(cells[i]); // ? CALCULA A CONVECÇÃO DA CÉLULA ADICIONANDO na A e b
+    }
+}
+
+void FVMSolver::convection_of_cell(Cell *c)
+{
+    vector<Edge *> faces = c->get_edges(); // faces/lados da célula
+    vector<int> &nsigns = c->get_nsigns();
+    for (int i = 0; i < faces.size(); i++)
+    {
+        Edge *face = faces[i];
+        int nsign = nsigns[i]; // sinal corrigida da normal
+
+        // centro da face & normal da face corrigida
+        pair<double, double> &middleFace = face->get_middle();
+        pair<double, double> &normal = face->get_normal();
+        pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
+
+        double UdotNormal = uf(face->id, 0) * normal_corrected.first + uf(face->id, 1) * normal_corrected.second;
+        double G_f = rhof[face->id] * UdotNormal * face->get_length();
+        if (face->is_boundary_face())
+        {
+            /*=-==-==-==-==-==-==-==-= contribuição em b =-==-==-==-==-==-==-==-==-=*/
+            if(G_f > 0){
+                A(c->id, c->id) += G_f;
+            }else{
+                BoundaryLocation local = BoundaryCondition::find_location(face);
+                BoundaryType bt = boundaries[local]->get_type();
+                b[c->id] += - G_f * boundaries[local]->apply(middleFace.first, middleFace.second);
+            }
+        }
+        else
+        {
+            /*=-==-==-==-==-==-==-==-= contribuição em A =-==-==-==-==-==-==-==-==-=*/
+            if(G_f > 0){
+                // phiP
+                A(c->id, c->id) += G_f;
+            }else{
+                // phiNeighbor
+                pair<int, int> &idCellsShareFace = face->get_link_face_to_cell();
+                int ic1 = idCellsShareFace.first;
+                int ic2 = idCellsShareFace.second;
+
+                int nb = ic1 == c->id ? ic2 : ic1; // * pegando o vizinho da célula P
+                A(c->id, nb) += G_f;
+            }
+        }
     }
 }
 
@@ -167,7 +223,7 @@ void FVMSolver::diffusion_of_cell(Cell* c){
     }
 
     /*=-==-==-==-==-==-==-==-= contribuição em b (TERMO FONTE) =-==-==-==-==-==-==-==-==-=*/
-    b[c->id] += - this->source[c->id] * c->get_area(); // S * DeltaA
+    b[c->id] += this->source[c->id] * c->get_area(); // S * DeltaA
 }
 
 /*
@@ -308,22 +364,23 @@ void FVMSolver::compute_cross_diffusion(){
 }
 
 void FVMSolver::solve_system(double tolerance){
-    double error = 1;
-    arma::vec aux;
-    int iter = 0;
-    while(error > tolerance){
-        aux = this->b_with_cd; // obtém a cópia com valores anteriores...
+    this->u = arma::spsolve(A,b);
+    // double error = 1;
+    // arma::vec aux;
+    // int iter = 0;
+    // while(error > tolerance){
+    //     aux = this->b_with_cd; // obtém a cópia com valores anteriores...
 
-        this->compute_gradients(); // atualiza os gradientes na reconstrução
-        this->compute_cross_diffusion(); // usando os gradientes computa a difusão cruzada
-        this->u = arma::spsolve(A,b_with_cd); // resolvendo usando b atualizado com a difusão cruzada. 
+    //     this->compute_gradients(); // atualiza os gradientes na reconstrução
+    //     this->compute_cross_diffusion(); // usando os gradientes computa a difusão cruzada
+    //     this->u = arma::spsolve(A,b_with_cd); // resolvendo usando b atualizado com a difusão cruzada. 
 
-        error = arma::norm(aux - this->b_with_cd, "inf");
-        iter += 1;
-    }
+    //     error = arma::norm(aux - this->b_with_cd, "inf");
+    //     iter += 1;
+    // }
 
-    cout << "Convergiu em :" << iter << " iterações.\n";
-    cout << "\nSolução obtida:\n";
+    // cout << "Convergiu em :" << iter << " iterações.\n";
+    // cout << "\nSolução obtida:\n";
 }
 
 

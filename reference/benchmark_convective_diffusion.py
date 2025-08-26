@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-N = 5 # num points
+N = 30 # num points
 # domain limits
 x0, xf = 0, 1
 y0, yf = x0, xf
@@ -12,7 +12,7 @@ tol = 1e-8
 rho = 1.0
 u = 1.0
 v = 1.0
-gamma = 1e-2
+gamma = 0.1
 
 # face area (2D with unit depth) = h
 A_face = h

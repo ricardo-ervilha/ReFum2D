@@ -45,6 +45,9 @@ class FVMSolver {
             cout << b << endl;
         };
         
+        void convection();
+        void convection_of_cell(Cell *c);
+
         void diffusion_of_cell(Cell* c);
         void diffusion(); 
         
