@@ -1,124 +1,91 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-N = 30 # num points
-# domain limits
-x0, xf = 0, 1
-y0, yf = x0, xf
-h = float((xf - x0)/(N-1))
-tol = 1e-8
+# --- parâmetros do problema ---
+Nx, Ny = 100,100        # número de pontos na malha
+x = np.linspace(0, 1, Nx)
+y = np.linspace(0, 1, Ny)
+dx = x[1] - x[0]
+dy = y[1] - y[0]
 
-# parameters
-rho = 1.0
-u = 1.0
-v = 1.0
-gamma = 0.1
+# Termo fonte
+f = 2.0
 
-# face area (2D with unit depth) = h
-A_face = h
+# Inicializa a matriz de solução
+phi = np.zeros((Ny, Nx))
 
-# face fluxes (convective mass flux through face) -- sign follows velocity direction
-F_e = rho * u * A_face
-F_w = rho * u * A_face
-F_n = rho * v * A_face
-F_s = rho * v * A_face
+# --- Condições de Dirichlet ---
+def phi_dirichlet(x, y):
+    return x**2 + y
 
-# ---- CORREÇÃO: condutâncias difusivas ----
-# D_f = Gamma * A_face / delta = gamma * h / h = gamma
-D_e = gamma
-D_w = gamma
-D_n = gamma
-D_s = gamma
+# --- Condição de Neumann na borda direita ---
+def neumann_right(x, y):
+    return 2.0 * x  # ∂φ/∂n = 2x
 
-# upwind coefficients (standard finite-volume upwind)
-a_E = D_e + max(-F_e, 0.0)
-a_W = D_w + max( F_w, 0.0)
-a_N = D_n + max(-F_n, 0.0)
-a_S = D_s + max( F_s, 0.0)
+# --- Montagem da matriz do sistema A*phi = b ---
+A = np.zeros((Nx*Ny, Nx*Ny))
+b = np.zeros(Nx*Ny)
 
-# a_P: soma dos coeficientes dos vizinhos (em escoamento divergência nula isto é suficiente)
-a_P = a_E + a_W + a_N + a_S
+# Índice para converter (i,j) em 1D
+def idx(i, j):
+    return i + j*Nx
 
-# domain points (centros dos volumes)
-x = np.linspace(x0, xf, N)
-y = np.linspace(y0, yf, N)
-X, Y = np.meshgrid(x, y, indexing='xy')
+for j in range(Ny):
+    for i in range(Nx):
+        k = idx(i, j)
 
-# ----- Condições de contorno Dirichlet -----
-def phi_w(y):  # x = x0 (esquerda)
-    return 1.0
-def phi_e(y):  # x = xf (direita)
-    return 0.0
-def phi_s(x):  # y = y0 (baixo)
-    return 0.0
-def phi_n(x):  # y = yf (cima)
-    return 1.0
-
-# ----- Mapeamento (i,j) -> índice global k -----
-def idx(i, j, N):
-    # i: linha (y index), j: coluna (x index)
-    return i * N + j
-
-# ----- Montagem de A e b -----
-nunk = N * N
-A = np.zeros((nunk, nunk), dtype=np.float64)
-b = np.zeros((nunk,), dtype=np.float64)
-
-for i in range(N):
-    for j in range(N):
-        p = idx(i, j, N)
-
-        # Nó de contorno? Impõe Dirichlet forte: A_pp = 1, b_p = phi
-        if j == 0:
-            A[p, p] = 1.0
-            b[p] = phi_w(y[i])
-            continue
-        if j == N - 1:
-            A[p, p] = 1.0
-            b[p] = phi_e(y[i])
-            continue
+        # --- BORDAS ---
+        # Esquerda - Dirichlet
         if i == 0:
-            A[p, p] = 1.0
-            b[p] = phi_s(x[j])
+            A[k, k] = 1.0
+            b[k] = phi_dirichlet(x[i], y[j])
             continue
-        if i == N - 1:
-            A[p, p] = 1.0
-            b[p] = phi_n(x[j])
+        # Direita - Neumann
+        if i == Nx-1:
+            A[k, k] = -1.0/dx  # aproximação de ∂φ/∂x
+            A[k, k-1] = 1.0/dx
+            b[k] = neumann_right(x[i], y[j])
+            continue
+        # Baixo - Dirichlet
+        if j == 0:
+            A[k, k] = 1.0
+            b[k] = phi_dirichlet(x[i], y[j])
+            continue
+        # Cima - Dirichlet
+        if j == Ny-1:
+            A[k, k] = 1.0
+            b[k] = phi_dirichlet(x[i], y[j])
             continue
 
-        # Nó interno
-        A[p, p] = a_P
+        # --- PONTO INTERNO ---
+        A[k, idx(i-1, j)] = 1.0/dx**2
+        A[k, idx(i+1, j)] = 1.0/dx**2
+        A[k, idx(i, j-1)] = 1.0/dy**2
+        A[k, idx(i, j+1)] = 1.0/dy**2
+        A[k, k] = -2.0*(1/dx**2 + 1/dy**2)
+        b[k] = -f
 
-        # vizinhos (todos eles são internos porque este é um nó interno)
-        e = idx(i, j + 1, N)
-        w = idx(i, j - 1, N)
-        n = idx(i + 1, j, N)
-        s = idx(i - 1, j, N)
+# --- Resolve o sistema ---
+phi_vector = np.linalg.solve(A, b)
+phi = phi_vector.reshape((Ny, Nx))
 
-        A[p, e] = -a_E
-        A[p, w] = -a_W
-        A[p, n] = -a_N
-        A[p, s] = -a_S
+# --- Solução exata ---
+X, Y = np.meshgrid(x, y)
+phi_exact = X**2 + Y
 
-        # fonte = 0 -> b[p] já é 0
+# --- Plot ---
+plt.figure(figsize=(12,5))
+plt.subplot(1,2,1)
+plt.imshow(phi, origin='lower', cmap='coolwarm', extent=[0,1,0,1])
+plt.title("Solução Numérica")
+plt.colorbar()
 
-
-print(A)
-print(b)
-print("--------------------------------------------------")
-# ---- resolve o sistema ----
-phi = np.linalg.solve(A, b)
-
-# ---- reorganiza para matriz 2D e plota ----
-Phi = phi.reshape((N, N))
-plt.figure(figsize=(6,5))
-cs = plt.imshow(Phi, origin='lower', cmap='coolwarm')
-plt.colorbar(cs)
-plt.title("Solução φ (convecção+difusão, upwind)")
-plt.xlabel("x")
-plt.ylabel("y")
-plt.gca().set_aspect('equal', adjustable='box')
+plt.subplot(1,2,2)
+plt.imshow(phi_exact, origin='lower', cmap='turbo', extent=[0,1,0,1])
+plt.title("Solução Exata")
+plt.colorbar()
 plt.show()
 
-# imprime algumas informações
-print("Dimensões: A = {}, b = {}".format(A.shape, b.shape))
+# --- Erro ---
+error = np.max(np.abs(phi - phi_exact))
+print("Erro máximo:", error)

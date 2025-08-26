@@ -186,15 +186,18 @@ void FVMSolver::diffusion_of_cell(Cell* c){
             pair<double,double> n1 = compute_n1(centroidP, middleFace, normal_corrected);
             double normn1 = sqrt(n1.first * n1.first + n1.second * n1.second); // |n1|
 
-            /*=-==-==-==-==-==-==-==-= contribuição em A =-==-==-==-==-==-==-==-==-=*/
-            // TODO diagonal: pensar melhor sobre essa conta.
-            A(c->id, c->id) += (gammaf[face->id] * face->get_length() * normn1) / face->get_df();
-
-            /*=-==-==-==-==-==-==-==-= contribuição em b =-==-==-==-==-==-==-==-==-=*/
             BoundaryLocation local = BoundaryCondition::find_location(face);
             BoundaryType bt = boundaries[local]->get_type();
             if(bt == DIRICHLET){
+                /*=-==-==-==-==-==-==-==-= contribuição em A =-==-==-==-==-==-==-==-==-=*/
+                // TODO diagonal: pensar melhor sobre essa conta.
+                A(c->id, c->id) += (gammaf[face->id] * face->get_length() * normn1) / face->get_df();
+
+                /*=-==-==-==-==-==-==-==-= contribuição em b =-==-==-==-==-==-==-==-==-=*/
                 b[c->id] += (gammaf[face->id] * face->get_length() * normn1 * boundaries[local]->apply(middleFace.first, middleFace.second)) / face->get_df();
+            }else if(bt == NEUMANN){
+                /* Contribuição direto na b somente*/
+                b(c->id) += (gammaf[face->id] * face->get_length() * boundaries[local]->apply(middleFace.first, middleFace.second));
             }
             
         }else{
