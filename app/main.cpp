@@ -5,7 +5,7 @@ double down(double x, double y) {
 }
 
 double right(double x, double y) {
-    return 1.0;
+    return 0.0;
 }
 
 double top(double x, double y) {
@@ -17,7 +17,7 @@ double left(double x, double y) {
 }
 
 double gamma(double x, double y){
-    return 0.04;
+    return 1;
 }
 
 double rho(double x, double y){
@@ -26,8 +26,8 @@ double rho(double x, double y){
 
 pair<double,double> U(double x, double y){
     return make_pair(
-        -sin(M_PI * x) * cos(M_PI * y), 
-        cos(M_PI * x) * sin(M_PI * y)
+        0, 
+        0
     );
 }
 
@@ -39,23 +39,23 @@ double exact(double x, double y){
     return x*x + y; 
 }
 
+double icFunc(double x, double y){
+    double r = (x-5)*(x-5) + (y-7.5)*(y-7.5);
+    return exp(-0.5 * r);
+}
+
 int main(void){
     Mesh* m = new Mesh();
-    m->read_mesh("../inputs/quadStretchRefined.msh");
+    m->read_mesh("../inputs/refinedPulseGaussian.msh");
 
-    BoundaryCondition* downBC = new BoundaryCondition(NEUMANN, DOWN, down);
+    BoundaryCondition* downBC = new BoundaryCondition(DIRICHLET, DOWN, down);
     BoundaryCondition* rightBC = new BoundaryCondition(DIRICHLET, RIGHT, right);
-    BoundaryCondition* topBC = new BoundaryCondition(NEUMANN, TOP, top);
+    BoundaryCondition* topBC = new BoundaryCondition(DIRICHLET, TOP, top);
     BoundaryCondition* leftBC = new BoundaryCondition(DIRICHLET, LEFT, left);
     FVMSolver* solver = new FVMSolver(m, downBC, rightBC, topBC, leftBC, gamma, rho, U, source);
 
-    solver->diffusion(); // Calcula A e b com difusão fixa
-    solver->convection(); // Adiciona em A e b convecção
+    solver->set_initial_condition(icFunc);
 
-    double tol = 1e-8;
-    solver->solve_system(tol); // resolve A e b, no meio do caminho computando skew e corrigindo.
-
-    // solver->compute_error(exact);
     solver->save_solution("../outputs/result.vtk");
 
     /* Limpando ponteiros antes declarados */

@@ -380,7 +380,18 @@ void FVMSolver::compute_cross_diffusion(){
     }
 }
 
-void FVMSolver::solve_system(double tolerance){
+void FVMSolver::set_initial_condition(double (*icFunc)(double, double)){
+    vector<Cell*> cells = this->mesh->get_cells();
+    int ncells = this->mesh->get_ncells();
+
+    // TODO Aplicando direto no centroide
+    for(int i = 0; i < ncells; i++){
+        pair<double,double> centroid = cells[i]->get_centroid();
+        u[cells[i]->id] = icFunc(centroid.first, centroid.second);
+    }
+}
+
+void FVMSolver::SteadySolver(double tolerance){
     this->u = arma::spsolve(A,b);
     // double error = 1;
     // arma::vec aux;
