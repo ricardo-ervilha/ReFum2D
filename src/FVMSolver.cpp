@@ -25,7 +25,8 @@ FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition* bc2,
     // ! Vetor coluna b, do sistema A u = b
     this->b = arma::vec(ncells, arma::fill::zeros); // * ncells x 1
     // ! Vetor solução   
-    this->u = arma::vec(ncells, arma::fill::zeros);  // * ncells x 1
+    this->u_old = arma::vec(ncells, arma::fill::zeros);  // * ncells x 1
+    this->u_new = arma::vec(ncells, arma::fill::zeros);  // * ncells x 1
     // ! Vetor b modificado contendo correções da não ortogonalidade
     this->b_with_cd = arma::vec(ncells, arma::fill::zeros); // * ncells x 1
     
@@ -158,7 +159,7 @@ void FVMSolver::convection_of_cell(Cell *c)
                     A(c->id, c->id) += G_f;
 
                     /*=-==-==-==-==-==-==-==-= contribuição em b =-==-==-==-==-==-==-==-==-=*/
-                    b[c->id] += - G_f * boundaries[local]->get_type() * face->get_df();
+                    b[c->id] += - G_f * boundaries[local]->apply(middleFace.first, middleFace.second) * face->get_df();
                 }
             }
         }
@@ -276,7 +277,7 @@ void FVMSolver::compute_gradients(){
 
                 // [u_B - u_P]
                 BoundaryLocation local = BoundaryCondition::find_location(edgesOfCell[j]);
-                y[j] = boundaries[local]->apply(middleFace.first, middleFace.second) - u[i];  
+                y[j] = boundaries[local]->apply(middleFace.first, middleFace.second) - u_new[i];  
             }else{
                 pair<int,int>& idCellsShareFace = edgesOfCell[j]->get_link_face_to_cell();
                     
@@ -296,7 +297,7 @@ void FVMSolver::compute_gradients(){
                 M(j, 1) = dy;
 
                 // [u_N - u_P]
-                y[j] = u[nb] - u[i];  
+                y[j] = u_new[nb] - u_new[i];  
             }
         }
 
@@ -380,19 +381,56 @@ void FVMSolver::compute_cross_diffusion(){
     }
 }
 
+void FVMSolver::transient(double dt){
+    vector<Cell*> cells = this->mesh->get_cells();
+    int ncells = this->mesh->get_ncells();
+
+    for(int i = 0; i < ncells; i++){
+        Cell* cell = cells[i];
+        /*=-==-==-==-==-==-==-==-= contribuição em A =-==-==-==-==-==-==-==-==-=*/
+        // TODO: rho considerando como 1.0 cte, mas depois tem que interpolá-lo.
+        A(cell->id, cell->id) += 1.0 * (cell->get_area() / dt);
+
+        /*=-==-==-==-==-==-==-==-= contribuição em b =-==-==-==-==-==-==-==-==-=*/
+        b[cell->id] += (1.0 * cell->get_area() / dt) * u_old[cell->id] ;
+    }
+}
+
 void FVMSolver::set_initial_condition(double (*icFunc)(double, double)){
     vector<Cell*> cells = this->mesh->get_cells();
     int ncells = this->mesh->get_ncells();
 
-    // TODO Aplicando direto no centroide
+    // TODO: Aplicando direto no centroide
     for(int i = 0; i < ncells; i++){
         pair<double,double> centroid = cells[i]->get_centroid();
-        u[cells[i]->id] = icFunc(centroid.first, centroid.second);
+        u_old[cells[i]->id] = icFunc(centroid.first, centroid.second);
+    }
+}
+
+void FVMSolver::TransientSolver(double t0, double tf, int snapshots, string path){
+    double dt = (tf - t0)/snapshots;
+    u_new = u_old;
+    this->save_solution(path + "/file_" + to_string(0) + ".vtk");
+    for(int i = 1; i <= snapshots; i++){
+        // zera sistema antes de montar
+        A.zeros();
+        b.zeros();
+        cout << "Snapshot: " << i << endl;
+        
+        this->diffusion(); 
+        this->convection();
+        this->transient(dt);
+        
+        this->u_new = arma::spsolve(A,b);
+        this->save_solution(path + "/file_" + to_string(i) + ".vtk");
+
+        // TODO
+        u_old = u_new;
     }
 }
 
 void FVMSolver::SteadySolver(double tolerance){
-    this->u = arma::spsolve(A,b);
+    this->u_new = arma::spsolve(A,b);
     // double error = 1;
     // arma::vec aux;
     // int iter = 0;
@@ -468,7 +506,7 @@ void FVMSolver::save_solution(string filename){
     vtk_file << "SCALARS Temperatura double 1\n";
     vtk_file << "LOOKUP_TABLE default\n";
     for(int i = 0; i < cells.size(); i++){
-        vtk_file << this->u[i] << endl;
+        vtk_file << this->u_new[i] << endl;
     }
 
     vtk_file.close();
@@ -485,7 +523,7 @@ void FVMSolver::compute_error(double (*exact)(double, double)){
     double norml2 = 0;
     double sumAreas = 0;
     for (int i = 0; i < cells.size(); ++i) {
-        norml2 += (u[i] - exact_vect[i]) * (u[i] - exact_vect[i]) * cells[i]->get_area();
+        norml2 += (u_new[i] - exact_vect[i]) * (u_new[i] - exact_vect[i]) * cells[i]->get_area();
         sumAreas +=  cells[i]->get_area();
     }
     norml2 = sqrt(norml2/sumAreas);

@@ -17,7 +17,7 @@ double left(double x, double y) {
 }
 
 double gamma(double x, double y){
-    return 1;
+    return 1e-8;
 }
 
 double rho(double x, double y){
@@ -26,8 +26,8 @@ double rho(double x, double y){
 
 pair<double,double> U(double x, double y){
     return make_pair(
-        0, 
-        0
+        -y + 5.0,
+        x - 5.0
     );
 }
 
@@ -36,7 +36,7 @@ double source(double x, double y){
 }
 
 double exact(double x, double y){
-    return x*x + y; 
+    return x*x + y;  // ignorar
 }
 
 double icFunc(double x, double y){
@@ -55,8 +55,12 @@ int main(void){
     FVMSolver* solver = new FVMSolver(m, downBC, rightBC, topBC, leftBC, gamma, rho, U, source);
 
     solver->set_initial_condition(icFunc);
-
-    solver->save_solution("../outputs/result.vtk");
+    solver->TransientSolver(0, 2 * M_PI, 50, "../outputs/gaussian_pulse");
+    
+    // solver->diffusion();
+    // solver->convection();
+    // solver->SteadySolver(1e-8);
+    // solver->save_solution("../outputs/result.vtk");
 
     /* Limpando ponteiros antes declarados */
     delete m;

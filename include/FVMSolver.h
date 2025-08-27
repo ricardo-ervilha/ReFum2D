@@ -21,7 +21,8 @@ private:
     // Estruturas de dados relacionadas a montagem e solução do problema.
     arma::sp_mat A;
     arma::vec b;
-    arma::vec u;
+    arma::vec u_old; // u_n
+    arma::vec u_new; // u_{n+1}
     arma::vec source;                       // pré-processa no FVMSolver os termos fontes das células.
     arma::vec gammaf;                       // pré-processa no FVMSolver os gammas das faces;
     arma::vec rhof;                         // pré-processa no FVMSolver os rhos das faces;
@@ -49,6 +50,7 @@ public:
 
     /* A partir da função definida pelo usuário inicializa a condição inicial do problema*/
     void set_initial_condition(double (*icFunc)(double, double));
+    void transient(double dt); // * Calcula o transiente de fato.
 
     /* funções para calculo da convecção com upwind */
     void convection();
@@ -65,7 +67,7 @@ public:
     void compute_cross_diffusion();
 
     /* Resolve o sistema transiente salvando os snapshots em path */
-    void TransientSolver(double t0, double tf, double timestep, string path);
+    void TransientSolver(double t0, double tf, int snapshots, string path);
 
     /* Resolve o sistema estacionário */
     void SteadySolver(double tolerance);
