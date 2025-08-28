@@ -16,6 +16,8 @@ set(SOURCE_FILES
     src/Mesh.cpp
     src/FVMSolver.cpp
     src/BoundaryCondition.cpp
+    src/Diffusion.cpp
+    src/Source.cpp
 )
 set(HEADER_FILES
     include/Element.h
@@ -27,6 +29,8 @@ set(HEADER_FILES
     include/FVMsolver.h
     include/utils.h
     include/BoundaryCondition.h
+    include/Diffusion.h
+    include/Source.h
 )
 
 add_executable(${PROJECT_NAME}.exe app/main.cpp ${SOURCE_FILES})
