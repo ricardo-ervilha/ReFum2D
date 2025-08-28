@@ -1,4 +1,5 @@
 #include "Diffusion.h"
+#include "FVMSolver.h"
 
 Diffusion::Diffusion(FVMSolver* s, double (*g)(double, double)){
     this->solver = s;
@@ -112,5 +113,63 @@ void Diffusion::control_volume_non_orthogonal_diffusion(vector<Cell*> cells, Cel
 }
 
 void Diffusion::cross_diffusion(){
-    // TODO: implementar a difusão cruzada 
+    vector<Cell*> cells = solver->mesh->get_cells();
+
+    for(int i = 0; i < cells.size(); i++){ 
+        vector<Edge*> facesOfCell = cells[i]->get_edges();
+        vector<int>& nsigns = cells[i]->get_nsigns();
+        pair<double,double>& centroidP = cells[i]->get_centroid();
+
+        for(int j = 0; j < facesOfCell.size(); j++){
+            Edge* e = facesOfCell[j];
+            
+            int nsign = nsigns[j];
+
+            pair<double, double> &middleFace = e->get_middle();
+            pair<double, double>& normal = e->get_normal();
+            pair<double,double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);    
+
+            if(e->is_boundary_face()){
+                BoundaryLocation local = BoundaryCondition::find_location(e);
+                BoundaryType bt = solver->boundaries[local]->get_type();
+                double bound_value = solver->boundaries[local]->apply(middleFace.first, middleFace.second);
+                
+                if(bt == DIRICHLET){
+                    pair<double,double> n1 = compute_n1(centroidP, middleFace, normal_corrected);
+
+                    // + encontrando o n2: n1 + n2 = nf => n2 = nf - n1
+                    double n2x = normal_corrected.first - n1.first;
+                    double n2y = normal_corrected.second - n1.second;
+
+                    // estou assumindo que o gradiente da face é o gradiente da celula.
+                    double graddotnormal = solver->gradients(i,0) * n2x + solver->gradients(i,1) * n2y;
+
+                    solver->b_aux[i] += (gammaf[e->id] * e->get_length() * graddotnormal);
+                }else if(bt == NEUMANN){
+                    // * não precisa tratar
+                }
+            }else{
+                int nb = get_neighbor(e->get_link_face_to_cell(), cells[i]->id);
+                pair<double,double>& centroidN = cells[nb]->get_centroid(); // centroide do vizinho
+
+                pair<double,double> n1 = compute_n1(centroidP, centroidN, normal_corrected);
+
+                double n2x = normal_corrected.first - n1.first;
+                double n2y = normal_corrected.second - n1.second;
+
+                /*Calculo da distancia de P até center(gface) & N até center(gface)*/
+                pair<double,double>& midFace = facesOfCell[j]->get_middle();
+                double d1 = distance(centroidP.first, centroidP.second, midFace.first, midFace.second);
+                double d2 = distance(centroidN.first, centroidN.second, midFace.first, midFace.second);
+                
+                // + Interpolação do gradiente da face
+                double gradx = (solver->gradients(i,0)*d2 + solver->gradients(nb,0)*d1)/(d1+d2);
+                double grady = (solver->gradients(i,1)*d2 + solver->gradients(nb,1)*d1)/(d1+d2);
+
+                double graddotnormal = gradx * n2x + grady * n2y;
+
+                solver->b_aux[i] += (gammaf[e->id] * facesOfCell[j]->get_length() * graddotnormal);
+            }
+        }
+    }
 }

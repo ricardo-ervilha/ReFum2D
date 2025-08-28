@@ -1,4 +1,5 @@
 #include "../include/FVMSolver.h"
+#include "GradientReconstruction.h"
 
 FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition* bc2, BoundaryCondition* bc3, BoundaryCondition *bc4){
     // * Salva a malha que vêm pré-processada da main.
@@ -19,6 +20,7 @@ FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition* bc2,
 
     this->A = arma::sp_mat(ncells, ncells);
     this->b = arma::vec(ncells, arma::fill::zeros);
+    this->b_aux = arma::vec(ncells, arma::fill::zeros);
     this->u_old = arma::vec(ncells, arma::fill::zeros);  
     this->u_new = arma::vec(ncells, arma::fill::zeros);  
     this->gradients = arma::mat(ncells, 2);
@@ -28,8 +30,21 @@ FVMSolver::~FVMSolver(){
     //Nada
 }
 
-void FVMSolver::SteadySolver(){
-    this->u_new = arma::spsolve(A, b);
+void FVMSolver::SteadySolver(Diffusion* d, bool cd, int num_iter_cd){
+    GradientReconstruction* g = new GradientReconstruction(this);
+    if(!cd)
+    {
+        this->u_new = arma::spsolve(A, b);
+    }    
+    else{
+        for(int i = 0; i < num_iter_cd; i++){
+            b_aux.zeros(); // ZERA o explícito
+            g->reconstruct_gradients(); // reconstroi os gradientes
+            d->cross_diffusion(); // Computa a difusão cruzada;
+            b_aux = b_aux + b; // soma o vetor com contribuição fixa com o que possui a contribuição corrigida
+            this->u_new = arma::spsolve(A, b_aux); // resolve com a correção  
+        }
+    }
 }
 
 /**

@@ -5,6 +5,7 @@
 #include "Mesh.h"
 #include "BoundaryCondition.h"
 #include <armadillo>
+#include "Diffusion.h"
 
 /**
  * Comentários:
@@ -29,6 +30,7 @@ public:
     // # Sistema linear.
     arma::sp_mat A; // & Matriz A, de A x = b
     arma::vec b;    // & Matriz b sem correções explícitas, de A x = b
+    arma::vec b_aux; // & VETOR AUXILIAR QUE TERÁ AS CORREÇÕES
     arma::vec u_old; // & u^{n} ou valor da solução no passo de tempo anterior
     arma::vec u_new; // & u^{n+1} ou valor da solução no próximo passo de tempo 
     arma::mat gradients; // & Armazena os gradientes reconstruídos com LSQ
@@ -37,7 +39,7 @@ public:
     ~FVMSolver();
 
     // ! Solver estacionário
-    void SteadySolver();
+    void SteadySolver(Diffusion *d, bool cd, int num_iter_cd);
 
     // ! Computa o erro da solução se houver uma exata passando
     void compute_error(double (*exact)(double, double));

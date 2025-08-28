@@ -18,6 +18,7 @@ set(SOURCE_FILES
     src/BoundaryCondition.cpp
     src/Diffusion.cpp
     src/Source.cpp
+    src/GradientReconstruction.cpp
 )
 set(HEADER_FILES
     include/Element.h
@@ -31,6 +32,7 @@ set(HEADER_FILES
     include/BoundaryCondition.h
     include/Diffusion.h
     include/Source.h
+    include/GradientReconstruction.h
 )
 
 add_executable(${PROJECT_NAME}.exe app/main.cpp ${SOURCE_FILES})

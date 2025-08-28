@@ -1,5 +1,4 @@
-#include "../include/FVMSolver.h"
-#include "../include/Diffusion.h"
+#include "Diffusion.h"
 #include "../include/Source.h"
 #include "DiffusionBenchmark.h"
 
@@ -8,7 +7,7 @@ int main(void){
     Mesh* m = new Mesh();
     
     // Leitura da malha e pré-processamento.
-    m->read_mesh("../inputs/1026tri.msh");
+    m->read_mesh("../inputs/24x24.msh");
 
     // Condições de contorno
     BoundaryCondition* downBC = new BoundaryCondition(DIRICHLET, DOWN, down);
@@ -23,7 +22,7 @@ int main(void){
     d->assembleCoefficients();
     s->assemblyCoefficients();
 
-    solver->SteadySolver();
+    solver->SteadySolver(d, true, 10);
 
     solver->compute_error(exact);
 
