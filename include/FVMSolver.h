@@ -27,8 +27,8 @@ private:
     arma::vec gammaf;                       // pré-processa no FVMSolver os gammas das faces;
     arma::vec rhof;                         // pré-processa no FVMSolver os rhos das faces;
     arma::mat uf;                           // pré-processa no FVMSolver os us das faces;
-    arma::vec b_with_cd;                    // relacionado a angulosidade da malha, computa a difusão cruzada.
-    vector<pair<double, double>> gradients; // vetor com os gradientes daquela iteração.
+    arma::vec b_corrected;                  // * Adiciona os termos vindos da iteração explícita.
+    vector<pair<double, double>> gradients; // * vetor com os gradientes reconstruídos.
 
     void pre_processing(); // Função para realizar o pré-processamento dos dados do problema e colocar em ED's.
 
@@ -55,6 +55,7 @@ public:
     /* funções para calculo da convecção com upwind */
     void convection();
     void convection_of_cell(Cell *c);
+    void correct_linear_upwind();
 
     /* funções para calculo da difusão sem considerar a não ortogonalidade */
     void diffusion_of_cell(Cell *c);
