@@ -1,4 +1,5 @@
 #include "GradientReconstruction.h"
+#include "FVMSolver.h"
 
 GradientReconstruction::GradientReconstruction(FVMSolver *s){
     this->solver = s;

@@ -1,6 +1,8 @@
 #ifndef GRADIENT_RECONSTRUCTION_H
 #define GRADIENT_RECONSTRUCTION_H
-#include "FVMSolver.h"
+
+class FVMSolver;
+
 class GradientReconstruction{
     private:
         FVMSolver* solver;

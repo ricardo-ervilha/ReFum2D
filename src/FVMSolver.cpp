@@ -1,4 +1,5 @@
 #include "../include/FVMSolver.h"
+#include "Diffusion.h"
 #include "GradientReconstruction.h"
 
 FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition* bc2, BoundaryCondition* bc3, BoundaryCondition *bc4){
@@ -45,6 +46,8 @@ void FVMSolver::SteadySolver(Diffusion* d, bool cd, int num_iter_cd){
             this->u_new = arma::spsolve(A, b_aux); // resolve com a correção  
         }
     }
+
+    delete g;
 }
 
 /**

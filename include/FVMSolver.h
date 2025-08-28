@@ -5,7 +5,11 @@
 #include "Mesh.h"
 #include "BoundaryCondition.h"
 #include <armadillo>
-#include "Diffusion.h"
+
+class Diffusion;
+class Convection;
+class Source;
+class GradientReconstruction;
 
 /**
  * Comentários:

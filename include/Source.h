@@ -1,6 +1,8 @@
 #ifndef SOURCE_H
 #define SOURCE_H
-#include "FVMSolver.h"
+
+#include<armadillo>
+class FVMSolver;
 
 class Source{
     private:

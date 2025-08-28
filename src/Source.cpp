@@ -1,4 +1,5 @@
 #include "Source.h"
+#include "FVMSolver.h"
 
 Source::Source(FVMSolver* s, double (*source)(double, double)){
     this->solver = s;
