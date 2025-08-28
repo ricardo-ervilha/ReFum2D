@@ -1,4 +1,4 @@
-#include "ConvectionBenchmark.h"
+#include "WolframAlpha.h"
 #include "FVMSolver.h"
 #include "Diffusion.h"
 #include "Convection.h"
@@ -9,12 +9,12 @@ int main(void){
     Mesh* m = new Mesh();
     
     // Leitura da malha e pré-processamento.
-    m->read_mesh("../inputs/100x100.msh");
+    m->read_mesh("../inputs/quadStretchRefined.msh");
 
     // Condições de contorno
-    BoundaryCondition* downBC = new BoundaryCondition(DIRICHLET, DOWN, down);
+    BoundaryCondition* downBC = new BoundaryCondition(NEUMANN, DOWN, down);
     BoundaryCondition* rightBC = new BoundaryCondition(DIRICHLET, RIGHT, right);
-    BoundaryCondition* topBC = new BoundaryCondition(DIRICHLET, TOP, top);
+    BoundaryCondition* topBC = new BoundaryCondition(NEUMANN, TOP, top);
     BoundaryCondition* leftBC = new BoundaryCondition(DIRICHLET, LEFT, left);
     FVMSolver* solver = new FVMSolver(m, downBC, rightBC, topBC, leftBC);
 
