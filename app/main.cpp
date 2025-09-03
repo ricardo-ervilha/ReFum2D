@@ -1,4 +1,4 @@
-#include "WolframAlpha.h"
+#include "Hemker.h"
 #include "FVMSolver.h"
 #include "Mesh.h"
 #include "Diffusion.h"
@@ -9,46 +9,46 @@
 int main() {
     // Objetos automáticos
     Mesh m;
-    m.read_mesh("../inputs/quadStretchRefined.msh");
+    m.read_mesh("../inputs/cavidadeRefinada.msh");
 
     BoundaryCondition downBC(NEUMANN, DOWN, down);
-    BoundaryCondition rightBC(DIRICHLET, RIGHT, right);
+    BoundaryCondition rightBC(NEUMANN, RIGHT, right);
     BoundaryCondition topBC(NEUMANN, TOP, top);
     BoundaryCondition leftBC(DIRICHLET, LEFT, left);
 
     FVMSolver solver(&m, &downBC, &rightBC, &topBC, &leftBC);
-
+    solver.set_initial_condition(ic);
     Diffusion d(&solver, gamma);
     Source s(&solver, source);
-    Convection c(&solver, rho, velocity);
-    GradientReconstruction g(&solver);
+    // Convection c(&solver, rho, velocity);
+    // GradientReconstruction g(&solver);
 
     d.assembleCoefficients();
     s.assemblyCoefficients();
-    c.assembleCoefficients();
+    // c.assembleCoefficients();
 
-    for (int i = 0; i < 10; i++) {
+    // for (int i = 0; i < 10; i++) {
         // reseta a contribuição explícita em b_aux
         solver.resetExplicit();
         
         // obtém os gradientes
-        g.reconstruct_gradients();
+        // g.reconstruct_gradients();
 
         // corrige a difusão cruzada
-        d.cross_diffusion();
+        // d.cross_diffusion();
 
         // computa a parcela explícita do linear upwind
-        c.linear_upwind();
+        // c.linear_upwind();
 
         // adiciona a contribuição de b em b_aux
         solver.addExplicitContribution();
 
         // resolve o sistema
         solver.solveSystem();
-    }
+    // }
 
 
-    solver.compute_error(exact);
+    // solver.compute_error(exact);
     solver.export_solution("../outputs/benchmarkConvection.vtk");
 
     return 0;

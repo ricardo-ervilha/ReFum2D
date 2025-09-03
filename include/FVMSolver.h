@@ -48,6 +48,8 @@ public:
     void resetExplicit() { b_aux.zeros(); }
     void addExplicitContribution() { b_aux += b; }
     void solveSystem() { u_new = arma::spsolve(A, b_aux); }
+
+    void set_initial_condition(double (*icFunc)(double, double));
 };
 
 #endif

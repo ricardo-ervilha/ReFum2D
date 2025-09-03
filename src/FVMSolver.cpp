@@ -115,3 +115,30 @@ void FVMSolver::export_solution(string filename){
 
     vtk_file.close();
 }
+
+void FVMSolver::set_initial_condition(double (*icFunc)(double, double)){
+    vector<Cell*> cells = mesh->get_cells();
+
+    for(Cell* c : cells){
+        vector<Node*> nodes = c->get_nodes();
+        double num = 0;
+        double den = 0;
+        pair<double,double> centroidP = c->get_centroid();
+        for(Node* n: nodes){
+            // + Calcula termo fonte para o nó da malha que é vertice do VC
+            double value = icFunc(n->x, n->y);
+            
+            // + Calcula distancia entre nó e centro da celula
+            double dist_center_cell_to_node = distance(
+                centroidP.first, centroidP.second,
+                n->x, n->y
+            );
+
+            // + Em cima vai ponderado o termo pela distancia. Em baixo está a soma das distancias
+            num += value * dist_center_cell_to_node;
+            den += dist_center_cell_to_node;
+        }
+
+        this->u_new[c->id] = num / den;
+    }
+}
