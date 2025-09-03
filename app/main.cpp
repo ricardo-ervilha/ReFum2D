@@ -1,4 +1,4 @@
-#include "ConvectionBenchmark.h"
+#include "WolframAlpha.h"
 #include "FVMSolver.h"
 #include "Mesh.h"
 #include "Diffusion.h"
@@ -9,11 +9,11 @@
 int main() {
     // Objetos automáticos
     Mesh m;
-    m.read_mesh("../inputs/100x100.msh");
+    m.read_mesh("../inputs/quadStretchRefined.msh");
 
-    BoundaryCondition downBC(DIRICHLET, DOWN, down);
+    BoundaryCondition downBC(NEUMANN, DOWN, down);
     BoundaryCondition rightBC(DIRICHLET, RIGHT, right);
-    BoundaryCondition topBC(DIRICHLET, TOP, top);
+    BoundaryCondition topBC(NEUMANN, TOP, top);
     BoundaryCondition leftBC(DIRICHLET, LEFT, left);
 
     FVMSolver solver(&m, &downBC, &rightBC, &topBC, &leftBC);
