@@ -1,10 +1,11 @@
 #ifndef CONVECTION_H
 #define CONVECTION_H
 
-class Cell;
-class FVMSolver;
 #include "pch.h"
 #include <armadillo>
+
+class Cell;
+class FVMSolver;
 
 class Convection{
     private:

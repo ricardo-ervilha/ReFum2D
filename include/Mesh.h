@@ -2,9 +2,10 @@
 #define MESH_H
 
 #include "pch.h"
-#include "PhysicalEntity.h"
-#include "Node.h"
-#include "Cell.h"
+class PhysicalEntity;
+class Node;
+class Cell;
+class Edge;
 
 // Função de hash para a parte das faces únicas.
 struct CantorPairingFunction {

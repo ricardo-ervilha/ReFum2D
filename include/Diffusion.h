@@ -1,10 +1,11 @@
 #ifndef DIFFUSION_H
 #define DIFFUSION_H
 
-class FVMSolver;
-class Cell;
 #include <armadillo>
 #include "pch.h"
+
+class FVMSolver;
+class Cell;
 
 class Diffusion{
     // & Função que recebe x, y para pegar o valor do coeficiente de difusão naquele vértice da malha.

@@ -1,5 +1,7 @@
 #include "Source.h"
 #include "FVMSolver.h"
+#include "Mesh.h"
+#include "Cell.h"
 
 Source::Source(FVMSolver* s, double (*source)(double, double)){
     this->solver = s;

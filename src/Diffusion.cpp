@@ -1,5 +1,7 @@
 #include "Diffusion.h"
 #include "FVMSolver.h"
+#include "Mesh.h"
+#include "Cell.h"
 
 Diffusion::Diffusion(FVMSolver* s, double (*g)(double, double)){
     this->solver = s;
@@ -8,7 +10,7 @@ Diffusion::Diffusion(FVMSolver* s, double (*g)(double, double)){
     
     this->interpolate_gammas(); // calcula gamma nas faces
 }
-
+ 
 
 Diffusion::~Diffusion(){
     //Nada

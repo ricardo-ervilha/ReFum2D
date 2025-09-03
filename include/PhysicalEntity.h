@@ -2,7 +2,7 @@
 #define PHYSICALENTITY_H
 
 #include "pch.h"
-#include "Cell.h"
+class Cell;
 
 class PhysicalEntity{
     private:

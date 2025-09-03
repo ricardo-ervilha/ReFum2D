@@ -1,46 +1,55 @@
-#include "WolframAlpha.h"
+#include "ConvectionBenchmark.h"
 #include "FVMSolver.h"
+#include "Mesh.h"
 #include "Diffusion.h"
 #include "Convection.h"
 #include "Source.h"
+#include "GradientReconstruction.h"
 
-int main(void){
-    // Instancia objeto da malha
-    Mesh* m = new Mesh();
-    
-    // Leitura da malha e pré-processamento.
-    m->read_mesh("../inputs/quadStretchRefined.msh");
+int main() {
+    // Objetos automáticos
+    Mesh m;
+    m.read_mesh("../inputs/100x100.msh");
 
-    // Condições de contorno
-    BoundaryCondition* downBC = new BoundaryCondition(NEUMANN, DOWN, down);
-    BoundaryCondition* rightBC = new BoundaryCondition(DIRICHLET, RIGHT, right);
-    BoundaryCondition* topBC = new BoundaryCondition(NEUMANN, TOP, top);
-    BoundaryCondition* leftBC = new BoundaryCondition(DIRICHLET, LEFT, left);
-    FVMSolver* solver = new FVMSolver(m, downBC, rightBC, topBC, leftBC);
+    BoundaryCondition downBC(DIRICHLET, DOWN, down);
+    BoundaryCondition rightBC(DIRICHLET, RIGHT, right);
+    BoundaryCondition topBC(DIRICHLET, TOP, top);
+    BoundaryCondition leftBC(DIRICHLET, LEFT, left);
 
-    Diffusion* d = new Diffusion(solver, gamma);
-    Source* s = new Source(solver, source);
-    Convection* c = new Convection(solver, rho, velocity);
+    FVMSolver solver(&m, &downBC, &rightBC, &topBC, &leftBC);
 
-    d->assembleCoefficients();
-    s->assemblyCoefficients();
-    c->assembleCoefficients();
+    Diffusion d(&solver, gamma);
+    Source s(&solver, source);
+    Convection c(&solver, rho, velocity);
+    GradientReconstruction g(&solver);
 
-    solver->SteadySolver(d, true, 10);
+    d.assembleCoefficients();
+    s.assemblyCoefficients();
+    c.assembleCoefficients();
 
-    solver->compute_error(exact);
+    for (int i = 0; i < 10; i++) {
+        // reseta a contribuição explícita em b_aux
+        solver.resetExplicit();
+        
+        // obtém os gradientes
+        g.reconstruct_gradients();
 
-    solver->export_solution("../outputs/benchmarkDiffusion.vtk");
+        // corrige a difusão cruzada
+        d.cross_diffusion();
 
-    /* Limpando ponteiros antes declarados */
-    delete m;
-    delete downBC;
-    delete rightBC;
-    delete topBC;
-    delete leftBC;
-    delete solver;
-    delete d;
-    delete s;
+        // computa a parcela explícita do linear upwind
+        c.linear_upwind();
+
+        // adiciona a contribuição de b em b_aux
+        solver.addExplicitContribution();
+
+        // resolve o sistema
+        solver.solveSystem();
+    }
+
+
+    solver.compute_error(exact);
+    solver.export_solution("../outputs/benchmarkConvection.vtk");
 
     return 0;
 }

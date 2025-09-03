@@ -1,7 +1,6 @@
 #ifndef CELL_H
 #define CELL_H
 
-#include "pch.h"
 #include "Edge.h"
 
 class Cell{

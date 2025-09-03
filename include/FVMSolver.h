@@ -2,14 +2,10 @@
 #define FVMSOLVER_H
 
 #include "pch.h"
-#include "Mesh.h"
 #include "BoundaryCondition.h"
 #include <armadillo>
 
-class Diffusion;
-class Convection;
-class Source;
-class GradientReconstruction;
+class Mesh;
 
 /**
  * Comentários:
@@ -42,14 +38,16 @@ public:
     FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition *bc2, BoundaryCondition *bc3, BoundaryCondition *bc4);
     ~FVMSolver();
 
-    // ! Solver estacionário
-    void SteadySolver(Diffusion *d, bool cd, int num_iter_cd);
-
     // ! Computa o erro da solução se houver uma exata passando
     void compute_error(double (*exact)(double, double));
 
     // ! Exporta a solução em formato .vtk
     void export_solution(string filepath);
+
+    // Funções para ajudar no loop da solução
+    void resetExplicit() { b_aux.zeros(); }
+    void addExplicitContribution() { b_aux += b; }
+    void solveSystem() { u_new = arma::spsolve(A, b_aux); }
 };
 
 #endif

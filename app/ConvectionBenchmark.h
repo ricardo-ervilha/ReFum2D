@@ -1,5 +1,4 @@
 #include "pch.h"
-
 double down(double x, double y) {
     return 0.0;
 }

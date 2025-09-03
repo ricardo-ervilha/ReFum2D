@@ -1,8 +1,7 @@
 #ifndef BOUNDARYCONDITION_H
 #define BOUNDARYCONDITION_H
 
-#include "pch.h"
-#include "Edge.h"
+class Edge;
 
 enum BoundaryType {
     DIRICHLET,
@@ -41,21 +40,7 @@ class BoundaryCondition {
             BoundaryCondition::ymax = ymax;
         }
 
-        static BoundaryLocation find_location(Edge* e){
-            if(e->from->y == BoundaryCondition::ymin && e->to->y == BoundaryCondition::ymin){
-                // down boundary
-                return DOWN;
-            } else if(e->from->x == BoundaryCondition::xmax && e->to->x == BoundaryCondition::xmax){
-                // right boundary
-                return RIGHT;
-            } else if(e->from->y == BoundaryCondition::ymax && e->to->y == BoundaryCondition::ymax){
-                // top boundary
-                return TOP;
-            } else{
-                //left boundary
-                return LEFT;
-            };
-        }
+        static BoundaryLocation find_location(Edge* e);
 };
 
 #endif

@@ -1,6 +1,7 @@
 #include "../include/FVMSolver.h"
-#include "Diffusion.h"
-#include "GradientReconstruction.h"
+#include "Mesh.h"
+#include "Cell.h"
+#include "Node.h"
 
 FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition* bc2, BoundaryCondition* bc3, BoundaryCondition *bc4){
     // * Salva a malha que vêm pré-processada da main.
@@ -29,25 +30,6 @@ FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition* bc2,
 
 FVMSolver::~FVMSolver(){
     //Nada
-}
-
-void FVMSolver::SteadySolver(Diffusion* d, bool cd, int num_iter_cd){
-    GradientReconstruction* g = new GradientReconstruction(this);
-    if(!cd)
-    {
-        this->u_new = arma::spsolve(A, b);
-    }    
-    else{
-        for(int i = 0; i < num_iter_cd; i++){
-            b_aux.zeros(); // ZERA o explícito
-            g->reconstruct_gradients(); // reconstroi os gradientes
-            d->cross_diffusion(); // Computa a difusão cruzada;
-            b_aux = b_aux + b; // soma o vetor com contribuição fixa com o que possui a contribuição corrigida
-            this->u_new = arma::spsolve(A, b_aux); // resolve com a correção  
-        }
-    }
-
-    delete g;
 }
 
 /**

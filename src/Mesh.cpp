@@ -1,4 +1,7 @@
 #include "../include/Mesh.h"
+#include "PhysicalEntity.h"
+#include "Edge.h"
+#include "Cell.h"
 
 Mesh::Mesh(){
     this->elementTypeToNumNodes[1] = 2; //Linha tem dois nós
