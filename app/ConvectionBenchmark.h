@@ -12,17 +12,16 @@ double top(double x, double y) {
 }
 
 double left(double x, double y) {
-    return 0.0;
+    return 1.0;
 }
 
 double gamma(double x, double y){
-    return 0.01;
+    return 0;
 }
 
 // + Termo fonte
 double source(double x, double y){
-    return - (0.02 * M_PI * M_PI * sin(M_PI * x) * sin(M_PI * y) + \
-            M_PI * (cos(M_PI * x) * sin(M_PI * y) + 0.5 * sin(M_PI * x) * cos(M_PI * y)));
+    return 0;
 }
 
 double rho(double x, double y){
@@ -32,7 +31,7 @@ double rho(double x, double y){
 pair<double,double> velocity(double x, double y){
     return make_pair(
         1,
-        0.5
+        1
     );
 }
 
