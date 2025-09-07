@@ -1,54 +1,18 @@
-import meshio
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.tri as tri
+#!/usr/bin/env pvpython
 
-# * Configurações da matplot
-plt.rcParams.update({
-    "text.usetex": True,          
-    "font.family": "serif",
-    "font.serif": ["Computer Modern"],
-    "axes.labelsize": 14,
-    "axes.titlesize": 16,
-    "xtick.labelsize": 12,
-    "ytick.labelsize": 12,
-    "legend.fontsize": 12
-})
+from paraview.simple import *
 
-# ====================== CÓDIGO GERADO ========================================
-mesh = meshio.read("../outputs/benchmarkConvection.vtk")
+# janela onde será renderizado
+renderView = GetActiveViewOrCreate('RenderView')
 
-# Pega os pontos
-points = mesh.points
-x = points[:, 0]
-y = points[:, 1]
+# carrega o vtk
+vtkFile = LegacyVTKReader(FileNames=['solution.vtk'])
 
-# Pega o campo "Temperatura" em CELL_DATA
-T_cell = mesh.cell_data_dict["Temperatura"]["quad"]  # quad = tipo da célula
+# filtro
+cellToPoint = CellDatatoPointData(Input=vtkFile)
 
-# Cria uma lista de triângulos a partir dos quadriláteros
-quads = mesh.cells_dict["quad"]  # cada linha: indices dos 4 pontos
-triangles = []
-for q in quads:
-    # dividir cada quad em 2 triângulos: (0,1,2) e (0,2,3)
-    triangles.append([q[0], q[1], q[2]])
-    triangles.append([q[0], q[2], q[3]])
+display = Show(cellToPoint, renderView)
 
-triangles = np.array(triangles)
-
-# Duplicar valores de T para os dois triângulos de cada quad
-T_tri = np.repeat(T_cell, 2)
-
-# Cria triangulação
-triang = tri.Triangulation(x, y, triangles)
-
-
-# ====================== CÓDIGO GERADO ========================================
-
-plt.figure(figsize=(6,5))
-plt.tripcolor(triang, T_tri, shading='flat', cmap='coolwarm')
-plt.colorbar(label="u(x,y)")
-plt.xlabel("x")
-plt.ylabel("y")
-plt.tight_layout()
-plt.show()
+# Renderiza
+Interact()
+Render()

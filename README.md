@@ -51,3 +51,5 @@ make
 
 # Após compilado com sucesso
 ./TCC.exe
+
+../../ParaView-6.0.0-MPI-Linux-Python3.12-x86_64/bin/pvpython main.py

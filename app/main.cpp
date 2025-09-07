@@ -23,22 +23,22 @@ int main() {
 
     c.assembleCoefficients();
 
-    // for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 30; i++) {
         // reseta a contribuição explícita em b_aux
         solver.resetExplicit();
         
         // obtém os gradientes
-        // g.reconstruct_gradients();
+        g.reconstruct_gradients();
 
         // computa a parcela explícita do linear upwind
-        // c.linear_upwind();
+        c.linear_upwind();
 
         // adiciona a contribuição de b em b_aux
         solver.addExplicitContribution();
 
         // resolve o sistema
         solver.solveSystem();
-    // }
+    }
 
 
     // solver.compute_error(exact);
