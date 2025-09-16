@@ -8,7 +8,7 @@ double right(double x, double y) {
 }
 
 double top(double x, double y) {
-    return  0.0;
+    return  1.0;
 }
 
 double left(double x, double y) {

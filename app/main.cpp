@@ -9,7 +9,7 @@
 int main() {
     // Objetos automáticos
     Mesh m;
-    m.read_mesh("../inputs/100x100.msh");
+    m.read_mesh("../inputs/mesh3700.msh");
 
     BoundaryCondition downBC(DIRICHLET, DOWN, down);
     BoundaryCondition rightBC(DIRICHLET, RIGHT, right);

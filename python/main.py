@@ -5,8 +5,8 @@ from paraview.simple import *
 # janela onde será renderizado
 renderView = GetActiveViewOrCreate('RenderView')
 
-# carrega o vtk
-vtkFile = LegacyVTKReader(FileNames=['solution.vtk'])
+# carrega o vtk (./ pois estou executando o run.sh na raiz)
+vtkFile = LegacyVTKReader(FileNames=['./outputs/solution.vtk'])
 
 # filtro
 cellToPoint = CellDatatoPointData(Input=vtkFile)
