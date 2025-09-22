@@ -35,7 +35,7 @@ FVMSolver::~FVMSolver(){
 /**
  * * Computa erro usando norma L_2.
  */
-void FVMSolver::compute_error(double (*exact)(double, double)){
+void FVMSolver::compute_error(double (*exact)(double, double), string suffix_filepath){
     arma::vec exact_vect(mesh->get_ncells());
     vector<Cell*> cells = mesh->get_cells();
     for(int i = 0; i < cells.size(); i++){ //para cada célula
@@ -51,7 +51,13 @@ void FVMSolver::compute_error(double (*exact)(double, double)){
     }
     norml2 = sqrt(norml2/sumAreas);
     
-    cout << "\nNorma L2: " << norml2 << endl;
+    // salvando o erro em um arquivo.
+    string base_path = "../python/metric.txt";
+    size_t pos = base_path.find(".txt");
+    string new_path = base_path.substr(0, pos) + "_" + suffix_filepath + base_path.substr(pos);
+    ofstream file(new_path);
+    file << norml2;
+    file.close();
 }
 
 void FVMSolver::export_solution(string filename){

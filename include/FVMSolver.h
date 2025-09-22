@@ -39,7 +39,7 @@ public:
     ~FVMSolver();
 
     // ! Computa o erro da solução se houver uma exata passando
-    void compute_error(double (*exact)(double, double));
+    void compute_error(double (*exact)(double, double), string suffix_filepath);
 
     // ! Exporta a solução em formato .vtk
     void export_solution(string filepath);
