@@ -11,10 +11,7 @@ class Mesh;
  * Comentários:
  * TODO: Indicar tarefas pendentes ou algo que precisa ser implementado.
  * ! Marcar algo muito importante ou crítico no código.
- * ? Indicar dúvidas ou pontos que precisam de verificação.
- * # Explicações ou comentários teóricos, por exemplo, sobre equações, algoritmos ou conceitos.
  * + Explicações de contas, fórmulas ou raciocínio matemático dentro do código.
- * & Pequenas anotações ou lembretes rápidos, talvez menos formais que TODO
  * * Comentários gerais ou explicativos sobre o código, documentação rápida.
  */
 
