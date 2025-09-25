@@ -218,3 +218,30 @@ pair<double,double> NSSolver::reconstruct_pressure_gradients(Cell *c){
     
     return make_pair(px, py);
 }
+
+void NSSolver::pressure_correction_poisson(){
+    vector<Cell*> cells = mesh->get_cells();
+    for(int i = 0; i < cells.size(); ++i){
+        Cell* c = cells[i];
+        vector<Edge*> faces = c->get_edges();
+        double a_P = 0;
+        double b = 0;
+        for(int j = 0; j < faces.size(); ++j){
+            Edge* face = faces[i];
+            int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
+
+            double d_P = cells[c->id]->get_area()/a[c->id];
+            double d_N = cells[id_neighbor]->get_area()/a[id_neighbor];
+            double d_f = 0.5 * (d_P + d_N);
+
+            this->A_pc(c->id, id_neighbor) += - d_f * face->get_length();
+            a_P += d_f * face->get_length();
+
+            double U_dot_normal = u_face[face->id] * face->get_normal().first + v_face[face->id] * face->get_normal().second;
+            b += U_dot_normal * face->get_length();
+        }
+        this->A_pc(c->id, c->id) += a_P;
+        this->b_pc(c->id) += - b;
+    }
+    this->p_prime = arma::spsolve(A_pc, b_pc);
+}

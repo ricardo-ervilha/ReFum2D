@@ -80,6 +80,8 @@ class NSSolver{
 
         // reconstroi gradientes de pressão;
         pair<double,double> reconstruct_pressure_gradients(Cell *c);
+
+        void pressure_correction_poisson();
 };
 
 #endif
