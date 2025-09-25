@@ -2,6 +2,7 @@
 #include "Mesh.h"
 #include "Edge.h"
 #include "Cell.h"
+#include "BoundaryCondition.h"
 
 NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source_y){
     this->mesh = mesh; // Guarda um ponteiro para acessar os valores da malha.
@@ -44,6 +45,8 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
     // coeficientes de Difusão e Convecção
     this->Df = arma::vec(nfaces, arma::fill::zeros);
     this->Gf = arma::vec(nfaces, arma::fill::zeros);
+
+    this->a = arma::vec(ncells, arma::fill::zeros);
 }   
 
 NSSolver::~NSSolver(){
@@ -85,6 +88,7 @@ void NSSolver::calculate_A_mom(){
         }
         // contabilizando para P
         this->A_mom(c->id, c->id) += a_P;
+        a[c->id] = a_P;
     }
 }
 
@@ -139,4 +143,78 @@ void NSSolver::calculate_momentum(){
 
     calculate_b_mom_y();
     this->v_star = arma::spsolve(this->A_mom, this->b_mom);
+}
+
+void NSSolver::interpolate_momentum(){
+    vector<Edge*> faces = mesh->get_edges();
+    vector<Cell*> cells = mesh->get_cells();
+    for(int i = 0; i < faces.size(); ++i){
+        Edge* face = faces[i];
+        pair<int,int> id_nodes = face->get_link_face_to_cell();
+        int P = id_nodes.first;
+        int N = id_nodes.second;
+        
+        // TODO: Interpolando com média aritmética.
+        double u_bar = 0.5 * (u_star[P] + u_star[N]);
+        double v_bar = 0.5 * (v_star[P] + v_star[N]);
+        
+        double d_P = cells[P]->get_area()/a[P];
+        double d_N = cells[N]->get_area()/a[N];
+        double d_f = 0.5 * (d_P + d_N);
+
+        double dx = fabs(face->from->x - face->to->x);
+        double dy = fabs(face->from->y - face->to->y);
+        double partial_p_partial_x_f = (this->p[N] - this->p[P])/dx;
+        double partial_p_partial_y_f = (this->p[N] - this->p[P])/dy;
+
+        pair<double,double> gradient_pressure_P = reconstruct_pressure_gradients(cells[P]);
+        pair<double,double> gradient_pressure_N = reconstruct_pressure_gradients(cells[N]);
+
+        u_face[i] = u_bar - d_f * (partial_p_partial_x_f + 0.5 * (gradient_pressure_P.first + gradient_pressure_N.first));
+        v_face[i] = v_bar - d_f * (partial_p_partial_y_f + 0.5 * (gradient_pressure_P.second + gradient_pressure_N.second));
+    }
+}
+
+pair<double,double> NSSolver::reconstruct_pressure_gradients(Cell *c){  
+
+    vector<Cell*> cells = mesh->get_cells();
+
+    vector<Edge*>& edgesOfCell = c->get_edges();
+    pair<double,double>& centroidP = c->get_centroid();
+
+    // criação da Matriz M e do vetor y.
+    arma::mat M(edgesOfCell.size(), 2);
+    arma::vec y(edgesOfCell.size());
+        
+    for(int j = 0; j < edgesOfCell.size(); j++){
+        Edge* e = edgesOfCell[j];
+        
+        // # meio da face
+        pair<double, double> &middleFace = e->get_middle();
+        
+        if(e->is_boundary_face()){
+            // TODO: Esse tratamento faz sentido ?
+            y[j] = 0;
+        }else{
+            int nb = get_neighbor(e->get_link_face_to_cell(), c->id);
+            pair<double,double>& centroidN = cells[nb]->get_centroid();
+
+            double dx = centroidN.first - centroidP.first;
+            double dy = centroidN.second - centroidP.second;
+            
+            // + [dx dy]
+            M(j,0) = dx;
+            M(j, 1) = dy;
+
+            // + [u_N - u_P]
+            y[j] = this->p[nb] - this->p[c->id];  
+        }
+    }
+        
+    // + Resolve sistema sobre-determinado M x = y.
+    arma::vec x = arma::solve(M, y);
+    double px = x[0];
+    double py = x[1];
+    
+    return make_pair(px, py);
 }

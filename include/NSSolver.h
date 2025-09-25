@@ -55,6 +55,8 @@ class NSSolver{
         float rho;
         // termos fonte
         float source_x, source_y;
+
+        arma::vec a;
     
     public:
         NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source_y);
@@ -72,6 +74,12 @@ class NSSolver{
         // Usado no calculo do momento para calcular os coeficientes de b. Leva em consdeiração a variavel 
         void calculate_b_mom_x();
         void calculate_b_mom_y();
+
+        // Interpola o momento 
+        void interpolate_momentum();
+
+        // reconstroi gradientes de pressão;
+        pair<double,double> reconstruct_pressure_gradients(Cell *c);
 };
 
 #endif
