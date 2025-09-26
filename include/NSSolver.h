@@ -5,6 +5,7 @@
 #include <armadillo>
 
 class Mesh;
+class Cell;
 
 class NSSolver{
     private:
@@ -12,7 +13,7 @@ class NSSolver{
         
         // + Momento
         // * Matriz A do sistema A x = b.
-        arma::sp_mat A_mom;
+        arma::mat A_mom;
         // * Vetor coluna b do sistema A x = b.
         arma::vec b_mom; 
 
@@ -49,6 +50,9 @@ class NSSolver{
         // * Coeficiente de convecção de cada volume de controle.
         arma::vec Gf;
 
+        arma::vec u_face_prime;
+        arma::vec v_face_prime;
+
         // Viscosidade dinâmica
         float mu;
         // Densidade
@@ -82,6 +86,14 @@ class NSSolver{
         pair<double,double> reconstruct_pressure_gradients(Cell *c);
 
         void pressure_correction_poisson();
+
+        void correct_variables();
+
+        void export_solution(string filepath);
+
+        void print_Df() {cout << this->Df << endl;};
+        void print_Gf() {cout << this->Gf << endl;};
+
 };
 
 #endif

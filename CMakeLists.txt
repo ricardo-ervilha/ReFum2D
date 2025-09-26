@@ -20,6 +20,7 @@ set(SOURCE_FILES
     src/Source.cpp
     src/GradientReconstruction.cpp
     src/Convection.cpp
+    src/NSSolver.cpp
 )
 set(HEADER_FILES
     include/Element.h
@@ -35,6 +36,7 @@ set(HEADER_FILES
     include/Source.h
     include/GradientReconstruction.h
     include/Convection.h
+    include/NSSolver.h
 )
 
 add_executable(${PROJECT_NAME}.exe app/main.cpp ${SOURCE_FILES})
