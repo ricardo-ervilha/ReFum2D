@@ -509,17 +509,17 @@ u_star[0,1:n_x+1]=1
 u_face[0,1:n_x]=1
 
 l2_norm_x=0
-alpha_uv=1
-epsilon_uv=1e-3
-max_inner_iteration_uv=50
+alpha_uv=0.7
+epsilon_uv=1e-4
+max_inner_iteration_uv=1000
 
 l2_norm_y=0
 
 l2_norm_p=0
-max_inner_iteration_p=200
+max_inner_iteration_p=1000
 dummy_alpha_p=1
 epsilon_p=1e-4
-alpha_p=1
+alpha_p=0.2
 
 max_outer_iteration=1
 
@@ -551,4 +551,6 @@ for n in range(1,max_outer_iteration+1):
         print("Converged !")
         break
 
-post_processing(u_star,v_star,p_star,X,Y,x,y)
+    
+    if n == max_outer_iteration:   
+        post_processing(u_star,v_star,p_star,X,Y,x,y)

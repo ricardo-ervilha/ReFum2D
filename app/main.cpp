@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
     solver.pressure_correction_poisson();
 
     // atualiza as variáveis
-    solver.correct_variables();
+    solver.correct_variables(0.7, 0.2);
 
     solver.export_solution("../outputs/u_star.vtk", 'u');
     solver.export_solution("../outputs/v_star.vtk", 'v');

@@ -129,15 +129,18 @@ void NSSolver::calculate_b_mom_x(){
             int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
             
             // TODO: Interpolando com uma média aritmética.
-            pressure_gradient -= ((this->p[c->id] + this->p[id_neighbor]) * 0.5) * face->get_length() * face->get_normal().first;
+            if(!face->is_boundary_face()){
+                pressure_gradient -= ((this->p_star[c->id] + this->p_star[id_neighbor]) * 0.5) * face->get_length() * normal_corrected.first;
 
-            if(face->is_boundary_face()){
-                double U_dot_normal = normal_corrected.first * u_face[id_face] + normal_corrected.second * v_face[id_face];
-
-                double a_N = -min(0.0, -Gf[id_face] * U_dot_normal) + Df[id_face];
-
-                this->b_mom[c->id] += a_N * u_face[face->id];
+            }else{
+                pressure_gradient -= this->p_star[c->id] * face->get_length() * normal_corrected.first;
             }
+            double U_dot_normal = normal_corrected.first * u_face[id_face] + normal_corrected.second * v_face[id_face];
+
+            double a_N = -min(0.0, -Gf[id_face] * U_dot_normal) + Df[id_face];
+
+            this->b_mom[c->id] += a_N * u_face[face->id];
+        
         }
         this->b_mom[c->id] += pressure_gradient + source_x * c->get_area();
     }
@@ -154,26 +157,34 @@ void NSSolver::calculate_b_mom_y(){
             int nsign = nsigns[j];
             Edge* face = faces[j];
             pair<double, double> &normal = face->get_normal();
+
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
             int id_face = face->id;
             int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
             
             // TODO: Interpolando com uma média aritmética.
-            pressure_gradient -= ((this->p[c->id] + this->p[id_neighbor]) * 0.5) * face->get_length() * face->get_normal().second; // * n_y
+            if(!face->is_boundary_face()){
+                pressure_gradient -= ((this->p_star[c->id] + this->p_star[id_neighbor]) * 0.5) * face->get_length() * normal_corrected.second; // * n_y
 
-            if(face->is_boundary_face()){
-                double U_dot_normal = normal_corrected.first * u_face[id_face] + normal_corrected.second * v_face[id_face];
-
-                double a_N = -min(0.0, -Gf[id_face] * U_dot_normal) + Df[id_face];
-
-                this->b_mom[c->id] += a_N * v_face[face->id]; // * v_face (contorno)
+            }else{
+                pressure_gradient -= this->p_star[c->id] * face->get_length() * normal_corrected.second;
             }
+            double U_dot_normal = normal_corrected.first * u_face[id_face] + normal_corrected.second * v_face[id_face];
+
+            double a_N = -min(0.0, -Gf[id_face] * U_dot_normal) + Df[id_face];
+
+            this->b_mom[c->id] += a_N * v_face[face->id]; // * v_face (contorno)
+            
         }
         this->b_mom[c->id] += pressure_gradient + source_y * c->get_area(); // * S_y
     }
 }
 
 void NSSolver::calculate_momentum(){
+
+    // zera antecipadamente
+    this->A_mom.zeros();
+    this->b_mom.zeros();
 
     // preenche A: serve pra u e pra v
     cout << "Calculando as equações de momento.\n";
@@ -230,8 +241,8 @@ void NSSolver::interpolate_momentum(){
             double pressure_diff = (p[cell_F] - p[cell_C]) / dCF;
 
             // gradiente de pressão interpolado na face
-            auto gradP_C = reconstruct_pressure_gradients(cells[cell_C], this->p);
-            auto gradP_F = reconstruct_pressure_gradients(cells[cell_F], this->p);
+            auto gradP_C = reconstruct_pressure_gradients(cells[cell_C], this->p_star);
+            auto gradP_F = reconstruct_pressure_gradients(cells[cell_F], this->p_star);
             pair<double,double> gradP_face = {
                 0.5 * (gradP_C.first + gradP_F.first),
                 0.5 * (gradP_C.second + gradP_F.second)
@@ -298,6 +309,10 @@ pair<double,double> NSSolver::reconstruct_pressure_gradients(Cell *c, arma::vec 
 }
 
 void NSSolver::pressure_correction_poisson(){
+    // zera pra próxima iteração
+    A_pc.zeros();
+    b_pc.zeros();
+
     cout << "Resolvendo a poisson para encontrar a correção da pressão.\n";
     vector<Cell*> cells = mesh->get_cells();
     for(int i = 0; i < cells.size(); ++i){
@@ -339,76 +354,24 @@ void NSSolver::pressure_correction_poisson(){
                 this->b_pc(c->id) += - U_dot_normal * face->get_length();
             }
         }
-        /* Resolvendo o problema de não ter valor prescrito de pressão...*/
-        A_pc.row(0).zeros(); // zera a linha
-        A_pc(0,0) = 1.0;
-        b_pc[0] = 0.0; // prescrevendo uma correção em um nó. Deixará de ser singular a matriz...
 
         this->A_pc(c->id, c->id) = a_P;
         this->b_pc(c->id) += -b;
     }
+    /* Resolvendo o problema de não ter valor prescrito de pressão...*/
+    A_pc.row(0).zeros(); // zera a linha
+    A_pc(0,0) = 1.0;
+    b_pc[0] = 0.0; // prescrevendo uma correção em um nó. Deixará de ser singular a matriz...
     this->p_prime = arma::solve(A_pc, b_pc);
     cout << "=============================================\n";
 }
 
-void NSSolver::pressure_correction_poisson_modified(){
-    cout << "Resolvendo a poisson para encontrar a correção da pressão.\n";
-    vector<Cell*> cells = mesh->get_cells();
-    for(int i = 0; i < cells.size(); ++i){
-        Cell* c = cells[i];
-        vector<Edge*> faces = c->get_edges();
-        vector<int> nsigns = c->get_nsigns();
-        
-        double a_P = 0;
-        double b = 0;
-        
-        for(int j = 0; j < faces.size(); ++j){
-            Edge* face = faces[j];
-            int nsign = nsigns[j];
-            pair<double,double> normal = face->get_normal();
-            pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
-
-            if(!face->is_boundary_face()){
-                int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
-                double U_dot_normal = normal_corrected.first * u_face[face->id]  + normal_corrected.second * v_face[face->id];
-
-                double d_N = cells[id_neighbor]->get_area() / a[id_neighbor];
-                double d_P = cells[c->id]->get_area() / a[c->id];
-                double d_f = 0.5* (d_N + d_P);
-
-                double a_N = d_f * face->get_length();
-                this->A_pc(c->id, id_neighbor) += -a_N;
-                a_P += a_N;
-
-                b += U_dot_normal * face->get_length();
-            }else{
-                // P'_b = P'_c.
-                int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
-                double U_dot_normal = normal_corrected.first * u_face[face->id]  + normal_corrected.second * v_face[face->id];
-
-                double d_P = cells[c->id]->get_area() / a[c->id];
-
-                double a_N = d_P * face->get_length();
-                this->A_pc(c->id, c->id) += -a_N;
-                a_P += a_N;
-
-                b += U_dot_normal * face->get_length();
-            }
-        }
-        A_pc(c->id, c->id) += a_P;
-        b_pc(c->id) += b;
-    }
-    cout << this->A_pc << endl;
-    this->p_prime = arma::solve(A_pc, b_pc);
-    cout << "=============================================\n";
-}
-
-void NSSolver::correct_variables(){
+void NSSolver::correct_variables(double alpha_uv, double alpha_p){
     cout << "Corrigindo as variáveis.\n";
     vector<Cell*> cells = mesh->get_cells();
     vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < cells.size(); i++){
-        p[i] = p_star[i] + p_prime[i]; // correto.
+        p[i] = p_star[i] + alpha_p * p_prime[i]; // correto.
     }
     
     for(int i = 0; i < faces.size(); i++){
@@ -421,15 +384,16 @@ void NSSolver::correct_variables(){
             double d_P = cells[P]->get_area()/a[P];
             double d_N = cells[N]->get_area()/a[N];
             double d_f = 0.5 * (d_P + d_N);
+
+            pair<double,double> grad_p_prime_P = reconstruct_pressure_gradients(cells[P], this->p_prime);
+            pair<double,double> grad_p_prime_N = reconstruct_pressure_gradients(cells[N], this->p_prime);
             
-            u_face_prime[i] = d_f * (p_prime[P] - p_prime[id_nodes.second])/face->get_df();
-            v_face_prime[i] = d_f * (p_prime[P] - p_prime[id_nodes.second])/face->get_df();
+            u_face_prime[i] = d_f * 0.5 * (grad_p_prime_P.first + grad_p_prime_N.first);
+            v_face_prime[i] = d_f * 0.5 * (grad_p_prime_P.second + grad_p_prime_N.second);
+
+            u_face[i] = u_face[i] - alpha_uv * u_face_prime[i];
+            v_face[i] = v_face[i] - alpha_uv * v_face_prime[i];
         }
-    }
-    
-    for(int i = 0; i < faces.size(); i++){
-        u_face[i] = u_face[i] - u_face_prime[i] * faces[i]->get_length() * faces[i]->get_normal().first;
-        v_face[i] = v_face[i] - v_face_prime[i] * faces[i]->get_length() * faces[i]->get_normal().second;
     }
     
     for(int i=0; i < cells.size(); ++i){
@@ -437,10 +401,14 @@ void NSSolver::correct_variables(){
         double Dc = c->get_area() / a[c->id];
         pair<double,double> grad_p_prime = reconstruct_pressure_gradients(c, this->p_prime);
 
-        u_star[i] = u_star[i] - Dc * grad_p_prime.first;
-        v_star[i] = v_star[i] - Dc * grad_p_prime.second;
+        u[i] = u_star[i] - alpha_uv * Dc * grad_p_prime.first;
+        v[i] = v_star[i] - alpha_uv * Dc * grad_p_prime.second;
     }
     cout << "===================================================\n";
+
+    u_star = u;
+    v_star = v;
+    p_star = p;
 }
 
 void NSSolver::export_solution(string filename, char variable){

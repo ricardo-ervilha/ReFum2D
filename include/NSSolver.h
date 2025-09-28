@@ -86,9 +86,8 @@ class NSSolver{
         pair<double,double> reconstruct_pressure_gradients(Cell *c, arma::vec phi);
 
         void pressure_correction_poisson(); // moukaled
-        void pressure_correction_poisson_modified(); // versteeg
 
-        void correct_variables();
+        void correct_variables(double alpha_uv, double alpha_p);
 
         void export_solution(string filepath, char variable);
 
