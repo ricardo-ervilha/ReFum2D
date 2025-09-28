@@ -3,7 +3,7 @@
 
 int main(int argc, char* argv[]) {
     Mesh m;
-    m.read_mesh("../inputs/q5x5.msh");
+    m.read_mesh("../inputs/q30x30.msh");
 
     NSSolver solver(&m, 0.01, 1, 0, 0);
 
@@ -23,5 +23,7 @@ int main(int argc, char* argv[]) {
     // atualiza as variáveis
     solver.correct_variables();
 
-    solver.export_solution("../outputs/u_star.vtk");
+    solver.export_solution("../outputs/u_star.vtk", 'u');
+    solver.export_solution("../outputs/v_star.vtk", 'v');
+    solver.export_solution("../outputs/p.vtk", 'p');
 }

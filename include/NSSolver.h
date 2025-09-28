@@ -83,13 +83,14 @@ class NSSolver{
         void interpolate_momentum();
 
         // reconstroi gradientes de pressão;
-        pair<double,double> reconstruct_pressure_gradients(Cell *c);
+        pair<double,double> reconstruct_pressure_gradients(Cell *c, arma::vec phi);
 
-        void pressure_correction_poisson();
+        void pressure_correction_poisson(); // moukaled
+        void pressure_correction_poisson_modified(); // versteeg
 
         void correct_variables();
 
-        void export_solution(string filepath);
+        void export_solution(string filepath, char variable);
 
         void print_Df() {cout << this->Df << endl;};
         void print_Gf() {cout << this->Gf << endl;};

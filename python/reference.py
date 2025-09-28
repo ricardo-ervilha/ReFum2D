@@ -7,9 +7,8 @@ import math
 
 
 
-
-n_x=10
-n_y=10
+n_x=30
+n_y=30
 
 dx=1.0/n_x
 dy=1.0/n_y
@@ -442,20 +441,20 @@ def post_processing(u_star,v_star,p_star,X,Y,x,y):
     plt.show()
 
     #u centerline velocity
-    plt.figure(4)
-    plt.plot(1-y,u_star[:,round(n_x/2)])
-    plt.xlabel('y')
-    plt.ylabel('u')
-    plt.title('U centerline velocity')
-    plt.show()
+    # plt.figure(4)
+    # plt.plot(1-y,u_star[:,round(n_x/2)])
+    # plt.xlabel('y')
+    # plt.ylabel('u')
+    # plt.title('U centerline velocity')
+    # plt.show()
 
-    #v centerline velocity
-    plt.figure(5)
-    plt.plot(x,v_star[round(n_y/2),:])
-    plt.xlabel('x')
-    plt.ylabel('v')
-    plt.title('V centerline velocity')
-    plt.show()
+    # #v centerline velocity
+    # plt.figure(5)
+    # plt.plot(x,v_star[round(n_y/2),:])
+    # plt.xlabel('x')
+    # plt.ylabel('v')
+    # plt.title('V centerline velocity')
+    # plt.show()
 
 #Declaring primitive variables
 u=np.zeros((n_y+2,n_x+2),dtype=np.float64)
@@ -520,7 +519,7 @@ l2_norm_p=0
 max_inner_iteration_p=200
 dummy_alpha_p=1
 epsilon_p=1e-4
-alpha_p=0.2
+alpha_p=1
 
 max_outer_iteration=1
 
@@ -552,6 +551,4 @@ for n in range(1,max_outer_iteration+1):
         print("Converged !")
         break
 
-
-print(p_star)
 post_processing(u_star,v_star,p_star,X,Y,x,y)

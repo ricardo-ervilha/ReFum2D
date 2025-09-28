@@ -230,8 +230,8 @@ void NSSolver::interpolate_momentum(){
             double pressure_diff = (p[cell_F] - p[cell_C]) / dCF;
 
             // gradiente de pressão interpolado na face
-            auto gradP_C = reconstruct_pressure_gradients(cells[cell_C]);
-            auto gradP_F = reconstruct_pressure_gradients(cells[cell_F]);
+            auto gradP_C = reconstruct_pressure_gradients(cells[cell_C], this->p);
+            auto gradP_F = reconstruct_pressure_gradients(cells[cell_F], this->p);
             pair<double,double> gradP_face = {
                 0.5 * (gradP_C.first + gradP_F.first),
                 0.5 * (gradP_C.second + gradP_F.second)
@@ -253,7 +253,7 @@ void NSSolver::interpolate_momentum(){
     cout << "=============================================\n";
 }
 
-pair<double,double> NSSolver::reconstruct_pressure_gradients(Cell *c){  
+pair<double,double> NSSolver::reconstruct_pressure_gradients(Cell *c, arma::vec phi){  
 
     vector<Cell*> cells = mesh->get_cells();
 
@@ -285,16 +285,16 @@ pair<double,double> NSSolver::reconstruct_pressure_gradients(Cell *c){
             M(j, 1) = dy;
 
             // + [u_N - u_P]
-            y[j] = this->p[nb] - this->p[c->id];  
+            y[j] = phi[nb] - phi[c->id];  
         }
     }
         
     // + Resolve sistema sobre-determinado M x = y.
     arma::vec x = arma::solve(M, y);
-    double px = x[0];
-    double py = x[1];
+    double phix = x[0];
+    double phiy = x[1];
     
-    return make_pair(px, py);
+    return make_pair(phix, phiy);
 }
 
 void NSSolver::pressure_correction_poisson(){
@@ -339,8 +339,64 @@ void NSSolver::pressure_correction_poisson(){
                 this->b_pc(c->id) += - U_dot_normal * face->get_length();
             }
         }
+        /* Resolvendo o problema de não ter valor prescrito de pressão...*/
+        A_pc.row(0).zeros(); // zera a linha
+        A_pc(0,0) = 1.0;
+        b_pc[0] = 0.0; // prescrevendo uma correção em um nó. Deixará de ser singular a matriz...
+
         this->A_pc(c->id, c->id) = a_P;
         this->b_pc(c->id) += -b;
+    }
+    this->p_prime = arma::solve(A_pc, b_pc);
+    cout << "=============================================\n";
+}
+
+void NSSolver::pressure_correction_poisson_modified(){
+    cout << "Resolvendo a poisson para encontrar a correção da pressão.\n";
+    vector<Cell*> cells = mesh->get_cells();
+    for(int i = 0; i < cells.size(); ++i){
+        Cell* c = cells[i];
+        vector<Edge*> faces = c->get_edges();
+        vector<int> nsigns = c->get_nsigns();
+        
+        double a_P = 0;
+        double b = 0;
+        
+        for(int j = 0; j < faces.size(); ++j){
+            Edge* face = faces[j];
+            int nsign = nsigns[j];
+            pair<double,double> normal = face->get_normal();
+            pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
+
+            if(!face->is_boundary_face()){
+                int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
+                double U_dot_normal = normal_corrected.first * u_face[face->id]  + normal_corrected.second * v_face[face->id];
+
+                double d_N = cells[id_neighbor]->get_area() / a[id_neighbor];
+                double d_P = cells[c->id]->get_area() / a[c->id];
+                double d_f = 0.5* (d_N + d_P);
+
+                double a_N = d_f * face->get_length();
+                this->A_pc(c->id, id_neighbor) += -a_N;
+                a_P += a_N;
+
+                b += U_dot_normal * face->get_length();
+            }else{
+                // P'_b = P'_c.
+                int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
+                double U_dot_normal = normal_corrected.first * u_face[face->id]  + normal_corrected.second * v_face[face->id];
+
+                double d_P = cells[c->id]->get_area() / a[c->id];
+
+                double a_N = d_P * face->get_length();
+                this->A_pc(c->id, c->id) += -a_N;
+                a_P += a_N;
+
+                b += U_dot_normal * face->get_length();
+            }
+        }
+        A_pc(c->id, c->id) += a_P;
+        b_pc(c->id) += b;
     }
     cout << this->A_pc << endl;
     this->p_prime = arma::solve(A_pc, b_pc);
@@ -352,58 +408,49 @@ void NSSolver::correct_variables(){
     vector<Cell*> cells = mesh->get_cells();
     vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < cells.size(); i++){
-        p[i] = p_star[i] + p_prime[i];
+        p[i] = p_star[i] + p_prime[i]; // correto.
     }
     
     for(int i = 0; i < faces.size(); i++){
         Edge* face = faces[i];
         pair<int,int> id_nodes = face->get_link_face_to_cell();
         int P = id_nodes.first;
+        int N = id_nodes.second;
         if(!face->is_boundary_face()){
-            int id_neighbor = get_neighbor(face->get_link_face_to_cell(), P);
-            double U_dot_normal = face->get_normal().first * u_face[face->id]  + face->get_normal().second * v_face[face->id];
-            double a_N = min(0.0, -Gf[face->id] * U_dot_normal) - Df[face->id];
             
             double d_P = cells[P]->get_area()/a[P];
-            double d_N = cells[id_neighbor]->get_area()/a_N;
+            double d_N = cells[N]->get_area()/a[N];
             double d_f = 0.5 * (d_P + d_N);
             
-            u_face_prime[i] = d_f * (p_prime[P] - p_prime[id_nodes.second]);
-            v_face_prime[i] = d_f * (p_prime[P] - p_prime[id_nodes.second]);
+            u_face_prime[i] = d_f * (p_prime[P] - p_prime[id_nodes.second])/face->get_df();
+            v_face_prime[i] = d_f * (p_prime[P] - p_prime[id_nodes.second])/face->get_df();
         }
     }
     
     for(int i = 0; i < faces.size(); i++){
-        u_face[i] = u_face[i] + u_face_prime[i];
-        v_face[i] = v_face[i] + v_face_prime[i];
+        u_face[i] = u_face[i] - u_face_prime[i] * faces[i]->get_length() * faces[i]->get_normal().first;
+        v_face[i] = v_face[i] - v_face_prime[i] * faces[i]->get_length() * faces[i]->get_normal().second;
     }
     
     for(int i=0; i < cells.size(); ++i){
         Cell *c = cells[i];
-        vector<int> nsigns = c->get_nsigns();
-        vector<Edge*> adjacent_faces = c->get_edges();
-        double u_sum = 0;
-        double v_sum = 0;
-        for(int j = 0; j < adjacent_faces.size(); ++j){
-            Edge* e = adjacent_faces[j];
-            int nsign = nsigns[j];
-            pair<double,double> normal = e->get_normal();
-            pair<double,double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
-            int id_neighbor = get_neighbor(e->get_link_face_to_cell(), c->id);
+        double Dc = c->get_area() / a[c->id];
+        pair<double,double> grad_p_prime = reconstruct_pressure_gradients(c, this->p_prime);
 
-            double p_prime_f = 0.5 * (p_prime[c->id] + p_prime[id_neighbor]);
-
-            u_sum += p_prime_f * e->get_length() * normal_corrected.first;
-            v_sum += p_prime_f * e->get_length() * normal_corrected.second;
-        }
-        double d_P = c->get_area() / a[c->id];
-        u_star[c->id] = u_star[c->id] - d_P * u_sum;
-        v_star[c->id] = v_star[c->id] - d_P * v_sum;
+        u_star[i] = u_star[i] - Dc * grad_p_prime.first;
+        v_star[i] = v_star[i] - Dc * grad_p_prime.second;
     }
     cout << "===================================================\n";
 }
 
-void NSSolver::export_solution(string filename){
+void NSSolver::export_solution(string filename, char variable){
+    arma::vec var;
+    if(variable == 'u')
+        var = this->u_star;
+    else if(variable == 'v')
+        var = this->v_star;
+    else if(variable == 'p')
+        var = this->p;
     
     ofstream vtk_file(filename);
 
@@ -459,7 +506,7 @@ void NSSolver::export_solution(string filename){
     vtk_file << "SCALARS Temperatura double 1\n";
     vtk_file << "LOOKUP_TABLE default\n";
     for(int i = 0; i < cells.size(); i++){
-        vtk_file << this->p[i] << endl;
+        vtk_file << var[i] << endl;
     }
 
     vtk_file.close();
