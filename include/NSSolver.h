@@ -19,7 +19,7 @@ class NSSolver{
 
         // + Correção da pressão
         // * Matriz A do sistema A x = b.
-        arma::sp_mat A_pc;
+        arma::mat A_pc;
         // * Vetor coluna b do sistema A x = b. 
         arma::vec b_pc; 
 
