@@ -3,7 +3,7 @@
 
 int main(int argc, char* argv[]) {
     Mesh m;
-    m.read_mesh("../inputs/q10x10.msh");
+    m.read_mesh("../inputs/q5x5.msh");
 
     NSSolver solver(&m, 0.01, 1, 0, 0);
 

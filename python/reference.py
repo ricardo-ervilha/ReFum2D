@@ -441,21 +441,21 @@ def post_processing(u_star,v_star,p_star,X,Y,x,y):
     plt.title('P contours')
     plt.show()
 
-    # #u centerline velocity
-    # plt.figure(4)
-    # plt.plot(1-y,u_star[:,round(n_x/2)])
-    # plt.xlabel('y')
-    # plt.ylabel('u')
-    # plt.title('U centerline velocity')
-    # plt.show()
+    #u centerline velocity
+    plt.figure(4)
+    plt.plot(1-y,u_star[:,round(n_x/2)])
+    plt.xlabel('y')
+    plt.ylabel('u')
+    plt.title('U centerline velocity')
+    plt.show()
 
-    # #v centerline velocity
-    # plt.figure(5)
-    # plt.plot(x,v_star[round(n_y/2),:])
-    # plt.xlabel('x')
-    # plt.ylabel('v')
-    # plt.title('V centerline velocity')
-    # plt.show()
+    #v centerline velocity
+    plt.figure(5)
+    plt.plot(x,v_star[round(n_y/2),:])
+    plt.xlabel('x')
+    plt.ylabel('v')
+    plt.title('V centerline velocity')
+    plt.show()
 
 #Declaring primitive variables
 u=np.zeros((n_y+2,n_x+2),dtype=np.float64)
@@ -510,7 +510,7 @@ u_star[0,1:n_x+1]=1
 u_face[0,1:n_x]=1
 
 l2_norm_x=0
-alpha_uv=0.7
+alpha_uv=1
 epsilon_uv=1e-3
 max_inner_iteration_uv=50
 
@@ -551,8 +551,7 @@ for n in range(1,max_outer_iteration+1):
     if (l2_norm_x < 1e-4 and l2_norm_y < 1e-4 and l2_norm_p<1e-4):
         print("Converged !")
         break
-    
-    if n == max_outer_iteration:
-        post_processing(u_star,v_star,p_star,X,Y,x,y)
 
-    print(p)
+
+print(p_star)
+post_processing(u_star,v_star,p_star,X,Y,x,y)

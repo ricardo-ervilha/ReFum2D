@@ -306,19 +306,21 @@ void NSSolver::pressure_correction_poisson(){
         vector<int> nsigns = c->get_nsigns();
         double a_P = 0;
         double b = 0;
+        
         for(int j = 0; j < faces.size(); ++j){
             Edge* face = faces[j];
             int nsign = nsigns[j];
             pair<double,double> normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
+            
             if(!face->is_boundary_face()){
                 int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
             
                 double U_dot_normal = normal_corrected.first * u_face[face->id]  + normal_corrected.second * v_face[face->id];
-                double a_N = min(0.0, -Gf[face->id] * U_dot_normal) - Df[face->id];
+                // double a_N = min(0.0, -Gf[face->id] * U_dot_normal) - Df[face->id];
                 
                 double d_P = cells[c->id]->get_area()/a[c->id];
-                double d_N = cells[id_neighbor]->get_area()/a_N;
+                double d_N = cells[id_neighbor]->get_area()/a[id_neighbor];
                 double d_f = 0.5 * (d_P + d_N);
 
                 double dcfx = cells[id_neighbor]->get_centroid().first - cells[c->id]->get_centroid().first;
@@ -328,17 +330,16 @@ void NSSolver::pressure_correction_poisson(){
                 double sfy = face->get_length() * normal_corrected.second;
 
                 double coeff = (dcfx * d_f * sfx + dcfy * d_f * sfy)/(dcfx*dcfx + dcfy*dcfy);
-
+                
                 this->A_pc(c->id, id_neighbor) += -coeff;
                 a_P += coeff;
                 b += U_dot_normal * face->get_length();
             }else{
-                cout << u_face[face->id] << endl;
                 double U_dot_normal = normal_corrected.first * u_face[face->id]  + normal_corrected.second * v_face[face->id];
                 this->b_pc(c->id) += - U_dot_normal * face->get_length();
             }
         }
-        this->A_pc(c->id, c->id) += -a_P;
+        this->A_pc(c->id, c->id) = a_P;
         this->b_pc(c->id) += -b;
     }
     cout << this->A_pc << endl;
@@ -458,7 +459,7 @@ void NSSolver::export_solution(string filename){
     vtk_file << "SCALARS Temperatura double 1\n";
     vtk_file << "LOOKUP_TABLE default\n";
     for(int i = 0; i < cells.size(); i++){
-        vtk_file << this->v_star[i] << endl;
+        vtk_file << this->p[i] << endl;
     }
 
     vtk_file.close();
