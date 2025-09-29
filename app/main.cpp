@@ -14,5 +14,13 @@ int main(int argc, char* argv[]) {
     // calcula as equações de momento a partir do chute de pressão.
     solver.calculate_momentum();
 
+    solver.interpolate_momentum();
+
+    solver.pressure_correction_poisson();
+
+    solver.correct_variables(0.7, 0.3);
+
+    // solver.calculate_momentum();
+
     solver.export_solution("../outputs/u_star.vtk", 'u');
 }
