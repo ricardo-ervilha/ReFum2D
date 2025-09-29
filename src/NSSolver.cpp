@@ -49,7 +49,7 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
     this->Df = arma::vec(nfaces, arma::fill::zeros);
     this->Gf = arma::vec(nfaces, arma::fill::zeros);
 
-    this->a = arma::vec(ncells, arma::fill::zeros);
+    this->a_coeff = arma::vec(ncells, arma::fill::zeros);
 
     vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < nfaces; i++){
@@ -66,6 +66,7 @@ void NSSolver::calculate_Df(){
     cout << "Calculando os valores de Df.\n";
     vector<Edge*> faces = this->mesh->get_edges();
     for(int i = 0; i < faces.size(); ++i){
+        // * (μ_f*A_f)/d_CF
         Df[i] = mu * faces[i]->get_length() / faces[i]->get_df();
     }
     cout << "=============================================\n";
@@ -75,140 +76,174 @@ void NSSolver::calculate_Gf(){
     cout << "Calculando os valores de Gf.\n";
     vector<Edge*> faces = this->mesh->get_edges();
     for(int i = 0; i < faces.size(); ++i){
+        // * ρ_f * A_f | nota: o restante que seria (v_f \cdot n_f) será calculado no momentum.
         Gf[i] = rho * faces[i]->get_length();
     }
     cout << "=============================================\n";
 }
 
+/**
+ * * Calcula a matriz A da equação de momentum. Igual para u e v!
+ */
 void NSSolver::calculate_A_mom(){
     vector<Cell*> cells = mesh->get_cells();
+    
     for(int i = 0; i < cells.size(); ++i){
+        // * warm-up
         Cell* c = cells[i];
         vector<int> &nsigns = c->get_nsigns();
         vector<Edge*> faces = c->get_edges();
-        double a_P = 0;
-        // contabilizando para os vizinhos
+        
+        double a_P = 0; // * sum_f (max(0, G_f) + D_f)
+       
         for(int j = 0; j < faces.size(); ++j){
-            int nsign = nsigns[j];
+            // * warm-up
             Edge* face = faces[j];
+            int nsign = nsigns[j];
             pair<double, double> &normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
             
-            int id_face = face->id;
-            double U_dot_normal = normal_corrected.first * u_face[id_face] + normal_corrected.second * v_face[id_face];
-            double a_N = min(0.0, -Gf[id_face] * U_dot_normal) - Df[id_face];
-            if(!face->is_boundary_face()){
+            // * v_f \cdot n_f 
+            double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
 
-                a_P += max(0.0, Gf[id_face] * U_dot_normal) + Df[id_face];
-                
-                int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
-                this->A_mom(c->id, id_neighbor) += a_N;
+            double a_N = min(0.0, Gf[face->id] * UdotNormal) - Df[face->id];
+            if(!face->is_boundary_face()){
+                // * contabiliza a_N na matriz A (off-diagonal)
+                int N = get_neighbor(face->get_link_face_to_cell(), c->id);
+                this->A_mom(c->id, N) += a_N;
             }else{
-                a_P += max(0.0, Gf[id_face] * U_dot_normal) + Df[id_face];
+                // * contabiliza a_N * u_F ou a_N * v_f no vetor b.
             }
+
+            a_P += max(0.0, Gf[face->id] * UdotNormal) + Df[face->id];
         }
-        // contabilizando para P
+
+        // * Contabiliza o a_P na diagonal
         this->A_mom(c->id, c->id) += a_P;
-        a[c->id] = a_P;
+        
+        // * registra em a_coeff o a_P para ser utilizado depois em outros cálculos.
+        a_coeff[c->id] = a_P;
     }
 }
 
+/**
+ * * Calcula o vetor b do sistema para x.
+ */
 void NSSolver::calculate_b_mom_x(){
     vector<Cell*> cells = mesh->get_cells();
     for(int i = 0; i < cells.size(); ++i){
+        // * Warm-up
         Cell* c = cells[i];
         vector<Edge*> faces = c->get_edges();
         vector<int> &nsigns = c->get_nsigns();
-        double pressure_gradient = 0;
+
+        // * armazena: \sum_{b(f)} a_f u_f
+        double boundary_contribution = 0;
+        
         for(int j = 0; j < faces.size(); ++j){
             int nsign = nsigns[j];
             Edge* face = faces[j];
             pair<double, double> &normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
-            int id_face = face->id;
-            int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
-            
-            // TODO: Interpolando com uma média aritmética.
-            if(!face->is_boundary_face()){
-                pressure_gradient -= ((this->p_star[c->id] + this->p_star[id_neighbor]) * 0.5) * face->get_length() * normal_corrected.first;
 
+            double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
+
+            if(face->is_boundary_face()){
+                double a_N = min(0.0, Gf[face->id] * UdotNormal) - Df[face->id];
+                boundary_contribution += -a_N * u_face[face->id]; // * a_F u_F
             }else{
-                pressure_gradient -= this->p_star[c->id] * face->get_length() * normal_corrected.first;
+                // * Nada a fazer, pois já contabilizou na A.
             }
-            double U_dot_normal = normal_corrected.first * u_face[id_face] + normal_corrected.second * v_face[id_face];
-
-            double a_N = -min(0.0, -Gf[id_face] * U_dot_normal) + Df[id_face];
-
-            this->b_mom[c->id] += a_N * u_face[face->id];
-        
         }
-        this->b_mom[c->id] += pressure_gradient + source_x * c->get_area();
+        
+        // * obtém (∇p*)_P
+        pair<double, double> pressure_gradient = reconstruct_pressure_gradients(c, this->p_star);
+        double pressure_contribution = - (pressure_gradient.first * c->get_area()); // pega \partial p / \partial x
+
+        // * Termo fonte
+        double source_contribution = source_x * c->get_area();
+
+        this->b_mom[c->id] += pressure_contribution + source_contribution + boundary_contribution;
     }
 }
 
+/**
+ * * Calcula o vetor b do sistema para y.
+ */
 void NSSolver::calculate_b_mom_y(){
     vector<Cell*> cells = mesh->get_cells();
     for(int i = 0; i < cells.size(); ++i){
+        // * Warm-up
         Cell* c = cells[i];
         vector<Edge*> faces = c->get_edges();
         vector<int> &nsigns = c->get_nsigns();
-        double pressure_gradient = 0;
+
+        // * armazena: \sum_{b(f)} a_f v_f
+        double boundary_contribution = 0;
+        
         for(int j = 0; j < faces.size(); ++j){
             int nsign = nsigns[j];
             Edge* face = faces[j];
             pair<double, double> &normal = face->get_normal();
-
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
-            int id_face = face->id;
-            int id_neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
-            
-            // TODO: Interpolando com uma média aritmética.
-            if(!face->is_boundary_face()){
-                pressure_gradient -= ((this->p_star[c->id] + this->p_star[id_neighbor]) * 0.5) * face->get_length() * normal_corrected.second; // * n_y
 
+            double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
+
+            if(face->is_boundary_face()){
+                double a_N = min(0.0, Gf[face->id] * UdotNormal) - Df[face->id];
+                boundary_contribution += -a_N * v_face[face->id]; // * a_F * v_F
             }else{
-                pressure_gradient -= this->p_star[c->id] * face->get_length() * normal_corrected.second;
+                // * Nada a fazer, pois já contabilizou na A.
             }
-            double U_dot_normal = normal_corrected.first * u_face[id_face] + normal_corrected.second * v_face[id_face];
-
-            double a_N = -min(0.0, -Gf[id_face] * U_dot_normal) + Df[id_face];
-
-            this->b_mom[c->id] += a_N * v_face[face->id]; // * v_face (contorno)
-            
         }
-        this->b_mom[c->id] += pressure_gradient + source_y * c->get_area(); // * S_y
+        
+        // * obtém (∇p*)_P
+        pair<double, double> pressure_gradient = reconstruct_pressure_gradients(c, this->p_star);
+        double pressure_contribution = - (pressure_gradient.second * c->get_area()); // pega \partial p / \partial y
+
+        // * Termo fonte
+        double source_contribution = source_y * c->get_area();
+
+        this->b_mom[c->id] += pressure_contribution + source_contribution + boundary_contribution;
     }
 }
 
+/**
+ * * Resolve as equações de momento para obter u* e v*!
+ */
 void NSSolver::calculate_momentum(){
+    cout << "Calculando as equações de momento.\n";
 
-    // zera antecipadamente
+    // * Zera para desconsiderar contas anteriores feitas.
     this->A_mom.zeros();
     this->b_mom.zeros();
 
-    // preenche A: serve pra u e pra v
-    cout << "Calculando as equações de momento.\n";
+    // * Preenche A
     cout << "Calculando os coeficientes da matriz A.\n";
     calculate_A_mom();
 
-    // preenche b para o momento em x
+    // * Preenche b para o momento em x
     cout << "Calculando os coeficientes do vetor b de x-mom.\n";
     calculate_b_mom_x();
 
     cout << "Calculando u_star.\n";
-    this->u_star = arma::solve(this->A_mom, this->b_mom);
+    this->u_star = arma::solve(this->A_mom, this->b_mom); // + Resolve
 
-    // zera pra calcular o do momento em y
+    // * Zera pra calcular o do momento em y
     this->b_mom.zeros();
 
     cout << "Calculando os coeficientes do vetor b de y-mom.\n";
     calculate_b_mom_y();
+    
     cout << "Calculando v_star.\n";
-    this->v_star = arma::solve(this->A_mom, this->b_mom);
+    this->v_star = arma::solve(this->A_mom, this->b_mom); // + Resolve
 
     cout << "=============================================\n";
 }
 
+/**
+ * * Realiza a interpolação de momento para obter a velocidade nas faces.
+ */
 void NSSolver::interpolate_momentum(){
     cout << "Interpolando a velocidade nas faces.\n";
     vector<Edge*> faces = mesh->get_edges();
@@ -233,8 +268,8 @@ void NSSolver::interpolate_momentum(){
             pair<double,double> eCF = { dCF_vec.first / dCF, dCF_vec.second / dCF };
 
             // --- Distância d_f ---
-            double dC = cells[cell_C]->get_area() / a[cell_C];
-            double dF = cells[cell_F]->get_area() / a[cell_F];
+            double dC = cells[cell_C]->get_area() / a_coeff[cell_C];
+            double dF = cells[cell_F]->get_area() / a_coeff[cell_F];
             double d_f = 0.5 * (dC + dF);
 
             // --- Termo [ (pF - pC)/dCF - (gradPf ⋅ eCF) ] ---
@@ -334,8 +369,8 @@ void NSSolver::pressure_correction_poisson(){
                 double U_dot_normal = normal_corrected.first * u_face[face->id]  + normal_corrected.second * v_face[face->id];
                 // double a_N = min(0.0, -Gf[face->id] * U_dot_normal) - Df[face->id];
                 
-                double d_P = cells[c->id]->get_area()/a[c->id];
-                double d_N = cells[id_neighbor]->get_area()/a[id_neighbor];
+                double d_P = cells[c->id]->get_area()/a_coeff[c->id];
+                double d_N = cells[id_neighbor]->get_area()/a_coeff[id_neighbor];
                 double d_f = 0.5 * (d_P + d_N);
 
                 double dcfx = cells[id_neighbor]->get_centroid().first - cells[c->id]->get_centroid().first;
@@ -381,8 +416,8 @@ void NSSolver::correct_variables(double alpha_uv, double alpha_p){
         int N = id_nodes.second;
         if(!face->is_boundary_face()){
             
-            double d_P = cells[P]->get_area()/a[P];
-            double d_N = cells[N]->get_area()/a[N];
+            double d_P = cells[P]->get_area()/a_coeff[P];
+            double d_N = cells[N]->get_area()/a_coeff[N];
             double d_f = 0.5 * (d_P + d_N);
 
             pair<double,double> grad_p_prime_P = reconstruct_pressure_gradients(cells[P], this->p_prime);
@@ -398,7 +433,7 @@ void NSSolver::correct_variables(double alpha_uv, double alpha_p){
     
     for(int i=0; i < cells.size(); ++i){
         Cell *c = cells[i];
-        double Dc = c->get_area() / a[c->id];
+        double Dc = c->get_area() / a_coeff[c->id];
         pair<double,double> grad_p_prime = reconstruct_pressure_gradients(c, this->p_prime);
 
         u[i] = u_star[i] - alpha_uv * Dc * grad_p_prime.first;

@@ -60,7 +60,7 @@ class NSSolver{
         // termos fonte
         float source_x, source_y;
 
-        arma::vec a;
+        arma::vec a_coeff;
     
     public:
         NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source_y);

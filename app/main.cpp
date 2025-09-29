@@ -14,16 +14,5 @@ int main(int argc, char* argv[]) {
     // calcula as equações de momento a partir do chute de pressão.
     solver.calculate_momentum();
 
-    // calcular a interpolação das velocidades nas faces
-    solver.interpolate_momentum();
-
-    // resolver a poisson para achar a correção da pressão.
-    solver.pressure_correction_poisson();
-
-    // atualiza as variáveis
-    solver.correct_variables(0.7, 0.2);
-
     solver.export_solution("../outputs/u_star.vtk", 'u');
-    solver.export_solution("../outputs/v_star.vtk", 'v');
-    solver.export_solution("../outputs/p.vtk", 'p');
 }
