@@ -248,31 +248,33 @@ void NSSolver::interpolate_momentum(){
     cout << "Interpolando a velocidade nas faces.\n";
     vector<Edge*> faces = mesh->get_edges();
     vector<Cell*> cells = mesh->get_cells();
+    
     for(int i = 0; i < faces.size(); ++i){
         Edge* face = faces[i];
-        if(!face->is_boundary_face()){ // ! Não pode ser boundary face.
+        if(!face->is_boundary_face()){ // * Não pode ser boundary face.
+            
             pair<int,int> adjacent_cells = face->get_link_face_to_cell();
             int cell_C = adjacent_cells.first;
             int cell_F = adjacent_cells.second;
 
-            // --- Interpolação da velocidade (U_bar) ---
+            // * Interpolação da velocidade (v_bar) ---
             double u_avg = 0.5 * (u_star[cell_C] + u_star[cell_F]);
             double v_avg = 0.5 * (v_star[cell_C] + v_star[cell_F]);
 
-            // --- Vetor e_CF (normalizado) ---
+            // * Vetor e_CF (normalizado) ---
             pair<double,double> dCF_vec = {
                 cells[cell_F]->get_centroid().first - cells[cell_C]->get_centroid().first,
                 cells[cell_F]->get_centroid().second - cells[cell_C]->get_centroid().second
             };
             double dCF = face->get_df();
-            pair<double,double> eCF = { dCF_vec.first / dCF, dCF_vec.second / dCF };
+            pair<double,double> eCF = { dCF_vec.first / dCF, dCF_vec.second / dCF }; // * normaliza
 
-            // --- Distância d_f ---
+            // * Valor de d_f ---
             double dC = cells[cell_C]->get_area() / a_coeff[cell_C];
             double dF = cells[cell_F]->get_area() / a_coeff[cell_F];
             double d_f = 0.5 * (dC + dF);
 
-            // --- Termo [ (pF - pC)/dCF - (gradPf ⋅ eCF) ] ---
+            // * Termo (pF - pC)/dCF ---
             double pressure_diff = (p[cell_F] - p[cell_C]) / dCF;
 
             // gradiente de pressão interpolado na face
@@ -283,12 +285,12 @@ void NSSolver::interpolate_momentum(){
                 0.5 * (gradP_C.second + gradP_F.second)
             };
 
-            // produto escalar gradPf ⋅ eCF
+            // * produto escalar gradPf ⋅ eCF
             double grad_dot_eCF = gradP_face.first * eCF.first + gradP_face.second * eCF.second;
 
             double correction = (pressure_diff - grad_dot_eCF);
 
-            // --- Correção Rhie–Chow ---
+            // * Correção final
             double u_corr = d_f * correction * eCF.first;
             double v_corr = d_f * correction * eCF.second;
 
@@ -299,6 +301,9 @@ void NSSolver::interpolate_momentum(){
     cout << "=============================================\n";
 }
 
+/**
+ * * Função para reconstruir os gradientes quando necessário.
+ */
 pair<double,double> NSSolver::reconstruct_pressure_gradients(Cell *c, arma::vec phi){  
 
     vector<Cell*> cells = mesh->get_cells();
@@ -343,14 +348,20 @@ pair<double,double> NSSolver::reconstruct_pressure_gradients(Cell *c, arma::vec 
     return make_pair(phix, phiy);
 }
 
+/**
+ * * Calcula a correção da pressão (p')
+ */
 void NSSolver::pressure_correction_poisson(){
-    // zera pra próxima iteração
+    cout << "Resolvendo a poisson para encontrar a correção da pressão.\n";
+    
+    // * zera pra próxima iteração
     A_pc.zeros();
     b_pc.zeros();
 
-    cout << "Resolvendo a poisson para encontrar a correção da pressão.\n";
     vector<Cell*> cells = mesh->get_cells();
     for(int i = 0; i < cells.size(); ++i){
+        
+        // * warm-up
         Cell* c = cells[i];
         vector<Edge*> faces = c->get_edges();
         vector<int> nsigns = c->get_nsigns();
