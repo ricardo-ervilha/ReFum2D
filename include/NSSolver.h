@@ -53,6 +53,10 @@ class NSSolver{
         arma::vec u_face_prime;
         arma::vec v_face_prime;
 
+        arma::vec u_EXACT;
+        arma::vec v_EXACT;
+        arma::vec p_EXACT;
+
         // Viscosidade dinâmica
         float mu;
         // Densidade

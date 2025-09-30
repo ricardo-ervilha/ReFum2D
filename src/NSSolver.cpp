@@ -51,13 +51,47 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
 
     this->a_coeff = arma::vec(ncells, arma::fill::zeros);
 
+    this->u_EXACT = arma::vec(ncells, arma::fill::zeros);
+    this->v_EXACT = arma::vec(ncells, arma::fill::zeros);
+    this->p_EXACT = arma::vec(ncells, arma::fill::zeros);
+
+    // ============================== PREENCHENDO OS EXATOS =================================
+    vector<Cell*> cells = mesh->get_cells();
+    for(int i = 0; i < cells.size(); i++){
+        u_EXACT[i] = cells[i]->get_centroid().first; // x
+        v_EXACT[i] = - cells[i]->get_centroid().second; // - y
+        p_EXACT[i] = - (pow(cells[i]->get_centroid().first, 2) + pow(cells[i]->get_centroid().second, 2))/2.0;
+    }
+
+    // =======================================================================================
+
+    // preenchendo BOUNDARIES
     vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < nfaces; i++){
         Edge* face = faces[i];
-        if(face->from->y == 1 && face->to->y == 1)
-            u_face[face->id] = 1.0; // coloca no BC TOP 1.
+        if(face->from->y == 1 && face->to->y == 1){
+            // Top 
+            u_face[face->id] = face->get_middle().first; 
+            v_face[face->id] = -1;
+        }
+        else if(face->from->y == 0 && face->to->y == 0){
+            // Bottom wall
+            u_face[face->id] = face->get_middle().first ;
+            v_face[face->id] = 0.0;
+        }
+        else if(face->from->x == 0 && face->to->x == 0){
+            // Left wall
+            u_face[face->id] = 0.0;
+            v_face[face->id] = -face->get_middle().second;
+        }
+        else if(face->from->x == 1 && face->to->x == 1){
+            // Right wall
+            u_face[face->id] = 1.0;
+            v_face[face->id] = -face->get_middle().second; 
+        }
     }
 
+    // p_star = p_EXACT;
 }   
 
 NSSolver::~NSSolver(){
@@ -105,6 +139,7 @@ void NSSolver::calculate_A_mom(){
             pair<double, double> &normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
             
+            // + Usando WMI
             // * v_f \cdot n_f 
             double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
 
@@ -148,6 +183,7 @@ void NSSolver::calculate_b_mom_x(){
             pair<double, double> &normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
 
+            // + Usando o vetor de WMI
             double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
 
             if(face->is_boundary_face()){
@@ -189,6 +225,7 @@ void NSSolver::calculate_b_mom_y(){
             pair<double, double> &normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
 
+            // + Usando WMI
             double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
 
             if(face->is_boundary_face()){
@@ -387,7 +424,6 @@ void NSSolver::pressure_correction_poisson(){
             
             if(face->is_boundary_face()){
                 // * contribue do lado direito como termo fonte
-                b += -UdotNormal * face->get_length();
             }else{
                 // * contribue na A
                 int N = get_neighbor(face->get_link_face_to_cell(), c->id);
@@ -404,15 +440,23 @@ void NSSolver::pressure_correction_poisson(){
                 double sfx = face->get_length() * normal_corrected.first;
                 double sfy = face->get_length() * normal_corrected.second;
 
-                double a_N = (dcfx * d_f * sfx + dcfy * d_f * sfy)/(dcfx*dcfx + dcfy*dcfy);
+                pair<double,double> dCF_vec = {
+                    cells[N]->get_centroid().first - cells[c->id]->get_centroid().first,
+                    cells[N]->get_centroid().second - cells[c->id]->get_centroid().second
+                };
+                double dCF = face->get_df();
+                pair<double,double> eCF = { dCF_vec.first / dCF, dCF_vec.second / dCF }; // * normaliza
+
+                double eCFdotNormal = eCF.first * normal_corrected.first + eCF.second * normal_corrected.second;
+
+                double a_N = (d_f * eCFdotNormal * face->get_length())/face->get_df();
                 
                 A_pc(c->id, N) += -a_N;
 
                 a_P += a_N;
                 
-                // v^*_f \cdot n_f * A_f
-                b += -UdotNormal * face->get_length();
             }
+            b += -UdotNormal * face->get_length();
         }
         
         // * diagonal
@@ -426,6 +470,8 @@ void NSSolver::pressure_correction_poisson(){
     b_pc[0] = 0.0; // prescrevendo uma correção em um nó. Deixará de ser singular a matriz...
     
     this->p_prime = arma::solve(A_pc, b_pc);
+    // cout << A_pc << endl;
+    // cout << b_pc << endl;
     cout << "=============================================\n";
 }
 
@@ -495,6 +541,24 @@ void NSSolver::correct_variables(double alpha_uv, double alpha_p){
     u_star = u;
     v_star = v;
     p_star = p;
+
+    double mass_resid = 0.0;
+    for(int i = 0; i < cells.size(); i++){
+        vector<int> nsigns = cells[i]->get_nsigns();
+        vector<Edge*> faces = cells[i]->get_edges();
+        
+        double sumflux = 0;
+        for(int j = 0; j < faces.size(); j++){
+            Edge* f = faces[j];
+            int nsign = nsigns[j];
+            pair<double,double> normal = f->get_normal();
+            pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
+        
+            sumflux += (normal_corrected.first*u_face[f->id]+normal_corrected.second*v_face[f->id]) * f->get_length();
+        }
+        mass_resid += fabs(sumflux);
+    }
+    cout << "mass_resid = " << mass_resid << endl;
 }
 
 void NSSolver::export_solution(string filename, char variable){
@@ -505,8 +569,14 @@ void NSSolver::export_solution(string filename, char variable){
         var = this->v_star;
     else if(variable == 'p')
         var = this->p_star;
+    else if(variable == 'x')
+        var = this->u_EXACT;
+    else if(variable == 'y')
+        var = this->v_EXACT;
+    else if(variable == 'z')
+        var = this->p_EXACT;
     
-    ofstream vtk_file(filename);
+        ofstream vtk_file(filename);
 
     if (!vtk_file.is_open()) {
         std::cerr << "ERROR: failed to create file." << filename << "'.\n";

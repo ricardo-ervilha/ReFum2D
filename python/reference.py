@@ -551,7 +551,3 @@ for n in range(1,max_outer_iteration+1):
     if (l2_norm_x < 1e-4 and l2_norm_y < 1e-4 and l2_norm_p<1e-4):
         print("Converged !")
         break
-
-    print(u_face)
-    
-# post_processing(u_star,v_star,p_star,X,Y,x,y)
