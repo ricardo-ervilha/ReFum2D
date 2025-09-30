@@ -71,27 +71,29 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
         Edge* face = faces[i];
         if(face->from->y == 1 && face->to->y == 1){
             // Top 
-            u_face[face->id] = face->get_middle().first; 
-            v_face[face->id] = -1;
+            u_face[face->id] = 1; 
         }
-        else if(face->from->y == 0 && face->to->y == 0){
-            // Bottom wall
-            u_face[face->id] = face->get_middle().first ;
-            v_face[face->id] = 0.0;
-        }
-        else if(face->from->x == 0 && face->to->x == 0){
-            // Left wall
-            u_face[face->id] = 0.0;
-            v_face[face->id] = -face->get_middle().second;
-        }
-        else if(face->from->x == 1 && face->to->x == 1){
-            // Right wall
-            u_face[face->id] = 1.0;
-            v_face[face->id] = -face->get_middle().second; 
-        }
+        // if(face->from->y == 1 && face->to->y == 1){
+        //     // Top 
+        //     u_face[face->id] = face->get_middle().first; 
+        //     v_face[face->id] = -1;
+        // }
+        // else if(face->from->y == 0 && face->to->y == 0){
+        //     // Bottom wall
+        //     u_face[face->id] = face->get_middle().first ;
+        //     v_face[face->id] = 0.0;
+        // }
+        // else if(face->from->x == 0 && face->to->x == 0){
+        //     // Left wall
+        //     u_face[face->id] = 0.0;
+        //     v_face[face->id] = -face->get_middle().second;
+        // }
+        // else if(face->from->x == 1 && face->to->x == 1){
+        //     // Right wall
+        //     u_face[face->id] = 1.0;
+        //     v_face[face->id] = -face->get_middle().second; 
+        // }
     }
-
-    // p_star = p_EXACT;
 }   
 
 NSSolver::~NSSolver(){
