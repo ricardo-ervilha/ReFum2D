@@ -60,7 +60,9 @@ class NSSolver{
         // termos fonte
         float source_x, source_y;
 
-        arma::vec a_coeff;
+        arma::vec mdotf;
+
+        arma::vec aP;
     
     public:
         NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source_y);
@@ -76,9 +78,6 @@ class NSSolver{
 
         // Interpola o momento 
         void interpolate_momentum();
-
-        // reconstroi gradientes de pressão;
-        pair<double,double> reconstruct_pressure_gradients(Cell *c, arma::vec phi);
 
         void pressure_correction_poisson(); // moukaled
 

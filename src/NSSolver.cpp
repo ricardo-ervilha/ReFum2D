@@ -37,6 +37,8 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
     this->u_face = arma::vec(nfaces, arma::fill::zeros);
     this->v_face = arma::vec(nfaces, arma::fill::zeros);
 
+    this->mdotf = arma::vec(nfaces, arma::fill::zeros);
+
     this->u_face_prime = arma::vec(nfaces, arma::fill::zeros);
     this->v_face_prime = arma::vec(nfaces, arma::fill::zeros);
 
@@ -49,7 +51,7 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
     this->Df = arma::vec(nfaces, arma::fill::zeros);
     this->Gf = arma::vec(nfaces, arma::fill::zeros);
 
-    this->a_coeff = arma::vec(ncells, arma::fill::zeros);
+    this->aP = arma::vec(ncells, arma::fill::zeros);
 
     // =======================================================================================
 
@@ -109,6 +111,9 @@ void NSSolver::calculate_A_mom(){
 
         // * Contabiliza o a_P na diagonal
         this->A_mom(c->id, c->id) += a_P;
+
+        // * salva o a_P para uso posterior
+        aP[c->id] = a_P; // sobrescreve
     }
 }
 
@@ -272,105 +277,66 @@ void NSSolver::interpolate_momentum(){
     for(int i = 0; i < faces.size(); ++i){
         Edge* face = faces[i];
         if(!face->is_boundary_face()){ // * Não pode ser boundary face.
+            pair<int,int> id_cells_share_face = face->get_link_face_to_cell();
+            int P = id_cells_share_face.first;
+            int N = id_cells_share_face.second;
             
-            pair<int,int> adjacent_cells = face->get_link_face_to_cell();
-            int cell_C = adjacent_cells.first;
-            int cell_F = adjacent_cells.second;
+            // * u_f = (u_P + u_N)/2 => média
+            double u_bar = 0.5 * (u_star[P] + u_star[N]);
+            double v_bar = 0.5 * (v_star[P] + v_star[N]);
+            double U_bar_dot_normal = u_bar * face->get_normal().first + v_bar * face->get_normal().second;
 
-            // * Interpolação da velocidade (v_bar) ---
-            double u_avg = 0.5 * (u_star[cell_C] + u_star[cell_F]);
-            double v_avg = 0.5 * (v_star[cell_C] + v_star[cell_F]);
+            double V0dp0_x = 0;
+            double V0dp0_y = 0;
+            vector<int> nsignsP = cells[P]->get_nsigns();
+            vector<Edge*> facesOfP = cells[P]->get_edges();
+            for(int j = 0; j < facesOfP.size(); ++j){
+                pair<double, double> normal = facesOfP[j]->get_normal();
+                pair<double, double> normal_corrected = make_pair(normal.first * nsignsP[j], normal.second * nsignsP[j]);
+                double pf;
+                if(facesOfP[j]->is_boundary_face()){
+                    pf = this->p_star[P];
+                }else{
+                    int Neighbor = get_neighbor(facesOfP[j]->get_link_face_to_cell(), P);
+                    pf = 0.5 * (this->p_star[P] + this->p_star[Neighbor]);
+                }
+                V0dp0_x += pf * facesOfP[j]->get_length() * normal_corrected.first;
+                V0dp0_y += pf * facesOfP[j]->get_length() * normal_corrected.second;
+            }
 
-            // * Vetor e_CF (normalizado) ---
-            pair<double,double> dCF_vec = {
-                cells[cell_F]->get_centroid().first - cells[cell_C]->get_centroid().first,
-                cells[cell_F]->get_centroid().second - cells[cell_C]->get_centroid().second
-            };
-            double dCF = face->get_df();
-            pair<double,double> eCF = { dCF_vec.first / dCF, dCF_vec.second / dCF }; // * normaliza
+            double V1dp1_x = 0;
+            double V1dp1_y = 0;
+            vector<int> nsignsN = cells[N]->get_nsigns();
+            vector<Edge*> facesOfN = cells[N]->get_edges();
+            for(int j = 0; j < facesOfN.size(); ++j){
+                pair<double, double> normal = facesOfN[j]->get_normal();
+                pair<double, double> normal_corrected = make_pair(normal.first * nsignsN[j], normal.second * nsignsN[j]);
+                double pf;
+                if(facesOfN[j]->is_boundary_face()){
+                    pf = this->p_star[N];
+                }else{
+                    int Neighbor = get_neighbor(facesOfN[j]->get_link_face_to_cell(), N);
+                    pf = 0.5 * (this->p_star[N] + this->p_star[Neighbor]);
+                }
+                V1dp1_x += pf * facesOfN[j]->get_length() * normal_corrected.first;
+                V1dp1_y += pf * facesOfN[j]->get_length() * normal_corrected.second;
+            }
 
-            // * Valor de d_f ---
-            double dC = cells[cell_C]->get_area() / a_coeff[cell_C];
-            double dF = cells[cell_F]->get_area() / a_coeff[cell_F];
-            double d_f = 0.5 * (dC + dF);
+            double velf_x = 0.5 * V0dp0_x/aP[P] + 0.5 * V1dp1_x /aP[N];
+            double velf_y = 0.5 * V0dp0_y/aP[P] + 0.5 * V1dp1_y /aP[N];
+            double velf_p = velf_x * face->get_normal().first +  velf_y * face->get_normal().second;
 
-            // * Termo (pF - pC)/dCF ---
-            double pressure_diff = (p[cell_F] - p[cell_C]) / dCF;
+            double term_test = velf_p - 0.5 * (cells[P]->get_area()/aP[P] + cells[N]->get_area()/aP[N]) * ((p_star[N] - p_star[P])/face->get_df());
 
-            // gradiente de pressão interpolado na face
-            auto gradP_C = reconstruct_pressure_gradients(cells[cell_C], this->p_star);
-            auto gradP_F = reconstruct_pressure_gradients(cells[cell_F], this->p_star);
-            pair<double,double> gradP_face = {
-                0.5 * (gradP_C.first + gradP_F.first),
-                0.5 * (gradP_C.second + gradP_F.second)
-            };
+            double vdotn = U_bar_dot_normal + term_test;
 
-            // * produto escalar gradPf ⋅ eCF
-            double grad_dot_eCF = gradP_face.first * eCF.first + gradP_face.second * eCF.second;
+            mdotf[face->id] = vdotn * rho * face->get_length(); // mass flow rate.
 
-            double correction = (pressure_diff - grad_dot_eCF);
-
-            // * Correção final
-            double u_corr = d_f * correction * eCF.first;
-            double v_corr = d_f * correction * eCF.second;
-
-            u_face[face->id] = u_avg - u_corr;
-            v_face[face->id] = v_avg - v_corr;
+        }else{
+            // * já tem valor bem definido.
         }
     }
     cout << "=============================================\n";
-}
-
-/**
- * * Função para reconstruir os gradientes quando necessário.
- */
-pair<double,double> NSSolver::reconstruct_pressure_gradients(Cell *c, arma::vec phi){  
-
-    vector<Cell*> cells = mesh->get_cells();
-
-    vector<Edge*>& edgesOfCell = c->get_edges();
-    pair<double,double>& centroidP = c->get_centroid();
-
-    // criação da Matriz M e do vetor y.
-    arma::mat M(edgesOfCell.size(), 2);
-    arma::vec y(edgesOfCell.size());
-        
-    for(int j = 0; j < edgesOfCell.size(); j++){
-        Edge* e = edgesOfCell[j];
-        
-        // # meio da face
-        pair<double, double> &middleFace = e->get_middle();
-        
-        if(e->is_boundary_face()){
-            // * considero distancia entre C e centro da face
-            double dx = middleFace.first - centroidP.first;
-            double dy = middleFace.second - centroidP.second;
-            // TODO: Esse tratamento faz sentido ? Estou colocando zero pois não sei qual valor seria.
-            M(j,0) = dx;
-            M(j,1) = dy;
-            y[j] = 0;
-        }else{
-            int nb = get_neighbor(e->get_link_face_to_cell(), c->id);
-            pair<double,double>& centroidN = cells[nb]->get_centroid();
-
-            double dx = centroidN.first - centroidP.first;
-            double dy = centroidN.second - centroidP.second;
-            
-            // + [dx dy]
-            M(j,0) = dx;
-            M(j, 1) = dy;
-
-            // + [u_N - u_P]
-            y[j] = phi[nb] - phi[c->id];  
-        }
-    }
-        
-    // + Resolve sistema sobre-determinado M x = y.
-    arma::vec x = arma::solve(M, y);
-    double phix = x[0];
-    double phiy = x[1];
-    
-    return make_pair(phix, phiy);
 }
 
 /**
@@ -398,61 +364,37 @@ void NSSolver::pressure_correction_poisson(){
             //* warm-up
             Edge* face = faces[j];
             int nsign = nsigns[j];
-            pair<double,double> normal = face->get_normal();
-            pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
 
-            double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
-            
             if(face->is_boundary_face()){
-                // * contribue do lado direito como termo fonte
+                // * skip
             }else{
-                // * contribue na A
+                // * contribue no vizinho da diagonal
                 int N = get_neighbor(face->get_link_face_to_cell(), c->id);
                 
-                double d_P = cells[c->id]->get_area()/a_coeff[c->id];
-                double d_N = cells[N]->get_area()/a_coeff[N];
-                double d_f = 0.5 * (d_P + d_N);
+                double dP = cells[c->id]->get_area()/aP[c->id];
+                double dN = cells[N]->get_area()/aP[N];
+                double a_N = 0.5 * (dP + dN) * (rho * face->get_length() / face->get_df());
 
-                // * valores de d_CF^x e y
-                double dcfx = cells[N]->get_centroid().first - cells[c->id]->get_centroid().first;
-                double dcfy = cells[N]->get_centroid().second - cells[c->id]->get_centroid().second;
+                this->A_pc(c->id, N) += -a_N; // off-diagonal
 
-                // * valores de S_f^x e y
-                double sfx = face->get_length() * normal_corrected.first;
-                double sfy = face->get_length() * normal_corrected.second;
-
-                pair<double,double> dCF_vec = {
-                    cells[N]->get_centroid().first - cells[c->id]->get_centroid().first,
-                    cells[N]->get_centroid().second - cells[c->id]->get_centroid().second
-                };
-                double dCF = face->get_df();
-                pair<double,double> eCF = { dCF_vec.first / dCF, dCF_vec.second / dCF }; // * normaliza
-
-                double eCFdotNormal = eCF.first * normal_corrected.first + eCF.second * normal_corrected.second;
-
-                double a_N = (d_f * eCFdotNormal * face->get_length())/face->get_df();
-                
-                A_pc(c->id, N) += -a_N;
-
-                a_P += a_N;
-                
+                a_P += a_N; // acumula os ans
             }
-            b += -UdotNormal * face->get_length();
+
+            b += mdotf[face->id] * nsign; // acumula o fluxo de massa
         }
         
         // * diagonal
         A_pc(c->id, c->id) += a_P;
-        b_pc(c->id) += b; // * fonte
+        b_pc(c->id) += -b; // * fonte
     }
     
     // + Resolvendo o problema de não ter valor prescrito de pressão...
-    A_pc.row(0).zeros(); // zera a linha
-    A_pc(0,0) = 1.0;
-    b_pc[0] = 0.0; // prescrevendo uma correção em um nó. Deixará de ser singular a matriz...
+    // A_pc.row(0).zeros(); // zera a linha
+    // A_pc(0,0) = 1.0;
+    // b_pc[0] = 0.0; // prescrevendo uma correção em um nó. Deixará de ser singular a matriz...
     
     this->p_prime = arma::solve(A_pc, b_pc);
-    // cout << A_pc << endl;
-    // cout << b_pc << endl;
+
     cout << "=============================================\n";
 }
 
@@ -462,84 +404,62 @@ void NSSolver::pressure_correction_poisson(){
 void NSSolver::correct_variables(double alpha_uv, double alpha_p){
     cout << "Corrigindo as variáveis.\n";
     
-    // * correção da pressão
+    // corrige velocidade nos centroides
     vector<Cell*> cells = mesh->get_cells();
-    vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < cells.size(); i++){
-        // p = p^* + λ_p p'
-        p[i] = p_star[i] + alpha_p * p_prime[i]; 
+        Cell* c = cells[i];
+        vector<int> nsigns = c->get_nsigns();
+        vector<Edge*> faces = c->get_edges();
+
+        double correction_u = 0;
+        double correction_v = 0;
+        for(int j = 0; j < faces.size(); j++){
+            Edge* face = faces[j];
+            int nsign = nsigns[j];
+            pair<double, double> normal = face->get_normal();
+            pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
+
+            double p_prime_f;
+            if(face->is_boundary_face()){
+                p_prime_f = this->p_prime[c->id];
+            }else{
+                int Neighbor = get_neighbor(face->get_link_face_to_cell(), c->id);
+                p_prime_f = 0.5 * (this->p_prime[c->id] + this->p_prime[Neighbor]);
+            }
+
+            correction_u += p_prime_f * face->get_length() * normal_corrected.first;
+            correction_v += p_prime_f * face->get_length() * normal_corrected.second;
+        }
+
+        u[c->id] = u_star[c->id] - alpha_uv * correction_u/aP[c->id];
+        v[c->id] = v_star[c->id] - alpha_uv * correction_v/aP[c->id];
     }
-    
-    // * correção da velocidade na face
+
+    // corrige mdotf
+    vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < faces.size(); i++){
-        // * warm-up
         Edge* face = faces[i];
-        pair<int,int> id_nodes = face->get_link_face_to_cell();
-        int P = id_nodes.first;
-        int N = id_nodes.second;
-        if(!face->is_boundary_face()){
-            
-            double d_P = cells[P]->get_area()/a_coeff[P];
-            double d_N = cells[N]->get_area()/a_coeff[N];
-            double d_f = 0.5 * (d_P + d_N);
-
-            pair<double,double> grad_p_prime_P = reconstruct_pressure_gradients(cells[P], this->p_prime);
-            pair<double,double> grad_p_prime_N = reconstruct_pressure_gradients(cells[N], this->p_prime);
-            
-            u_face_prime[i] = d_f * 0.5 * (grad_p_prime_P.first + grad_p_prime_N.first);
-            v_face_prime[i] = d_f * 0.5 * (grad_p_prime_P.second + grad_p_prime_N.second);
-
-            // u_f = u_f^* + λ_uv u_f'
-            double old_u_face = u_face[i];
-            double new_u_face = old_u_face - u_face_prime[i];
-            u_face[i] = old_u_face * (1 - alpha_uv) + alpha_uv * new_u_face;
-            
-            double old_v_face = v_face[i];
-            double new_v_face = old_v_face - v_face_prime[i];
-            v_face[i] = old_v_face * (1 - alpha_uv) + alpha_uv * new_v_face;
+        if(!face->is_boundary_face()){ // * SÓ ATUALIZA SE NÃO É FACE DE CONTORNO
+            pair<int,int> id_cells_share_face = face->get_link_face_to_cell();
+            int P = id_cells_share_face.first;
+            int N = id_cells_share_face.second;
+            double dP = cells[P]->get_area()/aP[P];
+            double dN = cells[N]->get_area()/aP[N];
+            double dF = 0.5 * (dP + dN);
+    
+            mdotf[face->id] -= alpha_uv * rho * face->get_length() * dF * (p_prime[N] - p_prime[P]) / face->get_df();
         }
     }
-    
-    // * correção das velocidades nos centroides
-    for(int i=0; i < cells.size(); ++i){
-        Cell *c = cells[i];
-        double Dc = c->get_area() / a_coeff[c->id];
-        pair<double,double> grad_p_prime = reconstruct_pressure_gradients(c, this->p_prime);
 
-        // u_C = u_C^* + λ_uv u_C'
-        double u_old = u_star[i];
-        double u_new = u_star[i] - Dc * grad_p_prime.first;
-        u[i] = u_old * (1 - alpha_uv) + alpha_uv * u_new;
-        
-        double v_old = v_star[i];
-        double v_new = v_star[i] - Dc * grad_p_prime.second;
-        v[i] = v_old * (1 - alpha_uv) + alpha_uv * v_new;
+    // atualiza pressão;
+    for(int i = 0; i < cells.size(); i++){
+        this->p[i] = this->p_star[i] + alpha_p * p_prime[i];
     }
-    cout << "===================================================\n";
 
-
-    // + atualizando
+    // update
     u_star = u;
     v_star = v;
     p_star = p;
-
-    double mass_resid = 0.0;
-    for(int i = 0; i < cells.size(); i++){
-        vector<int> nsigns = cells[i]->get_nsigns();
-        vector<Edge*> faces = cells[i]->get_edges();
-        
-        double sumflux = 0;
-        for(int j = 0; j < faces.size(); j++){
-            Edge* f = faces[j];
-            int nsign = nsigns[j];
-            pair<double,double> normal = f->get_normal();
-            pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
-        
-            sumflux += (normal_corrected.first*u_face[f->id]+normal_corrected.second*v_face[f->id]) * f->get_length();
-        }
-        mass_resid += fabs(sumflux);
-    }
-    cout << "mass_resid = " << mass_resid << endl;
 }
 
 void NSSolver::export_solution(string filename, char variable){
