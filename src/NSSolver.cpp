@@ -51,21 +51,9 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
 
     this->a_coeff = arma::vec(ncells, arma::fill::zeros);
 
-    this->u_EXACT = arma::vec(ncells, arma::fill::zeros);
-    this->v_EXACT = arma::vec(ncells, arma::fill::zeros);
-    this->p_EXACT = arma::vec(ncells, arma::fill::zeros);
-
-    // ============================== PREENCHENDO OS EXATOS =================================
-    vector<Cell*> cells = mesh->get_cells();
-    for(int i = 0; i < cells.size(); i++){
-        u_EXACT[i] = cells[i]->get_centroid().first; // x
-        v_EXACT[i] = - cells[i]->get_centroid().second; // - y
-        p_EXACT[i] = - (pow(cells[i]->get_centroid().first, 2) + pow(cells[i]->get_centroid().second, 2))/2.0;
-    }
-
     // =======================================================================================
 
-    // preenchendo BOUNDARIES
+    // TODO: Preenche boundary top do lid-driven cavity flow.
     vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < nfaces; i++){
         Edge* face = faces[i];
@@ -73,51 +61,11 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
             // Top 
             u_face[face->id] = 1; 
         }
-        // if(face->from->y == 1 && face->to->y == 1){
-        //     // Top 
-        //     u_face[face->id] = face->get_middle().first; 
-        //     v_face[face->id] = -1;
-        // }
-        // else if(face->from->y == 0 && face->to->y == 0){
-        //     // Bottom wall
-        //     u_face[face->id] = face->get_middle().first ;
-        //     v_face[face->id] = 0.0;
-        // }
-        // else if(face->from->x == 0 && face->to->x == 0){
-        //     // Left wall
-        //     u_face[face->id] = 0.0;
-        //     v_face[face->id] = -face->get_middle().second;
-        // }
-        // else if(face->from->x == 1 && face->to->x == 1){
-        //     // Right wall
-        //     u_face[face->id] = 1.0;
-        //     v_face[face->id] = -face->get_middle().second; 
-        // }
     }
 }   
 
 NSSolver::~NSSolver(){
     // nada.
-}
-
-void NSSolver::calculate_Df(){
-    cout << "Calculando os valores de Df.\n";
-    vector<Edge*> faces = this->mesh->get_edges();
-    for(int i = 0; i < faces.size(); ++i){
-        // * (μ_f*A_f)/d_CF
-        Df[i] = mu * faces[i]->get_length() / faces[i]->get_df();
-    }
-    cout << "=============================================\n";
-}
-
-void NSSolver::calculate_Gf(){
-    cout << "Calculando os valores de Gf.\n";
-    vector<Edge*> faces = this->mesh->get_edges();
-    for(int i = 0; i < faces.size(); ++i){
-        // * ρ_f * A_f | nota: o restante que seria (v_f \cdot n_f) será calculado no momentum.
-        Gf[i] = rho * faces[i]->get_length();
-    }
-    cout << "=============================================\n";
 }
 
 /**
@@ -132,7 +80,7 @@ void NSSolver::calculate_A_mom(){
         vector<int> &nsigns = c->get_nsigns();
         vector<Edge*> faces = c->get_edges();
         
-        double a_P = 0; // * sum_f (max(0, G_f) + D_f)
+        double a_P = 0; // * sum_f (max(0, ṁ_f) + D_f)
        
         for(int j = 0; j < faces.size(); ++j){
             // * warm-up
@@ -145,23 +93,22 @@ void NSSolver::calculate_A_mom(){
             // * v_f \cdot n_f 
             double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
 
-            double a_N = min(0.0, Gf[face->id] * UdotNormal) - Df[face->id];
+            double Df = (mu * face->get_length()) / face->get_df();
+            double a_N = min(0.0, rho * UdotNormal * face->get_length()) - Df;
+            
+            a_P += max(0.0, rho * UdotNormal * face->get_length()) + Df;
+            
             if(!face->is_boundary_face()){
                 // * contabiliza a_N na matriz A (off-diagonal)
                 int N = get_neighbor(face->get_link_face_to_cell(), c->id);
                 this->A_mom(c->id, N) += a_N;
             }else{
-                // * contabiliza a_N * u_F ou a_N * v_f no vetor b.
+                // * poderá ser utilizado o valor da face de contorno para contabilizar como termo fonte.
             }
-
-            a_P += max(0.0, Gf[face->id] * UdotNormal) + Df[face->id];
         }
 
         // * Contabiliza o a_P na diagonal
         this->A_mom(c->id, c->id) += a_P;
-        
-        // * registra em a_coeff o a_P para ser utilizado depois em outros cálculos.
-        a_coeff[c->id] = a_P;
     }
 }
 
@@ -178,6 +125,9 @@ void NSSolver::calculate_b_mom_x(){
 
         // * armazena: \sum_{b(f)} a_f u_f
         double boundary_contribution = 0;
+
+        // * - sum_f (p_f) * n_xf * A_f
+        double pressure_contribution = 0;
         
         for(int j = 0; j < faces.size(); ++j){
             int nsign = nsigns[j];
@@ -189,21 +139,34 @@ void NSSolver::calculate_b_mom_x(){
             double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
 
             if(face->is_boundary_face()){
-                double a_N = min(0.0, Gf[face->id] * UdotNormal) - Df[face->id];
-                boundary_contribution += -a_N * u_face[face->id]; // * a_F u_F
+                double Df = (mu * face->get_length()) / face->get_df();
+                double a_N = -min(0.0, rho * UdotNormal * face->get_length()) + Df;
+               
+                boundary_contribution += a_N * u_face[face->id]; // * a_F u_F
+
+
+                // & Tratamento da pressão
+                // estou usando série de taylor: phi_P + grad(Phi)_N * d_Pf;
+                // ou seja, o valor de phi na face de contorno é o valor na celula que está perto dela + gradiente na face * distancia entre eles. Como no problema o gradiente é sempre zero, então o phi na face é o phi do vizinho.
+                double pf = this->p_star[c->id];
+                double nxf = normal_corrected.first;
+                pressure_contribution += pf * nxf * face->get_length();
             }else{
-                // * Nada a fazer, pois já contabilizou na A.
+                // * Nada a fazer em termos de contorno, pois já contabilizou na A.
+                
+                // & Tratamento da pressão
+                int N = get_neighbor(face->get_link_face_to_cell(), c->id);
+                // pressão na face obtida pela média entre os vizinhos
+                double pf = 0.5 * (this->p_star[c->id] + this->p_star[N]);
+                double nxf = normal_corrected.first;
+                pressure_contribution += pf * nxf * face->get_length();
             }
         }
         
-        // * obtém (∇p*)_P
-        pair<double, double> pressure_gradient = reconstruct_pressure_gradients(c, this->p_star);
-        double pressure_contribution = - (pressure_gradient.first * c->get_area()); // pega \partial p / \partial x
-
         // * Termo fonte
-        double source_contribution = source_x * c->get_area();
+        // double source_contribution = source_x * c->get_area(); // TODO: AINDA NÃO USA
 
-        this->b_mom[c->id] += pressure_contribution + source_contribution + boundary_contribution;
+        this->b_mom[c->id] += -pressure_contribution + boundary_contribution;
     }
 }
 
@@ -220,6 +183,9 @@ void NSSolver::calculate_b_mom_y(){
 
         // * armazena: \sum_{b(f)} a_f v_f
         double boundary_contribution = 0;
+
+        // * - sum_f (p_f) * n_yf * A_f
+        double pressure_contribution = 0;
         
         for(int j = 0; j < faces.size(); ++j){
             int nsign = nsigns[j];
@@ -227,25 +193,38 @@ void NSSolver::calculate_b_mom_y(){
             pair<double, double> &normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
 
-            // + Usando WMI
+            // + Usando o vetor de WMI
             double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
 
             if(face->is_boundary_face()){
-                double a_N = min(0.0, Gf[face->id] * UdotNormal) - Df[face->id];
-                boundary_contribution += -a_N * v_face[face->id]; // * a_F * v_F
+                double Df = (mu * face->get_length()) / face->get_df();
+                double a_N = -min(0.0, rho * UdotNormal * face->get_length()) + Df;
+               
+                boundary_contribution += a_N * v_face[face->id]; // * a_F v_F
+
+
+                // & Tratamento da pressão
+                // estou usando série de taylor: phi_P + grad(Phi)_N * d_Pf;
+                // ou seja, o valor de phi na face de contorno é o valor na celula que está perto dela + gradiente na face * distancia entre eles. Como no problema o gradiente é sempre zero, então o phi na face é o phi do vizinho.
+                double pf = this->p_star[c->id];
+                double nyf = normal_corrected.second;
+                pressure_contribution += pf * nyf * face->get_length();
             }else{
-                // * Nada a fazer, pois já contabilizou na A.
+                // * Nada a fazer em termos de contorno, pois já contabilizou na A.
+                
+                // & Tratamento da pressão
+                int N = get_neighbor(face->get_link_face_to_cell(), c->id);
+                // pressão na face obtida pela média entre os vizinhos
+                double pf = 0.5 * (this->p_star[c->id] + this->p_star[N]);
+                double nyf = normal_corrected.second;
+                pressure_contribution += pf * nyf * face->get_length();
             }
         }
         
-        // * obtém (∇p*)_P
-        pair<double, double> pressure_gradient = reconstruct_pressure_gradients(c, this->p_star);
-        double pressure_contribution = - (pressure_gradient.second * c->get_area()); // pega \partial p / \partial y
-
         // * Termo fonte
-        double source_contribution = source_y * c->get_area();
+        // double source_contribution = source_y * c->get_area(); // TODO: AINDA NÃO USA
 
-        this->b_mom[c->id] += pressure_contribution + source_contribution + boundary_contribution;
+        this->b_mom[c->id] += -pressure_contribution + boundary_contribution;
     }
 }
 
@@ -571,14 +550,8 @@ void NSSolver::export_solution(string filename, char variable){
         var = this->v_star;
     else if(variable == 'p')
         var = this->p_star;
-    else if(variable == 'x')
-        var = this->u_EXACT;
-    else if(variable == 'y')
-        var = this->v_EXACT;
-    else if(variable == 'z')
-        var = this->p_EXACT;
-    
-        ofstream vtk_file(filename);
+
+    ofstream vtk_file(filename);
 
     if (!vtk_file.is_open()) {
         std::cerr << "ERROR: failed to create file." << filename << "'.\n";

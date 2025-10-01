@@ -53,10 +53,6 @@ class NSSolver{
         arma::vec u_face_prime;
         arma::vec v_face_prime;
 
-        arma::vec u_EXACT;
-        arma::vec v_EXACT;
-        arma::vec p_EXACT;
-
         // Viscosidade dinâmica
         float mu;
         // Densidade
@@ -69,11 +65,6 @@ class NSSolver{
     public:
         NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source_y);
         ~NSSolver();
-
-        // Função para calcular o coeficiente de difusão Df. Constantes durante toda a execução.
-        void calculate_Df();
-        // Função para calcular o coeficiente de convecção Gf. Serão recalculados a cada iteração externa.
-        void calculate_Gf();
 
         // Calcula o momento para u e v.
         void calculate_momentum();
