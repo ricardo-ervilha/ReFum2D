@@ -66,6 +66,34 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
     }
 }   
 
+arma::vec jacobi(const arma::mat& A, const arma::vec& b, int max_iter = 100000, double tol = 1e-6) {
+    int n = A.n_rows;
+    arma::vec x = arma::zeros<arma::vec>(n);     // chute inicial
+    arma::vec x_new = x;
+
+    for (int k = 0; k < max_iter; k++) {
+        for (int i = 0; i < n; i++) {
+            double sigma = 0.0;
+            for (int j = 0; j < n; j++) {
+                if (j != i)
+                    sigma += A(i, j) * x(j);
+            }
+            x_new(i) = (b(i) - sigma) / A(i, i);
+        }
+
+        // critério de parada
+        if (norm(x_new - x, "inf") < tol)
+            break;
+
+        if(k % 1000 == 0)
+            cout << norm(x_new - x, "inf") << endl;
+
+        x = x_new;
+    }
+
+    return x_new;
+}
+
 NSSolver::~NSSolver(){
     // nada.
 }
@@ -91,21 +119,18 @@ void NSSolver::calculate_A_mom(){
             pair<double, double> &normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
             
-            // + Usando WMI
-            // * v_f \cdot n_f 
-            double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
-
             double Df = (mu * face->get_length()) / face->get_df();
-            double a_N = min(0.0, rho * UdotNormal * face->get_length()) - Df;
+            double a_N = min(0.0, mdotf[face->id] * nsign) - Df;
             
-            a_P += max(0.0, rho * UdotNormal * face->get_length()) + Df;
             
             if(!face->is_boundary_face()){
                 // * contabiliza a_N na matriz A (off-diagonal)
                 int N = get_neighbor(face->get_link_face_to_cell(), c->id);
                 this->A_mom(c->id, N) += a_N;
+                a_P += max(0.0, mdotf[face->id] * nsign) + Df;
             }else{
                 // * poderá ser utilizado o valor da face de contorno para contabilizar como termo fonte.
+                a_P += Df;
             }
         }
 
@@ -140,15 +165,10 @@ void NSSolver::calculate_b_mom_x(){
             pair<double, double> &normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
 
-            // + Usando o vetor de WMI
-            double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
-
             if(face->is_boundary_face()){
                 double Df = (mu * face->get_length()) / face->get_df();
-                double a_N = -min(0.0, rho * UdotNormal * face->get_length()) + Df;
                
-                boundary_contribution += a_N * u_face[face->id]; // * a_F u_F
-
+                boundary_contribution += Df * u_face[face->id] - mdotf[face->id] * nsign * u_face[face->id]; // * a_F u_F
 
                 // & Tratamento da pressão
                 // estou usando série de taylor: phi_P + grad(Phi)_N * d_Pf;
@@ -198,15 +218,10 @@ void NSSolver::calculate_b_mom_y(){
             pair<double, double> &normal = face->get_normal();
             pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
 
-            // + Usando o vetor de WMI
-            double UdotNormal = normal_corrected.first * u_face[face->id] + normal_corrected.second * v_face[face->id];
-
             if(face->is_boundary_face()){
                 double Df = (mu * face->get_length()) / face->get_df();
-                double a_N = -min(0.0, rho * UdotNormal * face->get_length()) + Df;
                
-                boundary_contribution += a_N * v_face[face->id]; // * a_F v_F
-
+                boundary_contribution += Df * v_face[face->id] - mdotf[face->id] * nsign * v_face[face->id]; // * a_F v_F
 
                 // & Tratamento da pressão
                 // estou usando série de taylor: phi_P + grad(Phi)_N * d_Pf;
@@ -251,8 +266,11 @@ void NSSolver::calculate_momentum(){
     cout << "Calculando os coeficientes do vetor b de x-mom.\n";
     calculate_b_mom_x();
 
+    // cout << A_mom << endl;
+    // cout << b_mom << endl;
+
     cout << "Calculando u_star.\n";
-    this->u_star = arma::solve(this->A_mom, this->b_mom); // + Resolve
+    this->u_star = jacobi(this->A_mom, this->b_mom); // + Resolve
 
     // * Zera pra calcular o do momento em y
     this->b_mom.zeros();
@@ -261,7 +279,7 @@ void NSSolver::calculate_momentum(){
     calculate_b_mom_y();
     
     cout << "Calculando v_star.\n";
-    this->v_star = arma::solve(this->A_mom, this->b_mom); // + Resolve
+    this->v_star = jacobi(this->A_mom, this->b_mom); // + Resolve
 
     cout << "=============================================\n";
 }
@@ -336,6 +354,9 @@ void NSSolver::interpolate_momentum(){
             // * já tem valor bem definido.
         }
     }
+    // for(int i = 0; i < mdotf.size(); i++){
+    //     cout << "x: " << faces[i]->get_middle().first << "\ty: " << faces[i]->get_middle().second << "\tuf: " << mdotf[i] << endl;
+    // }
     cout << "=============================================\n";
 }
 
@@ -348,6 +369,7 @@ void NSSolver::pressure_correction_poisson(){
     // * zera pra próxima iteração
     A_pc.zeros();
     b_pc.zeros();
+    p_prime.zeros();
 
     vector<Cell*> cells = mesh->get_cells();
     for(int i = 0; i < cells.size(); ++i){
@@ -393,10 +415,12 @@ void NSSolver::pressure_correction_poisson(){
     // A_pc(0,0) = 1.0;
     // b_pc[0] = 0.0; // prescrevendo uma correção em um nó. Deixará de ser singular a matriz...
     
-    this->p_prime = arma::solve(A_pc, b_pc);
+    this->p_prime = jacobi(A_pc, b_pc, 100);
 
     cout << "=============================================\n";
 }
+
+
 
 /**
  * * Corrige as variáveis...
@@ -447,7 +471,7 @@ void NSSolver::correct_variables(double alpha_uv, double alpha_p){
             double dN = cells[N]->get_area()/aP[N];
             double dF = 0.5 * (dP + dN);
     
-            mdotf[face->id] -= alpha_uv * rho * face->get_length() * dF * (p_prime[N] - p_prime[P]) / face->get_df();
+            mdotf[face->id] = mdotf[face->id] - alpha_uv * rho * face->get_length() * dF * (p_prime[N] - p_prime[P]) / face->get_df();
         }
     }
 
