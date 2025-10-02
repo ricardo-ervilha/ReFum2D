@@ -59,9 +59,9 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, float source_x, float source
     vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < nfaces; i++){
         Edge* face = faces[i];
-        if(face->from->y == 1 && face->to->y == 1){
+        if(face->from->y == 0.01 && face->to->y == 0.01){
             // Top 
-            u_face[face->id] = 1; 
+            u_face[face->id] = 0.01; 
         }
     }
 }   
