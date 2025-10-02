@@ -49,9 +49,9 @@ NSSolver2::NSSolver2(Mesh *mesh, float mu, float rho, float source_x, float sour
     vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < nfaces; i++){
         Edge* face = faces[i];
-        if(fabs(face->get_middle().second - 1e-2) < 1e-12){
+        if(fabs(face->get_middle().second - 1.0) < 1e-12){
             // Top 
-            u_face[face->id] = 0.01; // u_lid
+            u_face[face->id] = 1.0; // u_lid
         }
     }
 }   
