@@ -6,10 +6,8 @@ import matplotlib.pyplot as plt
 import math
 
 
-
-
-n_x=3
-n_y=3
+n_x=50
+n_y=50
 
 dx=1.0/n_x
 dy=1.0/n_y
@@ -442,20 +440,20 @@ def post_processing(u_star,v_star,p_star,X,Y,x,y):
     plt.show()
 
     #u centerline velocity
-    plt.figure(4)
-    plt.plot(1-y,u_star[:,round(n_x/2)])
-    plt.xlabel('y')
-    plt.ylabel('u')
-    plt.title('U centerline velocity')
-    plt.show()
+    # plt.figure(4)
+    # plt.plot(1-y,u_star[:,round(n_x/2)])
+    # plt.xlabel('y')
+    # plt.ylabel('u')
+    # plt.title('U centerline velocity')
+    # plt.show()
 
-    #v centerline velocity
-    plt.figure(5)
-    plt.plot(x,v_star[round(n_y/2),:])
-    plt.xlabel('x')
-    plt.ylabel('v')
-    plt.title('V centerline velocity')
-    plt.show()
+    # #v centerline velocity
+    # plt.figure(5)
+    # plt.plot(x,v_star[round(n_y/2),:])
+    # plt.xlabel('x')
+    # plt.ylabel('v')
+    # plt.title('V centerline velocity')
+    # plt.show()
 
 #Declaring primitive variables
 u=np.zeros((n_y+2,n_x+2),dtype=np.float64)
@@ -511,15 +509,15 @@ u_face[0,1:n_x]=1
 
 l2_norm_x=0
 alpha_uv=0.7
-epsilon_uv=1e-6
-max_inner_iteration_uv=10000
+epsilon_uv=1e-3
+max_inner_iteration_uv=50
 
 l2_norm_y=0
 
 l2_norm_p=0
-max_inner_iteration_p=10000
+max_inner_iteration_p=200
 dummy_alpha_p=1
-epsilon_p=1e-6
+epsilon_p=1e-4
 alpha_p=0.2
 
 max_outer_iteration=1
@@ -533,8 +531,7 @@ for n in range(1,max_outer_iteration+1):
     v,l2_norm_y=solve(v,v_star,A_p,A_e,A_w,A_n,A_s,source_y,alpha_uv,epsilon_uv,max_inner_iteration_uv,l2_norm_y)
 
     u_face,v_face=face_velocity(u,v,u_face,v_face,p,A_p,alpha_uv)
-    # print(u_face * 1 * dy)
-    print(u)
+
     Ap_p,Ap_e,Ap_w,Ap_n,Ap_s,source_p=pressure_correction_link_coefficients(u,u_face,v_face,Ap_p,Ap_e,Ap_w,Ap_n,Ap_s,source_p,A_p,A_e,A_w,A_n,A_s,alpha_uv)
 
     p_prime,l2_norm_p=solve(p_prime,p_prime,Ap_p,Ap_e,Ap_w,Ap_n,Ap_s,source_p,dummy_alpha_p,epsilon_p,max_inner_iteration_p,l2_norm_p)
@@ -553,4 +550,5 @@ for n in range(1,max_outer_iteration+1):
         print("Converged !")
         break
 
-# post_processing(u_star,v_star,p_star,X,Y,x,y)
+print(u[0,:])
+post_processing(u_star,v_star,p_star,X,Y,x,y)

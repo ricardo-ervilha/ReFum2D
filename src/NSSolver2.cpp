@@ -49,7 +49,7 @@ NSSolver2::NSSolver2(Mesh *mesh, float mu, float rho, float source_x, float sour
     vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < nfaces; i++){
         Edge* face = faces[i];
-        if(fabs(face->get_middle().second - 1.0) < 1e-12){
+        if(fabs(face->get_middle().second - 1.0) < 1e-6){
             // Top 
             u_face[face->id] = 1.0; // u_lid
         }
@@ -63,7 +63,7 @@ NSSolver2::~NSSolver2(){
 void NSSolver2::mom_links_and_sources() {
     vector<Cell*> cells = mesh->get_cells();
     
-    for(int i = 0; i < cells.size(); ++i){
+    for(int i = 0; i < cells.size(); i++){
         Cell* c = cells[i];
         int ic = c->id;
         ap[ic] = 0;
@@ -73,7 +73,7 @@ void NSSolver2::mom_links_and_sources() {
         vector<Edge*> faces = c->get_edges();
         vector<int> &nsigns = c->get_nsigns();
 
-        for(int j = 0; j < faces.size(); ++j){ // loop over faces of cell
+        for(int j = 0; j < faces.size(); j++){ // loop over faces of cell
             int nsign = nsigns[j];
             Edge* face = faces[j];
             
@@ -87,7 +87,7 @@ void NSSolver2::mom_links_and_sources() {
             }else{
                 // interior
                 ap[ic] = ap[ic] + mu * face->get_length() / face->get_df() + max(0.0, mf); 
-                anb(ic, j) = -mu * face->get_length() / face->get_df() - min(0.0, mf);
+                anb(ic, j) = -mu * face->get_length() / face->get_df() + max(0.0, -mf);
             }
         }
     }
@@ -106,6 +106,9 @@ void NSSolver2::mom_links_and_sources() {
         }
     }
 
+    // cout << "* maior pf: " << arma::max(p_face) << endl;
+    // cout << "* menor pface: " << arma::min(p_face) << endl;
+
     // calculation of sources
     for(int i = 0; i < cells.size(); ++i){
         Cell* c = cells[i];
@@ -120,6 +123,9 @@ void NSSolver2::mom_links_and_sources() {
             scy[ic] = scy[ic] - p_face[face->id] * face->get_normal().second * nsign * face->get_length();
         }
     }
+
+    // cout << ap << endl;
+    // cout << anb << endl;
 };
 
 void NSSolver2::solve_x_mom(int iter_mom, double rin_uv, double tol_inner) {
@@ -167,6 +173,8 @@ void NSSolver2::solve_x_mom(int iter_mom, double rin_uv, double tol_inner) {
         if(res2/res2o < tol_inner) break;
     }
 
+    cout << "Maior: " << arma::max(uc) << endl;
+    cout << "Menor: " << arma::min(uc) << endl;
 }
 
 void NSSolver2::solve_y_mom(int iter_mom, double rin_uv, double tol_inner) {
@@ -213,6 +221,9 @@ void NSSolver2::solve_y_mom(int iter_mom, double rin_uv, double tol_inner) {
 
         if(res2/res2o < tol_inner) break;
     }
+
+    cout << "Maior: " << arma::max(vc) << endl;
+    cout << "Menor: " << arma::min(vc) << endl;
 };
 
 void NSSolver2::face_velocity() {
@@ -381,6 +392,9 @@ void NSSolver2::uv_correct(double relax_uv) {
             pfcorr[face->id] = 0.5 * (pcorr[id_nodes_share_face.first] + pcorr[id_nodes_share_face.second]);
         }
     }
+    
+    // cout << "pcorr: " << arma::norm(pcorr, "inf") << endl;
+    // cout << "Pfcorr norm: " << arma::norm(pfcorr, "inf")<< endl;
 
     // correct values of centers
     vector<Cell*> cells = mesh->get_cells();
@@ -404,6 +418,15 @@ void NSSolver2::uv_correct(double relax_uv) {
         vc[ic] = vc[ic] + relax_uv*vcorr[ic];
     }
 
+    cout << "#Maior u: " << arma::max(uc) << endl;
+    cout << "#Menor u: " << arma::min(uc) << endl;
+
+    cout << "#Maior v: " << arma::max(vc) << endl;
+    cout << "#Menor v: " << arma::min(vc) << endl;
+    
+    // cout << "ucorr norm: " << arma::norm(ucorr, "inf")<< endl;
+    // cout << "vcorr norm: " << arma::norm(vcorr, "inf")<< endl;
+
     for(int i = 0; i < faces.size(); i++){
         Edge* face = faces[i];
         if(face->is_boundary_face()) continue;
@@ -417,6 +440,8 @@ void NSSolver2::uv_correct(double relax_uv) {
             mdotf[face->id] = mdotf[face->id] + relax_uv*mdotfcorr[face->id];
         }
     }
+
+    // cout << "mdotcorr: " << arma::norm(mdotfcorr, "inf") << endl;
 
     double validation = 0;
     for(int i = 0; i < cells.size(); ++i){
@@ -446,6 +471,9 @@ void NSSolver2::pres_correct(double relax_p) {
         int ic = cells[i]->id;
         pc[ic] = pc[ic] + relax_p * pcorr[ic];
     }
+    // cout << "#Maior pc: " << arma::max(pc) << endl;
+    // cout << "#Maior pc: " << arma::min(pc) << endl;
+    cout << "==============================================================================\n";
 };
 
 void NSSolver2::export_solution(string filename){
