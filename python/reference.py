@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import math
 
 
-n_x=50
-n_y=50
+n_x=7
+n_y=7
 
 dx=1.0/n_x
 dy=1.0/n_y
@@ -419,18 +419,26 @@ def correct_face_velocity(u_face,v_face,p_prime,A_p,alpha_uv):
 def post_processing(u_star,v_star,p_star,X,Y,x,y):
 
     #u velocity contours
+    print(u_star)
     plt.figure(1)
-    plt.contourf(X,Y,np.flipud(u_star),levels=50,cmap='jet')
+    plt.imshow(
+        np.flipud(u_star),             # matriz
+        extent=[X.min(), X.max(), Y.min(), Y.max()],  # limites dos eixos
+        cmap='jet',
+        aspect='auto',
+        origin='lower'
+    )
     plt.colorbar()
-    plt.title('U contours')
+    plt.title('U contours (imshow)')
     plt.show()
 
+
     #v velocity contours
-    plt.figure(2)
-    plt.contourf(X,Y,np.flipud(v_star),levels=50,cmap='jet')
-    plt.colorbar()
-    plt.title('V contours' )
-    plt.show()
+    # plt.figure(2)
+    # plt.contourf(X,Y,np.flipud(v_star),levels=50,cmap='jet')
+    # plt.colorbar()
+    # plt.title('V contours' )
+    # plt.show()
 
     #pressure contours
     plt.figure(3)
@@ -520,7 +528,7 @@ dummy_alpha_p=1
 epsilon_p=1e-4
 alpha_p=0.2
 
-max_outer_iteration=1
+max_outer_iteration=100
 
 for n in range(1,max_outer_iteration+1):
 
@@ -550,5 +558,4 @@ for n in range(1,max_outer_iteration+1):
         print("Converged !")
         break
 
-print(u[0,:])
 post_processing(u_star,v_star,p_star,X,Y,x,y)
