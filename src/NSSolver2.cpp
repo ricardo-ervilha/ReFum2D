@@ -318,9 +318,9 @@ void NSSolver2::solve_pp(int iter_pp, double tol_inner) {
             if(face->is_boundary_face()) continue;
             else{
                 int N = get_neighbor(face->get_link_face_to_cell(), ic);
-                ap_p[ic] = ap_p[ic] + rho * face->get_length() * (0.5 * cells[ic]->get_area()/ap[ic] + 0.5 * cells[N]->get_area()/ap[N])/face->get_df();
+                ap_p[ic] = ap_p[ic] + rho * face->get_length() * 0.5 * (0.5 * cells[ic]->get_area()/ap[ic] + 0.5 * cells[N]->get_area()/ap[N])/face->get_df();
 
-                anb_p(ic, j) = - rho * face->get_length() * (0.5 * cells[ic]->get_area()/ap[ic] + 0.5 * cells[N]->get_area()/ap[N])/face->get_df();
+                anb_p(ic, j) = - rho * face->get_length() * 0.5 * (0.5 * cells[ic]->get_area()/ap[ic] + 0.5 * cells[N]->get_area()/ap[N])/face->get_df();
             }
         }
     }
@@ -379,17 +379,20 @@ void NSSolver2::solve_pp(int iter_pp, double tol_inner) {
 
 void NSSolver2::uv_correct(double relax_uv) {
 
-    // calculcate face values of pressure correction
+    // Interpola correção da pressão na face.
     vector<Edge*> faces = mesh->get_edges();
     for(int i = 0; i < faces.size(); i++){
         Edge* face = faces[i];
+        int idf = face->id;
         pair<int,int> id_nodes_share_face = face->get_link_face_to_cell();
+        int ic1 = id_nodes_share_face.first;
+        int ic2 = id_nodes_share_face.second;
 
         if(face->is_boundary_face()){
-            int neighbor = id_nodes_share_face.first != -1 ? id_nodes_share_face.first : id_nodes_share_face.second;
-            pfcorr[face->id] = pcorr[neighbor];
+            int neighbor = ic1 != -1 ? ic1 : ic2;
+            pfcorr[idf] = pcorr[neighbor];
         }else{
-            pfcorr[face->id] = 0.5 * (pcorr[id_nodes_share_face.first] + pcorr[id_nodes_share_face.second]);
+            pfcorr[idf] = 0.5 * (pcorr[ic1] + pcorr[ic2]);
         }
     }
     
@@ -414,8 +417,8 @@ void NSSolver2::uv_correct(double relax_uv) {
         }
         ucorr[ic] = -ucorr[ic]/ap[ic];
         vcorr[ic] = -vcorr[ic]/ap[ic];
-        uc[ic] = uc[ic] + relax_uv*ucorr[ic];
-        vc[ic] = vc[ic] + relax_uv*vcorr[ic];
+        uc[ic] = uc[ic] + ucorr[ic];
+        vc[ic] = vc[ic] + vcorr[ic];
     }
 
     cout << "#Maior u: " << arma::max(uc) << endl;
@@ -437,7 +440,7 @@ void NSSolver2::uv_correct(double relax_uv) {
 
             double coeff = 0.5*cells[c1]->get_area()/ap[c1] + 0.5 * cells[c2]->get_area()/ap[c2];
             mdotfcorr[face->id] = rho*coeff*face->get_length()*(pcorr[c1]-pcorr[c2])/face->get_df();
-            mdotf[face->id] = mdotf[face->id] + relax_uv*mdotfcorr[face->id];
+            mdotf[face->id] = mdotf[face->id] + mdotfcorr[face->id];
         }
     }
 

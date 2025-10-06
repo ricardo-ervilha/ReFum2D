@@ -1,24 +1,29 @@
 #include "Mesh.h"
-#include "NSSolver2.h"
+#include "NSSolver.h"
 
 int main(int argc, char* argv[]) {
     Mesh m;
-    m.read_mesh("../inputs/regular/quad_30x30.msh");
+    m.read_mesh("../inputs/regular/quad_50x50.msh");
 
-    NSSolver2 solver(&m, 1e-2, 1.0, 0, 0);
+    NSSolver solver(&m, 1e-2, 1.0);
     
-    for(int i = 0; i < 20; i++){
-        solver.mom_links_and_sources();
-        cout << "x-mom\n";
-        solver.solve_x_mom(100000, 0.1, 1e-6);
-        cout << "y-mom\n";
-        solver.solve_y_mom(100000, 0.1, 1e-6);
+    for(int i = 0; i < 10; i++){
+        cout << "Calcula A_mom, b_mom_x e b_mom_y\n";
+        solver.mom_links_and_sources(0.8);
+        cout << "Resolve x_mom\n";
+        solver.solve_x_mom();
+        cout << "Resolve y_mom\n";
+        solver.solve_y_mom();
+        
+        cout << "Calcula velocidade nas faces\n";
         solver.face_velocity();
-        cout << "pressure\n";
-        solver.solve_pp(100, 1e-6);
-        solver.uv_correct(0.5);
-        solver.pres_correct(0.1);
+        cout << "Calcula pressure correction\n";
+        solver.solve_pp();
+        cout << "Atualiza velocidades\n";
+        solver.uv_correct();
+        cout << "Atualiza pressão\n";
+        solver.pres_correct(0.15);
     }
     
-    solver.export_solution("../outputs/solution.vtk");
+    solver.export_solution("../outputs/v_vector.vtk");
 }
