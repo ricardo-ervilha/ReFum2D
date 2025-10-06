@@ -13,11 +13,11 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
     int ncells = this->mesh->get_ncells();
     int nfaces = this->mesh->get_nedges();
 
-    this->A_mom = arma::mat(ncells, ncells);
+    this->A_mom = arma::sp_mat(ncells, ncells);
     this->b_mom_x = arma::vec(ncells, arma::fill::zeros);
     this->b_mom_y = arma::vec(ncells, arma::fill::zeros);
 
-    this->A_pc = arma::mat(ncells, ncells);
+    this->A_pc = arma::sp_mat(ncells, ncells);
     this->b_pc = arma::vec(ncells, arma::fill::zeros);
     
     // velocidades corrigidas nos centroides
@@ -58,7 +58,7 @@ NSSolver::~NSSolver(){
 
 void NSSolver::mom_links_and_sources(double lambda_v){
     vector<Cell*> cells = mesh->get_cells();
-    
+    A_mom.zeros();
     /*
     * * Convecção-difusão.
     */
@@ -70,7 +70,7 @@ void NSSolver::mom_links_and_sources(double lambda_v){
         vector<Edge*> faces = c->get_edges();
         
         // zera tudo
-        A_mom.row(ic).zeros();
+        // A_mom.row(ic).zeros();
         b_mom_x[ic] = 0;
         b_mom_y[ic] = 0;
         
@@ -147,12 +147,12 @@ void NSSolver::mom_links_and_sources(double lambda_v){
 }
 
 void NSSolver::solve_x_mom(){
-    uc = arma::solve(A_mom, b_mom_x);
+    uc = arma::spsolve(A_mom, b_mom_x);
 }
 
 
 void NSSolver::solve_y_mom(){
-    vc = arma::solve(A_mom, b_mom_y);
+    vc = arma::spsolve(A_mom, b_mom_y);
 }
 
 
@@ -242,10 +242,11 @@ void NSSolver::solve_pp(){
     }
         
    // Calcula coeficientes da A
+   A_pc.zeros();
    for(int i = 0; i < cells.size(); ++i){
         Cell* c = cells[i];
         int ic = c->id;
-        A_pc.row(ic).zeros();
+        // A_pc.row(ic).zeros();
 
         vector<Edge*> faces = c->get_edges();
         vector<int> &nsigns = c->get_nsigns();
@@ -266,7 +267,11 @@ void NSSolver::solve_pp(){
         }
     }
 
-    pcorr = arma::solve(A_pc, b_pc);
+    A_pc.row(0).zeros();
+    A_pc(0,0) = 1;
+    b_pc[0] = 0;
+    
+    pcorr = arma::spsolve(A_pc, b_pc);
 }
 
 

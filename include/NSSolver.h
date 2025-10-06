@@ -11,11 +11,11 @@ class NSSolver{
     private:
         Mesh *mesh;
         
-        arma::mat A_mom;
+        arma::sp_mat A_mom;
         arma::vec b_mom_x;
         arma::vec b_mom_y;
 
-        arma::mat A_pc;
+        arma::sp_mat A_pc;
         arma::vec b_pc; 
 
         float mu;

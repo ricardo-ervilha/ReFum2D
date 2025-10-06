@@ -3,13 +3,13 @@
 
 int main(int argc, char* argv[]) {
     Mesh m;
-    m.read_mesh("../inputs/regular/quad_50x50.msh");
+    m.read_mesh("../inputs/regular/quad_100x100.msh");
 
-    NSSolver solver(&m, 1e-2, 1.0);
+    NSSolver solver(&m, 1e-3, 1.0);
     
-    for(int i = 0; i < 10; i++){
+    for(int i = 0; i < 100; i++){
         cout << "Calcula A_mom, b_mom_x e b_mom_y\n";
-        solver.mom_links_and_sources(0.8);
+        solver.mom_links_and_sources(0.9);
         cout << "Resolve x_mom\n";
         solver.solve_x_mom();
         cout << "Resolve y_mom\n";
@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
         cout << "Atualiza velocidades\n";
         solver.uv_correct();
         cout << "Atualiza pressão\n";
-        solver.pres_correct(0.15);
+        solver.pres_correct(0.1);
     }
     
     solver.export_solution("../outputs/v_vector.vtk");
