@@ -25,6 +25,10 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
     this->vc = arma::vec(ncells, arma::fill::zeros);
     this->pc = arma::vec(ncells, arma::fill::zeros);
     
+    this->uc_aux = arma::vec(ncells, arma::fill::zeros);
+    this->vc_aux = arma::vec(ncells, arma::fill::zeros);
+    this->pc_aux = arma::vec(ncells, arma::fill::zeros);
+
     this->u_face = arma::vec(nfaces, arma::fill::zeros);
     this->v_face = arma::vec(nfaces, arma::fill::zeros);
     this->p_face = arma::vec(nfaces, arma::fill::zeros);
@@ -296,6 +300,8 @@ void NSSolver::uv_correct() {
     
     // Corrigindo valores das velocidades no centro
     vector<Cell*> cells = mesh->get_cells();
+    uc_aux = uc; // * salva valor antigo
+    vc_aux = vc; // * salva valor antigo
     for(int i = 0; i < cells.size(); i++){
         Cell* c = cells[i];
         int ic = c->id;
@@ -333,35 +339,40 @@ void NSSolver::uv_correct() {
         }
     }
 
-    double validation = 0;
-    for(int i = 0; i < cells.size(); ++i){
-        Cell* c = cells[i];
-        int ic = c->id;
+    cout << "Convergência de u: " << arma::norm(uc-uc_aux, "inf") << endl;
+    cout << "Convergência de v: " << arma::norm(vc-vc_aux, "inf") << endl;
+    // !Avalia continuidade
+    // double validation = 0;
+    // for(int i = 0; i < cells.size(); ++i){
+    //     Cell* c = cells[i];
+    //     int ic = c->id;
         
 
-        vector<Edge*> faces = c->get_edges();
-        vector<int> &nsigns = c->get_nsigns();
+    //     vector<Edge*> faces = c->get_edges();
+    //     vector<int> &nsigns = c->get_nsigns();
 
-        double sum_flux = 0;
+    //     double sum_flux = 0;
 
-        for(int j = 0; j < faces.size(); ++j){ // loop over faces of cell
-            int sign = nsigns[j];
-            Edge* face = faces[j];
-            sum_flux = sum_flux - mdotf[face->id] * sign; 
-        }
+    //     for(int j = 0; j < faces.size(); ++j){ // loop over faces of cell
+    //         int sign = nsigns[j];
+    //         Edge* face = faces[j];
+    //         sum_flux = sum_flux - mdotf[face->id] * sign; 
+    //     }
 
-        validation = validation + fabs(sum_flux);
-    }
-    cout << "# Continuidade: " << validation << endl;
+    //     validation = validation + fabs(sum_flux);
+    // }
+    // cout << "# Continuidade: " << validation << endl;
 };
 
 void NSSolver::pres_correct(double lambda_p) {
     vector<Cell*> cells = mesh->get_cells();
     
+    pc_aux = pc; // * salva valores antigos
     for(int i = 0; i < cells.size(); i++){
         int ic = cells[i]->id;
         pc[ic] = pc[ic] + lambda_p * pcorr[ic];
     }
+    cout << "Convergência de p: " << arma::norm(pc-pc_aux, "inf") << endl;
 };
 
 

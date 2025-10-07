@@ -28,6 +28,10 @@ class NSSolver{
         arma::vec uc;
         arma::vec vc;
         arma::vec pc;
+
+        arma::vec uc_aux;
+        arma::vec vc_aux;
+        arma::vec pc_aux;
         
         arma::vec mdotf;
 
