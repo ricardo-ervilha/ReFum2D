@@ -168,7 +168,7 @@ void NSSolver::mom_links_and_sources(double lambda_v){
                     b_mom_x[ic] = b_mom_x[ic] + u_face[idf].second * Df * normn1 - u_face[idf].second * mf;
                 
                 if(v_face[idf].first == DIRICHLET)
-                    b_mom_y[ic] = b_mom_y[ic] + v_face[idf].second * Df * normn1 - u_face[idf].second * mf;
+                    b_mom_y[ic] = b_mom_y[ic] + v_face[idf].second * Df * normn1 - v_face[idf].second * mf;
             }else{
                 int N = get_neighbor(face->get_link_face_to_cell(), ic);
                 pair<double,double>& centroidN = cells[N]->get_centroid();
@@ -202,6 +202,8 @@ void NSSolver::mom_links_and_sources(double lambda_v){
             int neighbor = ic1 != -1 ? ic1 : ic2;
             if(p_face_bc[idf].first == NEUMANN) // SÉRIE DE TAYLOR
                 p_face[idf] = pc[neighbor] + p_face_bc[idf].second * face->get_df();
+            else if(p_face_bc[idf].first == DIRICHLET)
+                p_face[idf] = p_face_bc[idf].second; // VALOR PRESCRITO
         }else{
             p_face[idf] = wf[idf] * pc[ic1] + (1-wf[idf]) * pc[ic2];
         }
@@ -308,29 +310,31 @@ arma::vec NSSolver::cross_diffusion(char var, arma::mat gradients){
 }
 
 void NSSolver::solve_x_mom(){
-    arma::mat gradients;
-    arma::vec s_cd;
-    for(int i = 0; i < 1; i++){
-        cout << "Gradient\n";
-        gradients = gradient_reconstruction('u');
-        cout << "CD\n";
-        s_cd = cross_diffusion('u', gradients);
-        cout << s_cd << endl;
-        uc = arma::spsolve(A_mom, b_mom_x + s_cd);
-    }
+    // arma::mat gradients;
+    // arma::vec s_cd;
+    // for(int i = 0; i < 1; i++){
+    //     cout << "Gradient\n";
+    //     gradients = gradient_reconstruction('u');
+    //     cout << "CD\n";
+    //     s_cd = cross_diffusion('u', gradients);
+    //     cout << s_cd << endl;
+    //     uc = arma::spsolve(A_mom, b_mom_x + s_cd);
+    // }
+    uc = arma::spsolve(A_mom, b_mom_x);
 }
 
 
 void NSSolver::solve_y_mom(){
-    arma::mat gradients;
-    arma::vec s_cd;
-    for(int i = 0; i < 1; i++){
-        cout << "Gradient\n";
-        gradients = gradient_reconstruction('v');
-        cout << "CD\n";
-        s_cd = cross_diffusion('v', gradients);
-        vc = arma::spsolve(A_mom, b_mom_y + s_cd);
-    }
+    // arma::mat gradients;
+    // arma::vec s_cd;
+    // for(int i = 0; i < 1; i++){
+    //     cout << "Gradient\n";
+    //     gradients = gradient_reconstruction('v');
+    //     cout << "CD\n";
+    //     s_cd = cross_diffusion('v', gradients);
+    //     vc = arma::spsolve(A_mom, b_mom_y + s_cd);
+    // }
+    vc = arma::spsolve(A_mom, b_mom_y);
 }
 
 
@@ -434,7 +438,10 @@ void NSSolver::solve_pp(){
             Edge* face = faces[j];
             int idf = face->id;
 
-            if(face->is_boundary_face()) continue;
+            if(face->is_boundary_face()){
+                if(p_face_bc[idf].first == DIRICHLET)
+                    A_pc(ic,ic) = A_pc(ic,ic) + rho * face->get_length() * (cells[ic]->get_area()/ap[ic]);
+            }
             else{
                 int N = get_neighbor(face->get_link_face_to_cell(), ic);
                 
@@ -468,6 +475,8 @@ void NSSolver::uv_correct() {
             int neighbor = ic1 != -1 ? ic1 : ic2;
             if(p_face_bc[idf].first == NEUMANN)
                 pfcorr[idf] = pcorr[neighbor] + p_face_bc[idf].second * face->get_df();
+            else if(p_face_bc[idf].first == DIRICHLET)
+                pfcorr[idf] = 0; // valor de p já está definido
         }else{
             pfcorr[idf] = wf[idf] * pcorr[ic1] + (1-wf[idf]) * pcorr[ic2];
         }

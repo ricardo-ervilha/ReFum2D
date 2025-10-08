@@ -103,7 +103,7 @@ void Mesh::read_mesh(string filepath){
                 istringstream iss(line);
                 int totalElements;
                 iss >> totalElements;
-
+                
                 for(int i = 0; i < totalElements; i++){
                     getline(file, line);
                     istringstream iss(line);
