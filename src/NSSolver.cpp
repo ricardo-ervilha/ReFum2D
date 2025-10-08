@@ -3,6 +3,7 @@
 #include "Edge.h"
 #include "Cell.h"
 #include "BoundaryCondition.h"
+#include "utils.h"
 
 NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
     this->mesh = mesh;
@@ -54,10 +55,39 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
             u_face[face->id] = 1.0; 
         }
     }
+
+    this->wf = arma::vec(nfaces, arma::fill::zeros);
+    this->compute_wf();
 }   
 
 NSSolver::~NSSolver(){
     // nada.
+}
+
+/*
+* * Interpolação centrada baseada na distancia dos centroides para o centro da face.
+*/
+void NSSolver::compute_wf(){
+    vector<Cell*> cells = mesh->get_cells();
+    vector<Edge*> faces = mesh->get_edges();
+    for(int i = 0; i < faces.size(); i++){
+        Edge* face = faces[i];
+        int idf = face->id;
+        if(!face->is_boundary_face()){
+            pair<int,int> nodes_share_face = face->get_link_face_to_cell();
+            
+            int ic1 = nodes_share_face.first;
+            int ic2 = nodes_share_face.second;
+            
+            Cell* cell1 = cells[ic1];
+            Cell* cell2 = cells[ic2];
+            
+            double d1 = distance(cell1->get_centroid().first, cell1->get_centroid().second, face->get_middle().first, face->get_middle().second);
+            double d2 = distance(cell2->get_centroid().first, cell2->get_centroid().second, face->get_middle().first, face->get_middle().second);
+
+            wf[idf] = d2/(d1+d2);
+        }
+    }
 }
 
 void NSSolver::mom_links_and_sources(double lambda_v){
@@ -120,7 +150,7 @@ void NSSolver::mom_links_and_sources(double lambda_v){
             int neighbor = ic1 != -1 ? ic1 : ic2;
             p_face[idf] = pc[neighbor];
         }else{
-            p_face[idf] = 0.5 * (pc[ic1] + pc[ic2]);
+            p_face[idf] = wf[idf] * pc[ic1] + (1-wf[idf]) * pc[ic2];
         }
     }
 
@@ -177,8 +207,8 @@ void NSSolver::face_velocity(){
             int c1 = nodes_share_face.first;
             int c2 = nodes_share_face.second;
 
-            double velf_x = 0.5*uc[c1] + 0.5*uc[c2];
-            double velf_y = 0.5*vc[c1] + 0.5*vc[c2];
+            double velf_x = wf[idf]*uc[c1] + (1-wf[idf]) * uc[c2];
+            double velf_y = wf[idf]*vc[c1] + (1-wf[idf]) * vc[c2];
             double vel_f_i = velf_x * face->get_normal().first + velf_y * face->get_normal().second;
 
             double v0dp0_x = 0;
@@ -207,12 +237,12 @@ void NSSolver::face_velocity(){
                 v1dp1_y = v1dp1_y + p_face[faceC2->id] * faceC2->get_length() * faceC2->get_normal().second * nsign;
             }
             
-            velf_x = 0.5 * v0dp0_x/ap[c1] + 0.5 * v1dp1_x/ap[c2];
-            velf_y = 0.5 * v0dp0_y/ap[c1] + 0.5 * v1dp1_y/ap[c2];
+            velf_x = wf[idf] * v0dp0_x/ap[c1] + (1-wf[idf]) * v1dp1_x/ap[c2];
+            velf_y = wf[idf] * v0dp0_y/ap[c1] + (1-wf[idf]) * v1dp1_y/ap[c2];
             
             double velf_p = velf_x * face->get_normal().first + velf_y * face->get_normal().second;
             
-            double vdotn = vel_f_i + velf_p - (0.5*cells[c1]->get_area()/ap[c1] + 0.5*cells[c2]->get_area()/ap[c2]) * (pc[c2] - pc[c1])/face->get_df();
+            double vdotn = vel_f_i + velf_p - (wf[idf]*cells[c1]->get_area()/ap[c1] + (1-wf[idf])*cells[c2]->get_area()/ap[c2]) * (pc[c2] - pc[c1])/face->get_df();
             
             mdotf[face->id] = vdotn * rho * face->get_length();
         }
@@ -264,9 +294,9 @@ void NSSolver::solve_pp(){
             else{
                 int N = get_neighbor(face->get_link_face_to_cell(), ic);
                 
-                A_pc(ic,ic) = A_pc(ic,ic) + rho * face->get_length() * (0.5 * cells[ic]->get_area()/ap[ic] + 0.5 * cells[N]->get_area()/ap[N])/face->get_df();
+                A_pc(ic,ic) = A_pc(ic,ic) + rho * face->get_length() * (wf[idf] * cells[ic]->get_area()/ap[ic] + (1-wf[idf]) * cells[N]->get_area()/ap[N])/face->get_df();
 
-                A_pc(ic, N) = -rho * face->get_length() * (0.5 * cells[ic]->get_area()/ap[ic] + 0.5 * cells[N]->get_area()/ap[N])/face->get_df();
+                A_pc(ic, N) = -rho * face->get_length() * (wf[idf] * cells[ic]->get_area()/ap[ic] + (1-wf[idf]) * cells[N]->get_area()/ap[N])/face->get_df();
             }
         }
     }
@@ -294,7 +324,7 @@ void NSSolver::uv_correct() {
             int neighbor = ic1 != -1 ? ic1 : ic2;
             pfcorr[idf] = pcorr[neighbor];
         }else{
-            pfcorr[idf] = 0.5 * (pcorr[ic1] + pcorr[ic2]);
+            pfcorr[idf] = wf[idf] * pcorr[ic1] + (1-wf[idf]) * pcorr[ic2];
         }
     }
     
@@ -327,41 +357,21 @@ void NSSolver::uv_correct() {
     // Corrigindo valores das velocidades nas faces
     for(int i = 0; i < faces.size(); i++){
         Edge* face = faces[i];
+        int idf = face->id;
         if(face->is_boundary_face()) continue;
         else{
             pair<int,int> nodes_share_face = face->get_link_face_to_cell();
             int c1 = nodes_share_face.first;
             int c2 = nodes_share_face.second;
 
-            double coeff = 0.5*cells[c1]->get_area()/ap[c1] + 0.5 * cells[c2]->get_area()/ap[c2];
-            mdotfcorr[face->id] = rho*coeff*face->get_length()*(pcorr[c1]-pcorr[c2])/face->get_df();
-            mdotf[face->id] = mdotf[face->id] + mdotfcorr[face->id];
+            double coeff = wf[idf]*cells[c1]->get_area()/ap[c1] + (1-wf[idf]) * cells[c2]->get_area()/ap[c2];
+            mdotfcorr[idf] = rho*coeff*face->get_length()*(pcorr[c1]-pcorr[c2])/face->get_df();
+            mdotf[idf] = mdotf[idf] + mdotfcorr[idf];
         }
     }
 
-    cout << "Convergência de u: " << arma::norm(uc-uc_aux, "inf") << endl;
-    cout << "Convergência de v: " << arma::norm(vc-vc_aux, "inf") << endl;
-    // !Avalia continuidade
-    // double validation = 0;
-    // for(int i = 0; i < cells.size(); ++i){
-    //     Cell* c = cells[i];
-    //     int ic = c->id;
-        
-
-    //     vector<Edge*> faces = c->get_edges();
-    //     vector<int> &nsigns = c->get_nsigns();
-
-    //     double sum_flux = 0;
-
-    //     for(int j = 0; j < faces.size(); ++j){ // loop over faces of cell
-    //         int sign = nsigns[j];
-    //         Edge* face = faces[j];
-    //         sum_flux = sum_flux - mdotf[face->id] * sign; 
-    //     }
-
-    //     validation = validation + fabs(sum_flux);
-    // }
-    // cout << "# Continuidade: " << validation << endl;
+    cout << "# Convergência de u: " << arma::norm(uc-uc_aux, "inf") << endl;
+    cout << "# Convergência de v: " << arma::norm(vc-vc_aux, "inf") << endl;
 };
 
 void NSSolver::pres_correct(double lambda_p) {
@@ -372,7 +382,7 @@ void NSSolver::pres_correct(double lambda_p) {
         int ic = cells[i]->id;
         pc[ic] = pc[ic] + lambda_p * pcorr[ic];
     }
-    cout << "Convergência de p: " << arma::norm(pc-pc_aux, "inf") << endl;
+    cout << "# Convergência de p: " << arma::norm(pc-pc_aux, "inf") << endl;
 };
 
 

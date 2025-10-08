@@ -42,6 +42,9 @@ class NSSolver{
 
         arma::vec ucorr;
         arma::vec vcorr;
+
+        arma::vec wf;
+        void compute_wf();
     public:
         NSSolver(Mesh *mesh, float mu, float rho);
         ~NSSolver();
