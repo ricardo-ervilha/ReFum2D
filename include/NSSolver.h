@@ -64,6 +64,10 @@ class NSSolver{
         void uv_correct();
         void pres_correct(double lambda_p);
 
+        arma::mat gradient_reconstruction(char var);
+        pair<double,double> compute_n1(pair<double,double>& p, pair<double,double>& n, pair<double,double>& normal);
+        arma::vec cross_diffusion(char var, arma::mat gradients);
+
         void export_solution(string filename);
 };
 

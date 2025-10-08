@@ -151,21 +151,33 @@ void NSSolver::mom_links_and_sources(double lambda_v){
             int nsign = nsigns[j];
    
             double Df = (mu * face->get_length()) / face->get_df();
-            double mf = mdotf[idf] * nsign;            
+            double mf = mdotf[idf] * nsign;    
+            
+            pair<double, double> &middleFace = face->get_middle();
+            pair<double, double> &normal = face->get_normal();
+            pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
             
             if(face->is_boundary_face()){
                 // * Se uma face é de contorno, então ela tem valor prescrito de velocidade => Mas, a velocidade produto escalar normal nos contornos é sempre zero, então o termo advectivo cancela => Soma difusão no aP e passsa pro outro lado difusão pro termo fonte.
                 A_mom(ic, ic) = A_mom(ic,ic) + Df;
 
+                pair<double,double> n1 = compute_n1(c->get_centroid(), middleFace, normal_corrected);
+                double normn1 = sqrt(n1.first * n1.first + n1.second * n1.second); // |n1|
+
                 if(u_face[idf].first == DIRICHLET)
-                    b_mom_x[ic] = b_mom_x[ic] + u_face[idf].second * Df - u_face[idf].second * mf;
+                    b_mom_x[ic] = b_mom_x[ic] + u_face[idf].second * Df * normn1 - u_face[idf].second * mf;
                 
                 if(v_face[idf].first == DIRICHLET)
-                    b_mom_y[ic] = b_mom_y[ic] + v_face[idf].second * Df - u_face[idf].second * mf;
+                    b_mom_y[ic] = b_mom_y[ic] + v_face[idf].second * Df * normn1 - u_face[idf].second * mf;
             }else{
                 int N = get_neighbor(face->get_link_face_to_cell(), ic);
-                A_mom(ic,ic) = A_mom(ic,ic) + Df + max(mf, 0.0);
-                A_mom(ic,N) = -Df - max(-mf,0.0);
+                pair<double,double>& centroidN = cells[N]->get_centroid();
+                pair<double,double> n1 = compute_n1(c->get_centroid(), centroidN, normal_corrected);
+
+                double norm_n1 = sqrt(n1.first * n1.first + n1.second * n1.second); // + |n1|
+                
+                A_mom(ic,ic) = A_mom(ic,ic) + Df * norm_n1 + max(mf, 0.0);
+                A_mom(ic,N) = -Df * norm_n1 - max(-mf,0.0);
             }
         }
 
@@ -221,13 +233,104 @@ void NSSolver::mom_links_and_sources(double lambda_v){
     }
 }
 
+arma::vec NSSolver::cross_diffusion(char var, arma::mat gradients){
+    vector<Cell*> cells = mesh->get_cells();
+
+    arma::vec phi;
+    vector<pair<BoundaryType, double>> phif;
+    arma::vec source_cross_diffusion = arma::vec(cells.size(), arma::fill::zeros);
+    if(var == 'u')
+    {
+        phi = uc;
+        phif = u_face;
+    }else if(var == 'v'){
+        phi = vc;
+        phif = v_face;
+    }
+
+    for(int i = 0; i < cells.size(); i++){ 
+        vector<Edge*> facesOfCell = cells[i]->get_edges();
+        vector<int>& nsigns = cells[i]->get_nsigns();
+        pair<double,double>& centroidP = cells[i]->get_centroid();
+
+        for(int j = 0; j < facesOfCell.size(); j++){
+            Edge* e = facesOfCell[j];
+            int idf = e->id;
+            
+            int nsign = nsigns[j];
+
+            pair<double, double> &middleFace = e->get_middle();
+            pair<double, double>& normal = e->get_normal();
+            pair<double,double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);    
+
+            if(e->is_boundary_face()){
+                 
+                if(phif[idf].first == DIRICHLET){
+                    pair<double,double> n1 = compute_n1(centroidP, middleFace, normal_corrected);
+
+                    // + encontrando o n2: n1 + n2 = nf => n2 = nf - n1
+                    double n2x = normal_corrected.first - n1.first;
+                    double n2y = normal_corrected.second - n1.second;
+
+                    // estou assumindo que o gradiente da face é o gradiente da celula.
+                    double graddotnormal = gradients(i,0) * n2x + gradients(i,1) * n2y;
+
+                    source_cross_diffusion[i] += (mu * e->get_length() * graddotnormal);
+                }else {
+                    // * não precisa tratar
+                }
+            }else{
+                int nb = get_neighbor(e->get_link_face_to_cell(), cells[i]->id);
+                pair<double,double>& centroidN = cells[nb]->get_centroid(); // centroide do vizinho
+
+                pair<double,double> n1 = compute_n1(centroidP, centroidN, normal_corrected);
+
+                double n2x = normal_corrected.first - n1.first;
+                double n2y = normal_corrected.second - n1.second;
+
+                /*Calculo da distancia de P até center(gface) & N até center(gface)*/
+                pair<double,double>& midFace = facesOfCell[j]->get_middle();
+                double d1 = distance(centroidP.first, centroidP.second, midFace.first, midFace.second);
+                double d2 = distance(centroidN.first, centroidN.second, midFace.first, midFace.second);
+                
+                // + Interpolação do gradiente da face
+                double gradx = (gradients(i,0)*d2 + gradients(nb,0)*d1)/(d1+d2);
+                double grady = (gradients(i,1)*d2 + gradients(nb,1)*d1)/(d1+d2);
+
+                double graddotnormal = gradx * n2x + grady * n2y;
+
+                source_cross_diffusion[i] += mu * facesOfCell[j]->get_length() * graddotnormal;
+            }
+        }
+    }
+
+    return source_cross_diffusion;
+}
+
 void NSSolver::solve_x_mom(){
-    uc = arma::spsolve(A_mom, b_mom_x);
+    arma::mat gradients;
+    arma::vec s_cd;
+    for(int i = 0; i < 1; i++){
+        cout << "Gradient\n";
+        gradients = gradient_reconstruction('u');
+        cout << "CD\n";
+        s_cd = cross_diffusion('u', gradients);
+        cout << s_cd << endl;
+        uc = arma::spsolve(A_mom, b_mom_x + s_cd);
+    }
 }
 
 
 void NSSolver::solve_y_mom(){
-    vc = arma::spsolve(A_mom, b_mom_y);
+    arma::mat gradients;
+    arma::vec s_cd;
+    for(int i = 0; i < 1; i++){
+        cout << "Gradient\n";
+        gradients = gradient_reconstruction('v');
+        cout << "CD\n";
+        s_cd = cross_diffusion('v', gradients);
+        vc = arma::spsolve(A_mom, b_mom_y + s_cd);
+    }
 }
 
 
@@ -493,65 +596,98 @@ void NSSolver::export_solution(string filename){
     vtk_file.close();
 }
 
-// arma::mat gradient_reconstruction(Mesh* m, arma::vec phi){
-//     vector<Cell*>& cells = m->get_cells();
-//     arma::mat gradients_phi = arma::mat(cells.size(), 2, arma::fill::zeros);
+arma::mat NSSolver::gradient_reconstruction(char var){
+    vector<Cell*>& cells = mesh->get_cells();
+    arma::mat gradients_phi(cells.size(), 2);
+    arma::vec phi;
+    vector<pair<BoundaryType, double>> phif;
+    if(var == 'u')
+    {
+        phi = uc;
+        phif = u_face;
+    }else if(var == 'v'){
+        phi = vc;
+        phif = v_face;
+    }
+    
+    for(int i = 0; i < cells.size(); i++){ 
 
-//     for(int i = 0; i < cells.size(); i++){ 
+        Cell *c = cells[i];
 
-//         Cell *c = cells[i];
+        vector<Edge*>& edgesOfCell = c->get_edges();
+        pair<double,double>& centroidP = c->get_centroid();
 
-//         vector<Edge*>& edgesOfCell = c->get_edges();
-//         pair<double,double>& centroidP = c->get_centroid();
-
-//         // criação da Matriz M e do vetor y.
-//         arma::mat M(edgesOfCell.size(), 2);
-//         arma::vec y(edgesOfCell.size());
+        // criação da Matriz M e do vetor y.
+        arma::mat M(edgesOfCell.size(), 2);
+        arma::vec y(edgesOfCell.size());
         
-//         for(int j = 0; j < edgesOfCell.size(); j++){
-//             Edge* e = edgesOfCell[j];
+        for(int j = 0; j < edgesOfCell.size(); j++){
+            Edge* e = edgesOfCell[j];
+            int idf = e->id;
             
-//             // # meio da face
-//             pair<double, double> &middleFace = e->get_middle();
+            // # meio da face
+            pair<double, double> &middleFace = e->get_middle();
             
-//             if(e->is_boundary_face()){
-//                 BoundaryLocation local = BoundaryCondition::find_location(e);
-//                 BoundaryType bt = solver->boundaries[local]->get_type();
-//                 double bound_value = solver->boundaries[local]->apply(middleFace.first, middleFace.second);
+            if(e->is_boundary_face()){
             
-//                 if(bt == DIRICHLET){
-//                     double dx = middleFace.first - centroidP.first;
-//                     double dy = middleFace.second - centroidP.second;
-//                     // + [dx dy]
-//                     M(j,0) = dx;
-//                     M(j, 1) = dy;
+                if(phif[idf].first == DIRICHLET){
+                    double dx = middleFace.first - centroidP.first;
+                    double dy = middleFace.second - centroidP.second;
+                    // + [dx dy]
+                    M(j,0) = dx;
+                    M(j, 1) = dy;
 
-//                      // + [u_B - u_P]
-//                     BoundaryLocation local = BoundaryCondition::find_location(edgesOfCell[j]);
-//                     y[j] = bound_value - solver->u_new[i];  
+                     // + [u_B - u_P]
+                    BoundaryLocation local = BoundaryCondition::find_location(edgesOfCell[j]);
+                    y[j] = phif[idf].second - phi[i];  
 
-//                 }else if(bt == NEUMANN){
-//                     // * No caso de neumann já tem o gradiente...
-//                 }
-//             }else{
-//                 int nb = get_neighbor(e->get_link_face_to_cell(), c->id);
-//                 pair<double,double>& centroidN = cells[nb]->get_centroid();
+                }else{
+                    // * No caso de neumann já tem o gradiente...
+                }
+            }else{
+                int nb = get_neighbor(e->get_link_face_to_cell(), c->id);
+                pair<double,double>& centroidN = cells[nb]->get_centroid();
 
-//                 double dx = centroidN.first - centroidP.first;
-//                 double dy = centroidN.second - centroidP.second;
+                double dx = centroidN.first - centroidP.first;
+                double dy = centroidN.second - centroidP.second;
                 
-//                 // + [dx dy]
-//                 M(j,0) = dx;
-//                 M(j, 1) = dy;
+                // + [dx dy]
+                M(j,0) = dx;
+                M(j, 1) = dy;
 
-//                 // + [u_N - u_P]
-//                 y[j] = solver->u_new[nb] - solver->u_new[i];  
-//             }
-//         }
+                // + [u_N - u_P]
+                y[j] = phi[nb] - phi[i];  
+            }
+        }
         
-//         // + Resolve sistema sobre-determinado M x = y.
-//         arma::vec x = arma::solve(M, y);
-//         this->solver->gradients(i,0) = x[0];
-//         this->solver->gradients(i,1) = x[1];
-//     }
-// }
+        // + Resolve sistema sobre-determinado M x = y.
+        arma::vec x = arma::solve(M, y);
+        gradients_phi(i,0) = x[0];
+        gradients_phi(i,1) = x[1];
+    }
+
+    return gradients_phi;
+}
+
+/**
+ * * Função para descobrir o vetor n1
+ * @param: p é a celula que está sendo avaliada
+ * @param: n é a celula vizinha
+ * @param: normal é a normal da face apontando para fora da célula
+ */
+pair<double,double> NSSolver::compute_n1(pair<double,double>& p, pair<double,double>& n, pair<double,double>& normal){
+    /* vetor que une P e N */
+    pair<double,double> dpn = make_pair(n.first - p.first, n.second - p.second);
+    
+    /* norma do vetor normal */
+    double norm_normal_square = normal.first*normal.first + normal.second*normal.second; // |nf|²
+    
+    /* produto escalar entre normal e dpn -> nf . dpn*/
+    double nfdotdpn = normal.first*dpn.first + normal.second*dpn.second; 
+    
+    /* n_1 = dPN * (|n_f|^2 / (n_f . dPN))*/
+    double n1x = dpn.first * (norm_normal_square/nfdotdpn);
+    double n1y = dpn.second * (norm_normal_square/nfdotdpn);
+
+    return make_pair(n1x, n1y);
+}
