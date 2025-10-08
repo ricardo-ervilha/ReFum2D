@@ -2,13 +2,29 @@
 #include "Mesh.h"
 #include "Edge.h"
 #include "Cell.h"
-#include "BoundaryCondition.h"
 #include "utils.h"
 
-NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
+NSSolver::NSSolver(Mesh *mesh, float mu, float rho, BoundaryCondition *bc1, BoundaryCondition* bc2, BoundaryCondition* bc3, BoundaryCondition *bc4, BoundaryCondition *bc5, BoundaryCondition* bc6, BoundaryCondition* bc7, BoundaryCondition *bc8, BoundaryCondition *bc9, BoundaryCondition* bc10, BoundaryCondition* bc11, BoundaryCondition *bc12){
     this->mesh = mesh;
     this->mu = mu;
     this->rho = rho;
+
+    this->u_bcs.emplace(bc1->get_location(), bc1);
+    this->u_bcs.emplace(bc2->get_location(), bc2);
+    this->u_bcs.emplace(bc3->get_location(), bc3);
+    this->u_bcs.emplace(bc4->get_location(), bc4);
+
+    this->v_bcs.emplace(bc5->get_location(), bc5);
+    this->v_bcs.emplace(bc6->get_location(), bc6);
+    this->v_bcs.emplace(bc7->get_location(), bc7);
+    this->v_bcs.emplace(bc8->get_location(), bc8);
+
+    this->p_bcs.emplace(bc9->get_location(), bc9);
+    this->p_bcs.emplace(bc10->get_location(), bc10);
+    this->p_bcs.emplace(bc11->get_location(), bc11);
+    this->p_bcs.emplace(bc12->get_location(), bc12);
+
+    BoundaryCondition::apply_mins_maxs(mesh->get_xmin(), mesh->get_xmax(), mesh->get_ymin(), mesh->get_ymax());
 
     // ! Inicialização de todas as variáveis que NSSolver guarda.
     int ncells = this->mesh->get_ncells();
@@ -20,6 +36,7 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
 
     this->A_pc = arma::sp_mat(ncells, ncells);
     this->b_pc = arma::vec(ncells, arma::fill::zeros);
+    this->p_face = arma::vec(nfaces, arma::fill::zeros);
     
     // velocidades corrigidas nos centroides
     this->uc = arma::vec(ncells, arma::fill::zeros);
@@ -29,10 +46,6 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
     this->uc_aux = arma::vec(ncells, arma::fill::zeros);
     this->vc_aux = arma::vec(ncells, arma::fill::zeros);
     this->pc_aux = arma::vec(ncells, arma::fill::zeros);
-
-    this->u_face = arma::vec(nfaces, arma::fill::zeros);
-    this->v_face = arma::vec(nfaces, arma::fill::zeros);
-    this->p_face = arma::vec(nfaces, arma::fill::zeros);
     
     this->mdotf = arma::vec(nfaces, arma::fill::zeros);
     this->ap = arma::vec(ncells, arma::fill::zeros);
@@ -46,22 +59,45 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
     
     // =======================================================================================
 
-    // TODO: Preenche boundary top do lid-driven cavity flow.
-    vector<Edge*> faces = mesh->get_edges();
-    for(int i = 0; i < nfaces; i++){
-        Edge* face = faces[i];
-        if(face->from->y == 1.0 && face->to->y == 1.0){
-            // Top 
-            u_face[face->id] = 1.0; 
-        }
-    }
-
     this->wf = arma::vec(nfaces, arma::fill::zeros);
     this->compute_wf();
+    this->compute_bc();
 }   
 
 NSSolver::~NSSolver(){
     // nada.
+}
+
+void NSSolver::compute_bc(){
+    /*Trata somente U e V.*/
+    vector<Edge*> faces = mesh->get_edges();
+    for(int i = 0; i < faces.size(); i++){
+        Edge* face = faces[i];
+        pair<double,double> middleFace = face->get_middle();
+        if(face->is_boundary_face()){
+            // acha o local
+            BoundaryLocation local = BoundaryCondition::find_location(face);
+            
+            // tipo e valor p/ u velocidade
+            BoundaryType bt_u = u_bcs[local]->get_type();
+            double bv_u = u_bcs[local]->apply(middleFace.first, middleFace.second);
+            u_face.push_back({bt_u, bv_u});
+
+            // tipo e valor p/ v velocidade
+            BoundaryType bt_v = v_bcs[local]->get_type();
+            double bv_v = v_bcs[local]->apply(middleFace.first, middleFace.second);
+            v_face.push_back({bt_v, bv_v});
+
+            // tipo e valor p/ pressão
+            BoundaryType bt_p = p_bcs[local]->get_type();
+            double bv_p = p_bcs[local]->apply(middleFace.first, middleFace.second);
+            p_face_bc.push_back({bt_p, bv_p});
+        }else{
+            u_face.push_back({NONE, 0.0});
+            v_face.push_back({NONE, 0.0});
+            p_face_bc.push_back({NONE, 0.0});
+        }
+    }
 }
 
 /*
@@ -120,8 +156,12 @@ void NSSolver::mom_links_and_sources(double lambda_v){
             if(face->is_boundary_face()){
                 // * Se uma face é de contorno, então ela tem valor prescrito de velocidade => Mas, a velocidade produto escalar normal nos contornos é sempre zero, então o termo advectivo cancela => Soma difusão no aP e passsa pro outro lado difusão pro termo fonte.
                 A_mom(ic, ic) = A_mom(ic,ic) + Df;
-                b_mom_x[ic] = b_mom_x[ic] + u_face[idf] * Df;
-                b_mom_y[ic] = b_mom_y[ic] + v_face[idf] * Df;
+
+                if(u_face[idf].first == DIRICHLET)
+                    b_mom_x[ic] = b_mom_x[ic] + u_face[idf].second * Df - u_face[idf].second * mf;
+                
+                if(v_face[idf].first == DIRICHLET)
+                    b_mom_y[ic] = b_mom_y[ic] + v_face[idf].second * Df - u_face[idf].second * mf;
             }else{
                 int N = get_neighbor(face->get_link_face_to_cell(), ic);
                 A_mom(ic,ic) = A_mom(ic,ic) + Df + max(mf, 0.0);
@@ -148,7 +188,8 @@ void NSSolver::mom_links_and_sources(double lambda_v){
 
         if(face->is_boundary_face()){
             int neighbor = ic1 != -1 ? ic1 : ic2;
-            p_face[idf] = pc[neighbor];
+            if(p_face_bc[idf].first == NEUMANN) // SÉRIE DE TAYLOR
+                p_face[idf] = pc[neighbor] + p_face_bc[idf].second * face->get_df();
         }else{
             p_face[idf] = wf[idf] * pc[ic1] + (1-wf[idf]) * pc[ic2];
         }
@@ -322,7 +363,8 @@ void NSSolver::uv_correct() {
 
         if(face->is_boundary_face()){
             int neighbor = ic1 != -1 ? ic1 : ic2;
-            pfcorr[idf] = pcorr[neighbor];
+            if(p_face_bc[idf].first == NEUMANN)
+                pfcorr[idf] = pcorr[neighbor] + p_face_bc[idf].second * face->get_df();
         }else{
             pfcorr[idf] = wf[idf] * pcorr[ic1] + (1-wf[idf]) * pcorr[ic2];
         }
@@ -450,3 +492,66 @@ void NSSolver::export_solution(string filename){
 
     vtk_file.close();
 }
+
+// arma::mat gradient_reconstruction(Mesh* m, arma::vec phi){
+//     vector<Cell*>& cells = m->get_cells();
+//     arma::mat gradients_phi = arma::mat(cells.size(), 2, arma::fill::zeros);
+
+//     for(int i = 0; i < cells.size(); i++){ 
+
+//         Cell *c = cells[i];
+
+//         vector<Edge*>& edgesOfCell = c->get_edges();
+//         pair<double,double>& centroidP = c->get_centroid();
+
+//         // criação da Matriz M e do vetor y.
+//         arma::mat M(edgesOfCell.size(), 2);
+//         arma::vec y(edgesOfCell.size());
+        
+//         for(int j = 0; j < edgesOfCell.size(); j++){
+//             Edge* e = edgesOfCell[j];
+            
+//             // # meio da face
+//             pair<double, double> &middleFace = e->get_middle();
+            
+//             if(e->is_boundary_face()){
+//                 BoundaryLocation local = BoundaryCondition::find_location(e);
+//                 BoundaryType bt = solver->boundaries[local]->get_type();
+//                 double bound_value = solver->boundaries[local]->apply(middleFace.first, middleFace.second);
+            
+//                 if(bt == DIRICHLET){
+//                     double dx = middleFace.first - centroidP.first;
+//                     double dy = middleFace.second - centroidP.second;
+//                     // + [dx dy]
+//                     M(j,0) = dx;
+//                     M(j, 1) = dy;
+
+//                      // + [u_B - u_P]
+//                     BoundaryLocation local = BoundaryCondition::find_location(edgesOfCell[j]);
+//                     y[j] = bound_value - solver->u_new[i];  
+
+//                 }else if(bt == NEUMANN){
+//                     // * No caso de neumann já tem o gradiente...
+//                 }
+//             }else{
+//                 int nb = get_neighbor(e->get_link_face_to_cell(), c->id);
+//                 pair<double,double>& centroidN = cells[nb]->get_centroid();
+
+//                 double dx = centroidN.first - centroidP.first;
+//                 double dy = centroidN.second - centroidP.second;
+                
+//                 // + [dx dy]
+//                 M(j,0) = dx;
+//                 M(j, 1) = dy;
+
+//                 // + [u_N - u_P]
+//                 y[j] = solver->u_new[nb] - solver->u_new[i];  
+//             }
+//         }
+        
+//         // + Resolve sistema sobre-determinado M x = y.
+//         arma::vec x = arma::solve(M, y);
+//         this->solver->gradients(i,0) = x[0];
+//         this->solver->gradients(i,1) = x[1];
+//     }
+// }

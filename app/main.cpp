@@ -1,13 +1,37 @@
 #include "Mesh.h"
 #include "NSSolver.h"
+#include "BoundaryCondition.h"
 
 int main(int argc, char* argv[]) {
     Mesh m;
-    m.read_mesh("../inputs/regular/quad_100x100.msh");
-
-    NSSolver solver(&m, 1e-3, 1.0);
+    m.read_mesh("../inputs/1026tri.msh");
     
-    for(int i = 0; i < 600; i++){
+    auto lid = [](double x, double y) {
+        return 1.0;
+    };
+    auto zero = [](double x, double y) {
+        return 0.0;
+    };
+
+    BoundaryCondition uDown(DIRICHLET, DOWN, zero, u);
+    BoundaryCondition uRight(DIRICHLET, RIGHT, zero, u);
+    BoundaryCondition uTop(DIRICHLET, TOP, lid, u);
+    BoundaryCondition uLeft(DIRICHLET, LEFT, zero, u);
+
+    BoundaryCondition vDown(DIRICHLET, DOWN, zero, v);
+    BoundaryCondition vRight(DIRICHLET, RIGHT, zero, v);
+    BoundaryCondition vTop(DIRICHLET, TOP, zero, v);
+    BoundaryCondition vLeft(DIRICHLET, LEFT, zero, v);
+
+    BoundaryCondition pDown(NEUMANN, DOWN, zero, p);
+    BoundaryCondition pRight(NEUMANN, RIGHT, zero, p);
+    BoundaryCondition pTop(NEUMANN, TOP, zero, p);
+    BoundaryCondition pLeft(NEUMANN, LEFT, zero, p);
+    
+    
+    NSSolver solver(&m, 1e-2, 1.0, &uDown, &uRight, &uTop, &uLeft, &vDown, &vRight, &vTop, &vLeft, &pDown, &pRight, &pTop, &pLeft);
+    
+    for(int i = 0; i < 100; i++){
         cout << "Calcula A_mom, b_mom_x e b_mom_y\n";
         solver.mom_links_and_sources(0.8);
         cout << "Resolve x_mom\n";
