@@ -65,58 +65,58 @@ NSSolver::~NSSolver(){
 
 void NSSolver::compute_bcs(){
     
-    // int nfaces = mesh->get_nedges();
-    // vector<Edge*> faces = mesh->get_edges();
-
-    // auto apply_bc = [](auto& boundary, auto& bcs, Edge* face) {
-    // auto [x, y] = face->get_middle();
-    //     for(auto& bc : bcs) {
-    //         if(bc.get_location(x, y)) {
-    //             boundary[face->id].first  = bc.get_type();
-    //             boundary[face->id].second = bc.apply(x, y);
-    //             break;
-    //         }
-    //     }
-    // };
-    
-    // for(int i = 0; i < nfaces; i++){
-    //     Edge* face = faces[i];
-    //     if(!face->is_boundary_face()) continue;
-
-    //     apply_bc(u_boundary, bcsu, face);
-    //     apply_bc(v_boundary, bcsv, face);
-    //     apply_bc(p_boundary, bcsp, face);
-    // }
-
-    // // Assinala condições de dirichlet nos vetores.
-    // for(int i = 0; i < nfaces; i++){
-    //     Edge* face = faces[i];
-    //     int idf = face->id;
-    //     if(face->is_boundary_face()){
-    //         if(u_boundary[idf].first == DIRICHLET)
-    //             u_face[idf] = u_boundary[idf].second;
-                
-    //         if(v_boundary[idf].first == DIRICHLET)
-    //             v_face[idf] = v_boundary[idf].second;
-            
-    //         if(p_boundary[idf].first == DIRICHLET)
-    //             p_face[idf] = p_boundary[idf].second;
-    //     }
-    // }
-
-    // for(int i = 0; i < nfaces; i++){
-    //     cout << "u_face: " << u_face[i] << " " << " v_face: " << v_face[i] << " p_face: " << p_face[i] << endl;
-    // }
+    int nfaces = mesh->get_nedges();
     vector<Edge*> faces = mesh->get_edges();
-    for(int i = 0; i < faces.size(); i++){
-        Edge* face = faces[i];
-        if(face->from->y == 1.0 && face->to->y == 1.0){
-            // Top 
-            u_face[face->id] = 1.0; 
+
+    auto apply_bc = [](auto& boundary, auto& bcs, Edge* face) {
+    auto [x, y] = face->get_middle();
+        for(auto& bc : bcs) {
+            if(bc.get_location(x, y)) {
+                boundary[face->id].first  = bc.get_type();
+                boundary[face->id].second = bc.apply(x, y);
+                break;
+            }
         }
+    };
+    
+    for(int i = 0; i < nfaces; i++){
+        Edge* face = faces[i];
+        if(!face->is_boundary_face()) continue;
+
+        apply_bc(u_boundary, bcsu, face);
+        apply_bc(v_boundary, bcsv, face);
+        apply_bc(p_boundary, bcsp, face);
+    }
+
+    // Assinala condições de dirichlet nos vetores.
+    for(int i = 0; i < nfaces; i++){
+        Edge* face = faces[i];
+        int idf = face->id;
+        if(face->is_boundary_face()){
+            if(u_boundary[idf].first == DIRICHLET)
+                u_face[idf] = u_boundary[idf].second;
+                
+            if(v_boundary[idf].first == DIRICHLET)
+                v_face[idf] = v_boundary[idf].second;
+            
+            if(p_boundary[idf].first == DIRICHLET)
+                p_face[idf] = p_boundary[idf].second;
+        }
+    }
+
+    // Calculando fluxo de massa (Caso seja inlet irá pegar fluxo de massa diferente de zero)
+    for(int i = 0; i < nfaces; i++){
+        Edge* face = faces[i];
+        int idf = face->id;
+        pair<double,double> normal = face->get_normal();
+        mdotf[idf] = rho * (u_face[idf] * normal.first + v_face[idf] * normal.second) * face->get_length();
     }
     
     // ! IMPRIME INFORMAÇÃO NAS FACES.
+    // for(int i = 0; i < nfaces; i++){
+    //     cout << "u_face: " << u_face[i] << " " << " v_face: " << v_face[i] << " p_face: " << p_face[i] << endl;
+    // }
+    
     // for(int i = 0; i < nfaces; i++){
     //     Edge* face = faces[i];
     //     cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << u_boundary[i].first << "\t" << u_boundary[i].second << endl;
@@ -192,8 +192,33 @@ void NSSolver::mom_links_and_sources(double lambda_v){
             if(face->is_boundary_face()){
                 // * Se uma face é de contorno, então ela tem valor prescrito de velocidade => Mas, a velocidade produto escalar normal nos contornos é sempre zero, então o termo advectivo cancela => Soma difusão no aP e passsa pro outro lado difusão pro termo fonte.
                 A_mom(ic, ic) = A_mom(ic,ic) + Df;
-                b_mom_x[ic] = b_mom_x[ic] + u_face[idf] * Df;
-                b_mom_y[ic] = b_mom_y[ic] + v_face[idf] * Df;
+                if(u_boundary[idf].first == DIRICHLET)
+                    b_mom_x[ic] = b_mom_x[ic] + u_face[idf] * Df - u_face[idf] * mf;
+                else{
+                    // * NEGLIGENCIAR DIFUSÃO
+                    // * TRATAR COMO UPWIND FLUXO E VALOR DE U NA FACE
+                    pair<double,double> normal_corrected = {
+                        face->get_normal().first * nsign,
+                        face->get_normal().second * nsign
+                    };
+                    // calculando mdotf usando o valor de upwind, que é a celula que faz divisa com essa face de contorno (se for fluxo reverso não vai funcionar...)
+                    double mf_outlet = rho * (uc[ic] * normal_corrected.first + vc[ic] * normal_corrected.second) * face->get_length();
+                    b_mom_x[ic] = b_mom_x[ic] + mf_outlet * uc[ic];
+                }
+                
+                if(v_boundary[idf].first == DIRICHLET)
+                    b_mom_y[ic] = b_mom_y[ic] + v_face[idf] * Df - v_face[idf] * mf;
+                else{
+                    // * NEGLIGENCIAR DIFUSÃO
+                    // * TRATAR COMO UPWIND FLUXO E VALOR DE U NA FACE
+                    pair<double,double> normal_corrected = {
+                        face->get_normal().first * nsign,
+                        face->get_normal().second * nsign
+                    };
+                    // calculando mdotf usando o valor de upwind, que é a celula que faz divisa com essa face de contorno (se for fluxo reverso não vai funcionar...)
+                    double mf_outlet = rho * (uc[ic] * normal_corrected.first + vc[ic] * normal_corrected.second) * face->get_length();
+                    b_mom_x[ic] = b_mom_x[ic] + mf_outlet * vc[ic];
+                }
             }else{
                 int N = get_neighbor(face->get_link_face_to_cell(), ic);
                 A_mom(ic,ic) = A_mom(ic,ic) + Df + max(mf, 0.0);
@@ -219,8 +244,11 @@ void NSSolver::mom_links_and_sources(double lambda_v){
         int ic2 = id_nodes_share_face.second;
 
         if(face->is_boundary_face()){
-            int neighbor = ic1 != -1 ? ic1 : ic2;
-            p_face[idf] = pc[neighbor];
+            if(p_boundary[idf].first == NEUMANN){
+                int neighbor = ic1 != -1 ? ic1 : ic2;
+                p_face[idf] = pc[neighbor]; // * Assumindo Neumann Zero (!!!)
+            }  
+            // caso contrário é dirichlet e já tem um valor prescrito pelo problema
         }else{
             p_face[idf] = wf[idf] * pc[ic1] + (1-wf[idf]) * pc[ic2];
         }
@@ -342,8 +370,16 @@ void NSSolver::solve_pp(){
             Edge* face = faces[j];
             int idf = face->id;
             int nsign = nsigns[j];
-
-            b_pc[ic] = b_pc[ic] - mdotf[idf] * nsign;
+            if(u_boundary[idf].first == DIRICHLET){
+                pair<double,double> normal_corrected = {
+                        face->get_normal().first * nsign,
+                        face->get_normal().second * nsign
+                };
+                double mf_outlet = rho * (uc[ic] * normal_corrected.first + vc[ic] * normal_corrected.second) * face->get_length();
+                b_pc[ic] = b_pc[ic] - mf_outlet;
+            }else{
+                b_pc[ic] = b_pc[ic] - mdotf[idf] * nsign;
+            }
         }
     }
         
@@ -373,9 +409,9 @@ void NSSolver::solve_pp(){
         }
     }
 
-    A_pc.row(0).zeros();
-    A_pc(0,0) = 1;
-    b_pc[0] = 0;
+    // A_pc.row(0).zeros();
+    // A_pc(0,0) = 1;
+    // b_pc[0] = 0;
     
     pcorr = arma::spsolve(A_pc, b_pc);
 }
@@ -393,8 +429,11 @@ void NSSolver::uv_correct() {
         int ic2 = id_nodes_share_face.second;
 
         if(face->is_boundary_face()){
-            int neighbor = ic1 != -1 ? ic1 : ic2;
-            pfcorr[idf] = pcorr[neighbor];
+            if(p_boundary[idf].first == NEUMANN){
+                int neighbor = ic1 != -1 ? ic1 : ic2;
+                pfcorr[idf] = pcorr[neighbor];
+            }
+            // caso contrário fica zero. p' = 0 (pois é dirichlet e já tá certo)
         }else{
             pfcorr[idf] = wf[idf] * pcorr[ic1] + (1-wf[idf]) * pcorr[ic2];
         }
