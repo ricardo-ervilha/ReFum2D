@@ -2,7 +2,7 @@
 #define NSSOLVER_H
 
 #include "pch.h"
-#include <armadillo>
+#include <petscksp.h>
 
 class Mesh;
 class Cell;
@@ -11,39 +11,40 @@ class NSSolver{
     private:
         Mesh *mesh;
         
-        arma::sp_mat A_mom;
-        arma::vec b_mom_x;
-        arma::vec b_mom_y;
+        Mat A_mom;
+        Vec b_mom_x;
+        Vec b_mom_y;
 
-        arma::sp_mat A_pc;
-        arma::vec b_pc; 
+        Mat A_pc;
+        Vec b_pc; 
 
         float mu;
         float rho;
 
-        arma::vec u_face;
-        arma::vec v_face;
-        arma::vec p_face;
+        Vec u_face;
+        Vec v_face;
+        Vec p_face;
 
-        arma::vec uc;
-        arma::vec vc;
-        arma::vec pc;
+        Vec uc;
+        Vec vc;
+        Vec pc;
 
-        arma::vec uc_aux;
-        arma::vec vc_aux;
-        arma::vec pc_aux;
+        Vec uc_aux;
+        Vec vc_aux;
+        Vec pc_aux;
         
-        arma::vec mdotf;
+        Vec mdotf;
 
-        arma::vec ap;
-        arma::vec mdotfcorr;
-        arma::vec pcorr;
-        arma::vec pfcorr;
+        Vec ap;
+        Vec mdotfcorr;
+        Vec pcorr;
+        Vec pfcorr;
 
-        arma::vec ucorr;
-        arma::vec vcorr;
+        Vec ucorr;
+        Vec vcorr;
 
-        arma::vec wf;
+        Vec wf;
+        KSP ksp;
         void compute_wf();
     public:
         NSSolver(Mesh *mesh, float mu, float rho);
