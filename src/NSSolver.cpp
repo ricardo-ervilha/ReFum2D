@@ -18,12 +18,6 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, vector<BoundaryCondition> bc
     this->v_boundary.resize(nfaces, {NONE, 0.0});
     this->p_boundary.resize(nfaces, {NONE, 0.0});
 
-    
-    bcsu = bcsU;
-    bcsv = bcsV;
-    bcsp = bcsP;
-    this->compute_bcs();
-
     this->A_mom = arma::sp_mat(ncells, ncells);
     this->b_mom_x = arma::vec(ncells, arma::fill::zeros);
     this->b_mom_y = arma::vec(ncells, arma::fill::zeros);
@@ -55,6 +49,11 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, vector<BoundaryCondition> bc
     this->vcorr = arma::vec(ncells, arma::fill::zeros);
     
     // =======================================================================================
+       
+    bcsu = bcsU;
+    bcsv = bcsV;
+    bcsp = bcsP;
+    this->compute_bcs();
 
     this->wf = arma::vec(nfaces, arma::fill::zeros);
     this->compute_wf();
@@ -65,30 +64,58 @@ NSSolver::~NSSolver(){
 }
 
 void NSSolver::compute_bcs(){
-    cout <<" Teste\n";
-    int nfaces = mesh->get_nedges();
-    vector<Edge*> faces = mesh->get_edges();
-
-    auto apply_bc = [](auto& boundary, auto& bcs, Edge* face) {
-    auto [x, y] = face->get_middle();
-        for(auto& bc : bcs) {
-            if(bc.get_location(x, y)) {
-                boundary[face->id].first  = bc.get_type();
-                boundary[face->id].second = bc.apply(x, y);
-                break;
-            }
-        }
-    };
     
-    for(int i = 0; i < nfaces; i++){
+    // int nfaces = mesh->get_nedges();
+    // vector<Edge*> faces = mesh->get_edges();
+
+    // auto apply_bc = [](auto& boundary, auto& bcs, Edge* face) {
+    // auto [x, y] = face->get_middle();
+    //     for(auto& bc : bcs) {
+    //         if(bc.get_location(x, y)) {
+    //             boundary[face->id].first  = bc.get_type();
+    //             boundary[face->id].second = bc.apply(x, y);
+    //             break;
+    //         }
+    //     }
+    // };
+    
+    // for(int i = 0; i < nfaces; i++){
+    //     Edge* face = faces[i];
+    //     if(!face->is_boundary_face()) continue;
+
+    //     apply_bc(u_boundary, bcsu, face);
+    //     apply_bc(v_boundary, bcsv, face);
+    //     apply_bc(p_boundary, bcsp, face);
+    // }
+
+    // // Assinala condições de dirichlet nos vetores.
+    // for(int i = 0; i < nfaces; i++){
+    //     Edge* face = faces[i];
+    //     int idf = face->id;
+    //     if(face->is_boundary_face()){
+    //         if(u_boundary[idf].first == DIRICHLET)
+    //             u_face[idf] = u_boundary[idf].second;
+                
+    //         if(v_boundary[idf].first == DIRICHLET)
+    //             v_face[idf] = v_boundary[idf].second;
+            
+    //         if(p_boundary[idf].first == DIRICHLET)
+    //             p_face[idf] = p_boundary[idf].second;
+    //     }
+    // }
+
+    // for(int i = 0; i < nfaces; i++){
+    //     cout << "u_face: " << u_face[i] << " " << " v_face: " << v_face[i] << " p_face: " << p_face[i] << endl;
+    // }
+    vector<Edge*> faces = mesh->get_edges();
+    for(int i = 0; i < faces.size(); i++){
         Edge* face = faces[i];
-        if(!face->is_boundary_face()) continue;
-
-        apply_bc(u_boundary, bcsu, face);
-        apply_bc(v_boundary, bcsv, face);
-        apply_bc(p_boundary, bcsp, face);
+        if(face->from->y == 1.0 && face->to->y == 1.0){
+            // Top 
+            u_face[face->id] = 1.0; 
+        }
     }
-
+    
     // ! IMPRIME INFORMAÇÃO NAS FACES.
     // for(int i = 0; i < nfaces; i++){
     //     Edge* face = faces[i];
