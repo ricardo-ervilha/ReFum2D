@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include <armadillo>
+#include "BoundaryCondition.h"
 
 class Mesh;
 class Cell;
@@ -10,6 +11,10 @@ class Cell;
 class NSSolver{
     private:
         Mesh *mesh;
+
+        vector<BoundaryCondition> bcsu;
+        vector<BoundaryCondition> bcsv;
+        vector<BoundaryCondition> bcsp;
         
         arma::sp_mat A_mom;
         arma::vec b_mom_x;
@@ -20,6 +25,10 @@ class NSSolver{
 
         float mu;
         float rho;
+
+        vector<pair<BoundaryType,double>> u_boundary; 
+        vector<pair<BoundaryType,double>> v_boundary; 
+        vector<pair<BoundaryType,double>> p_boundary; 
 
         arma::vec u_face;
         arma::vec v_face;
@@ -46,7 +55,7 @@ class NSSolver{
         arma::vec wf;
         void compute_wf();
     public:
-        NSSolver(Mesh *mesh, float mu, float rho);
+        NSSolver(Mesh *mesh, float mu, float rho, vector<BoundaryCondition> bcsU, vector<BoundaryCondition> bcsV, vector<BoundaryCondition> bcsP);
         ~NSSolver();
 
         void mom_links_and_sources(double lambda_v);
@@ -56,6 +65,8 @@ class NSSolver{
         void solve_pp();
         void uv_correct();
         void pres_correct(double lambda_p);
+
+        void compute_bcs();
 
         void export_solution(string filename);
 };

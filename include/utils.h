@@ -15,3 +15,35 @@ inline int get_neighbor(pair<int,int>& id_cells_share_face, int P){
 
     return ic1 == P ? ic2 : ic1;
 }
+
+inline bool top_check(double x, double y){
+    if(y == 1.0)
+        return true;
+    return false;
+}
+
+inline bool bottom_check(double x, double y){
+    if(y == 0.0)
+        return true;
+    return false;
+}
+
+inline bool left_check(double x, double y){
+    if(x == 0.0)
+        return true;
+    return false;
+}
+
+inline bool right_check(double x, double y){
+    if(x == 1.0)
+        return true;
+    return false;
+}
+
+inline double fzero(double x, double y){
+    return 0.0;
+}
+
+inline double fone(double x, double y){
+    return 1.0;
+}

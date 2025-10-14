@@ -20,7 +20,7 @@ FVMSolver::FVMSolver(Mesh *mesh, BoundaryCondition *bc1, BoundaryCondition* bc2,
     // ! Inicialização das estruturas de dados do problema.
     int ncells = this->mesh->get_ncells();
 
-    this->A = arma::sp_mat(ncells, ncells);
+    this->A = arma::sp_ mat(ncells, ncells);
     this->b = arma::vec(ncells, arma::fill::zeros);
     this->b_aux = arma::vec(ncells, arma::fill::zeros);
     this->u_old = arma::vec(ncells, arma::fill::zeros);  

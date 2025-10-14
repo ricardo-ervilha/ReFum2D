@@ -2,10 +2,9 @@
 #include "Mesh.h"
 #include "Edge.h"
 #include "Cell.h"
-#include "BoundaryCondition.h"
 #include "utils.h"
 
-NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
+NSSolver::NSSolver(Mesh *mesh, float mu, float rho, vector<BoundaryCondition> bcsU, vector<BoundaryCondition> bcsV, vector<BoundaryCondition> bcsP){ 
     this->mesh = mesh;
     this->mu = mu;
     this->rho = rho;
@@ -13,6 +12,17 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
     // ! Inicialização de todas as variáveis que NSSolver guarda.
     int ncells = this->mesh->get_ncells();
     int nfaces = this->mesh->get_nedges();
+
+    
+    this->u_boundary.resize(nfaces, {NONE, 0.0});
+    this->v_boundary.resize(nfaces, {NONE, 0.0});
+    this->p_boundary.resize(nfaces, {NONE, 0.0});
+
+    
+    bcsu = bcsU;
+    bcsv = bcsV;
+    bcsp = bcsP;
+    this->compute_bcs();
 
     this->A_mom = arma::sp_mat(ncells, ncells);
     this->b_mom_x = arma::vec(ncells, arma::fill::zeros);
@@ -46,22 +56,57 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho){
     
     // =======================================================================================
 
-    // TODO: Preenche boundary top do lid-driven cavity flow.
-    vector<Edge*> faces = mesh->get_edges();
-    for(int i = 0; i < nfaces; i++){
-        Edge* face = faces[i];
-        if(face->from->y == 1.0 && face->to->y == 1.0){
-            // Top 
-            u_face[face->id] = 1.0; 
-        }
-    }
-
     this->wf = arma::vec(nfaces, arma::fill::zeros);
     this->compute_wf();
 }   
 
 NSSolver::~NSSolver(){
     // nada.
+}
+
+void NSSolver::compute_bcs(){
+    cout <<" Teste\n";
+    int nfaces = mesh->get_nedges();
+    vector<Edge*> faces = mesh->get_edges();
+
+    auto apply_bc = [](auto& boundary, auto& bcs, Edge* face) {
+    auto [x, y] = face->get_middle();
+        for(auto& bc : bcs) {
+            if(bc.get_location(x, y)) {
+                boundary[face->id].first  = bc.get_type();
+                boundary[face->id].second = bc.apply(x, y);
+                break;
+            }
+        }
+    };
+    
+    for(int i = 0; i < nfaces; i++){
+        Edge* face = faces[i];
+        if(!face->is_boundary_face()) continue;
+
+        apply_bc(u_boundary, bcsu, face);
+        apply_bc(v_boundary, bcsv, face);
+        apply_bc(p_boundary, bcsp, face);
+    }
+
+    // ! IMPRIME INFORMAÇÃO NAS FACES.
+    // for(int i = 0; i < nfaces; i++){
+    //     Edge* face = faces[i];
+    //     cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << u_boundary[i].first << "\t" << u_boundary[i].second << endl;
+    // }
+    // cout << "===========================\n";
+
+    // for(int i = 0; i < nfaces; i++){
+    //     Edge* face = faces[i];
+    //     cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << v_boundary[i].first << "\t" << v_boundary[i].second << endl;
+    // }
+    // cout << "===========================\n";
+
+    // for(int i = 0; i < nfaces; i++){
+    //     Edge* face = faces[i];
+    //     cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << p_boundary[i].first << "\t" << p_boundary[i].second << endl;
+    // }
+    // cout << "===========================\n";
 }
 
 /*
