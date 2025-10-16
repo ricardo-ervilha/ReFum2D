@@ -111,27 +111,30 @@ void NSSolver::compute_bcs(){
         pair<double,double> normal = face->get_normal();
         mdotf[idf] = rho * (u_face[idf] * normal.first + v_face[idf] * normal.second) * face->get_length();
     }
-    
+
     // ! IMPRIME INFORMAÇÃO NAS FACES.
     // for(int i = 0; i < nfaces; i++){
-    //     cout << "u_face: " << u_face[i] << " " << " v_face: " << v_face[i] << " p_face: " << p_face[i] << endl;
+    //     cout << "u_face: " << u_face[i] << " " << " v_face: " << v_face[i] << " p_face: " << p_face[i] << " mdotf: " << mdotf[i] << endl;
     // }
     
     // for(int i = 0; i < nfaces; i++){
     //     Edge* face = faces[i];
-    //     cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << u_boundary[i].first << "\t" << u_boundary[i].second << endl;
+    //     if(face->is_boundary_face())
+    //         cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << u_boundary[i].first << "\t" << u_boundary[i].second << endl;
     // }
     // cout << "===========================\n";
 
     // for(int i = 0; i < nfaces; i++){
     //     Edge* face = faces[i];
-    //     cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << v_boundary[i].first << "\t" << v_boundary[i].second << endl;
+    //     if(face->is_boundary_face())
+    //         cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << v_boundary[i].first << "\t" << v_boundary[i].second << endl;
     // }
     // cout << "===========================\n";
 
     // for(int i = 0; i < nfaces; i++){
     //     Edge* face = faces[i];
-    //     cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << p_boundary[i].first << "\t" << p_boundary[i].second << endl;
+    //     if(face->is_boundary_face())
+    //         cout << "x: " << face->get_middle().first << "\ty: " << face->get_middle().second << "\t" << p_boundary[i].first << "\t" << p_boundary[i].second << endl;
     // }
     // cout << "===========================\n";
 }
@@ -217,9 +220,10 @@ void NSSolver::mom_links_and_sources(double lambda_v){
                     };
                     // calculando mdotf usando o valor de upwind, que é a celula que faz divisa com essa face de contorno (se for fluxo reverso não vai funcionar...)
                     double mf_outlet = rho * (uc[ic] * normal_corrected.first + vc[ic] * normal_corrected.second) * face->get_length();
-                    b_mom_x[ic] = b_mom_x[ic] + mf_outlet * vc[ic];
+                    b_mom_y[ic] = b_mom_y[ic] + mf_outlet * vc[ic];
                 }
             }else{
+                // interior cells
                 int N = get_neighbor(face->get_link_face_to_cell(), ic);
                 A_mom(ic,ic) = A_mom(ic,ic) + Df + max(mf, 0.0);
                 A_mom(ic,N) = -Df - max(-mf,0.0);
@@ -300,12 +304,22 @@ void NSSolver::face_velocity(){
     for(int i = 0; i < faces.size(); ++i){
         Edge* face = faces[i];
         int idf = face->id;
+        pair<int,int> nodes_share_face = face->get_link_face_to_cell();
+        int c1 = nodes_share_face.first;
+        int c2 = nodes_share_face.second;
 
-        if(face->is_boundary_face()) continue; // IGNORE BC
+        if(face->is_boundary_face()){
+            if(u_boundary[idf].first == DIRICHLET) continue; // valor prescrito
+            else{
+                // * ASSUMINDO QUE u e v VEM SEMPRE AOS PARES COMO DIRICHLET (if u is dirichlet => v is dirichlet )
+                // a face de contorno de velocidade é neumann
+                // asumindo um upwind...
+                int neighbor = c1 != -1 ? c1 : c2;
+                u_face[idf] = uc[neighbor];
+                v_face[idf] = vc[neighbor];
+            }
+        }
         else{
-            pair<int,int> nodes_share_face = face->get_link_face_to_cell();
-            int c1 = nodes_share_face.first;
-            int c2 = nodes_share_face.second;
 
             double velf_x = wf[idf]*uc[c1] + (1-wf[idf]) * uc[c2];
             double velf_y = wf[idf]*vc[c1] + (1-wf[idf]) * vc[c2];
@@ -353,7 +367,6 @@ void NSSolver::face_velocity(){
  * * Calcula a correção da pressão (p')
  */
 void NSSolver::solve_pp(){
-
     /*Calcula termo fonte*/
     vector<Cell*> cells = mesh->get_cells();
     for(int i = 0; i < cells.size(); ++i){
@@ -370,14 +383,18 @@ void NSSolver::solve_pp(){
             Edge* face = faces[j];
             int idf = face->id;
             int nsign = nsigns[j];
-            if(u_boundary[idf].first == DIRICHLET){
+            
+            if(u_boundary[idf].first == NEUMANN){
                 pair<double,double> normal_corrected = {
                         face->get_normal().first * nsign,
                         face->get_normal().second * nsign
                 };
+                // calculando mdotf usando o valor de upwind, que é a celula que faz divisa com essa face de contorno (se for fluxo reverso não vai funcionar...)
+                // mantendo consistencia
                 double mf_outlet = rho * (uc[ic] * normal_corrected.first + vc[ic] * normal_corrected.second) * face->get_length();
                 b_pc[ic] = b_pc[ic] - mf_outlet;
             }else{
+                // caso de dirichlet e interior é isso.
                 b_pc[ic] = b_pc[ic] - mdotf[idf] * nsign;
             }
         }
@@ -409,10 +426,9 @@ void NSSolver::solve_pp(){
         }
     }
 
-    // A_pc.row(0).zeros();
-    // A_pc(0,0) = 1;
-    // b_pc[0] = 0;
-    
+    A_pc.row(0).zeros();
+    A_pc(0,0) = 1;
+    b_pc[0] = 0;
     pcorr = arma::spsolve(A_pc, b_pc);
 }
 
@@ -432,9 +448,12 @@ void NSSolver::uv_correct() {
             if(p_boundary[idf].first == NEUMANN){
                 int neighbor = ic1 != -1 ? ic1 : ic2;
                 pfcorr[idf] = pcorr[neighbor];
+            }else{
+                // caso contrário fica zero. p' = 0 (pois é dirichlet e já tá certo)
+                pfcorr[idf] = 0.0;
             }
-            // caso contrário fica zero. p' = 0 (pois é dirichlet e já tá certo)
         }else{
+            // interior
             pfcorr[idf] = wf[idf] * pcorr[ic1] + (1-wf[idf]) * pcorr[ic2];
         }
     }
@@ -469,7 +488,12 @@ void NSSolver::uv_correct() {
     for(int i = 0; i < faces.size(); i++){
         Edge* face = faces[i];
         int idf = face->id;
-        if(face->is_boundary_face()) continue;
+        if(face->is_boundary_face()){
+            if(u_boundary[idf].first == DIRICHLET) continue;
+            else{
+                // nada por enquanto...
+            }
+        }
         else{
             pair<int,int> nodes_share_face = face->get_link_face_to_cell();
             int c1 = nodes_share_face.first;
