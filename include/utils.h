@@ -16,6 +16,18 @@ inline int get_neighbor(pair<int,int>& id_cells_share_face, int P){
     return ic1 == P ? ic2 : ic1;
 }
 
+inline bool step_1_check(double x, double y){
+    if(y == 1.0)
+        return true;
+    return false;
+}
+
+inline bool step_2_check(double x, double y){
+    if(x == 2.0)
+        return true;
+    return false;
+}
+
 inline bool top_check(double x, double y){
     if(y == 2) // config: backward
         return true;

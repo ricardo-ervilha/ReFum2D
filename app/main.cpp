@@ -79,26 +79,32 @@ u=1, v = 0 | ∇p = 0 |                                                         
               (0,0) *-----------------------------------------------------------------------------------------* (10,0)
                                                       wall: u = v = 0 | ∇p = 0
     */
-    m.read_mesh("../inputs/backward_complete_40_80.msh");
+    m.read_mesh("../inputs/backward_step_incomplete_unstructured.msh");
     us.push_back(BoundaryCondition(DIRICHLET, top_check,fzero)); // no-slip
     us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); // no-slip
     us.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // outlet (neumann 0)
     us.push_back(BoundaryCondition(DIRICHLET, left_check, parabolic)); // inlet u = parabolic(x,y)
+    us.push_back(BoundaryCondition(DIRICHLET, step_1_check, fzero)); // no-slip
+    us.push_back(BoundaryCondition(DIRICHLET, step_2_check, fzero)); // no-slip
 
     vs.push_back(BoundaryCondition(DIRICHLET, top_check, fzero)); // no-slip
     vs.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); //no-slip
     vs.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // *outlet (neumann 0)
     vs.push_back(BoundaryCondition(DIRICHLET, left_check, fzero)); // *inlet v = 0
+    vs.push_back(BoundaryCondition(DIRICHLET, step_1_check, fzero)); //no-slip
+    vs.push_back(BoundaryCondition(DIRICHLET, step_2_check, fzero)); //no-slip
 
     ps.push_back(BoundaryCondition(NEUMANN, top_check,fzero)); //no-slip
     ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero)); // no-slip
     ps.push_back(BoundaryCondition(DIRICHLET, right_check, fzero)); // *outlet (dirichlet = 0)
     ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero)); // *inlet = neumann 0
+    ps.push_back(BoundaryCondition(NEUMANN, step_1_check, fzero)); // no-slip
+    ps.push_back(BoundaryCondition(NEUMANN, step_2_check, fzero)); // no-slip
     NSSolver solver(&m, 2e-2, 1.0, us, vs, ps);
     // & Backward facing step ----------------------------------------------------
 
     
-    for(int i = 0; i < 20; i++){
+    for(int i = 0; i < 200; i++){
         cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
         solver.mom_links_and_sources(0.6);
         cout << "Resolvendo para encontrar uc\n";
