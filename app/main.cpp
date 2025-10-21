@@ -4,8 +4,8 @@
 #include "utils.h"
 
 double parabolic(double x, double y){
-    if(y > 0.01)
-        return 0.1;
+    if(y > 1.0) // metade superior
+        return 1.0;
     else
         return 0.0;
 }
@@ -62,12 +62,12 @@ u = v = 0 | ∇p = 0  |                                                         
     
     // & Backward facing step ----------------------------------------------------
     /*
-                    (0,1)                        wall: u = 0.0, v = 0.0 | ∇p = 0                            (15,1)
+                    (0,2)                        wall: u = 0.0, v = 0.0 | ∇p = 0                            (10,2)
                     *-----------------------------------------------------------------------------------------*
                     |                                                                                        |
                     |                                                                                        |
                     |                                                                                        |
-    inflow          |                                                                                        | outflow
+    inflow(y > 1)   |                                                                                        | outflow
 u=1, v = 0 | ∇p = 0 |                                                                                        | ∇U = 0 | ∇p = 0
                     |                                                                                        |
                     |                                                                                        |
@@ -76,10 +76,10 @@ u=1, v = 0 | ∇p = 0 |                                                         
                     |                   |                                                                    |
                     |                   |                                                                    |
                     |                   |                                                                    |
-              (0,0) *-----------------------------------------------------------------------------------------* (15,0)
+              (0,0) *-----------------------------------------------------------------------------------------* (10,0)
                                                       wall: u = v = 0 | ∇p = 0
     */
-    m.read_mesh("../inputs/backward_facing_step_refined.msh");
+    m.read_mesh("../inputs/backward_complete_40_80.msh");
     us.push_back(BoundaryCondition(DIRICHLET, top_check,fzero)); // no-slip
     us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); // no-slip
     us.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // outlet (neumann 0)
@@ -94,7 +94,7 @@ u=1, v = 0 | ∇p = 0 |                                                         
     ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero)); // no-slip
     ps.push_back(BoundaryCondition(DIRICHLET, right_check, fzero)); // *outlet (dirichlet = 0)
     ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero)); // *inlet = neumann 0
-    NSSolver solver(&m, 1e-2, 1.0, us, vs, ps);
+    NSSolver solver(&m, 2e-2, 1.0, us, vs, ps);
     // & Backward facing step ----------------------------------------------------
 
     
