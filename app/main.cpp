@@ -42,22 +42,22 @@ u = v = 0 | ∇p = 0  |                                                         
                                         u = v = 0 | ∇p = 0
     */
 
-    m.read_mesh("../inputs/q30x30.msh");
-    us.push_back(BoundaryCondition(DIRICHLET, top_check,fone));
-    us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero));
-    us.push_back(BoundaryCondition(DIRICHLET, right_check, fzero));
-    us.push_back(BoundaryCondition(DIRICHLET, left_check, fzero));
+    // m.read_mesh("../inputs/q30x30.msh");
+    // us.push_back(BoundaryCondition(DIRICHLET, top_check,fone));
+    // us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero));
+    // us.push_back(BoundaryCondition(DIRICHLET, right_check, fzero));
+    // us.push_back(BoundaryCondition(DIRICHLET, left_check, fzero));
     
-    vs.push_back(BoundaryCondition(DIRICHLET, top_check,fzero));
-    vs.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero));
-    vs.push_back(BoundaryCondition(DIRICHLET, right_check, fzero));
-    vs.push_back(BoundaryCondition(DIRICHLET, left_check, fzero));
+    // vs.push_back(BoundaryCondition(DIRICHLET, top_check,fzero));
+    // vs.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero));
+    // vs.push_back(BoundaryCondition(DIRICHLET, right_check, fzero));
+    // vs.push_back(BoundaryCondition(DIRICHLET, left_check, fzero));
     
-    ps.push_back(BoundaryCondition(NEUMANN, top_check,fzero));
-    ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero));
-    ps.push_back(BoundaryCondition(NEUMANN, right_check, fzero));
-    ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero));
-    NSSolver solver(&m, 1e-2, 1.0, us, vs, ps);
+    // ps.push_back(BoundaryCondition(NEUMANN, top_check,fzero));
+    // ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero));
+    // ps.push_back(BoundaryCondition(NEUMANN, right_check, fzero));
+    // ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero));
+    // NSSolver solver(&m, 1e-2, 1.0, us, vs, ps);
     // & Lid Driven Cavity Flow --------------------------------------------------
     
     // & Backward facing step ----------------------------------------------------
@@ -102,7 +102,29 @@ u=1, v = 0 | ∇p = 0 |                                                         
     // ps.push_back(BoundaryCondition(NEUMANN, step_2_check, fzero)); // no-slip
     // NSSolver solver(&m, 2e-2, 1.0, us, vs, ps);
     // & Backward facing step ----------------------------------------------------
+    
+    // & Flow Over Cylinder ------------------------------------------------------
+    m.read_mesh("../inputs/flow_over_cylinder_refined.msh");
+    us.push_back(BoundaryCondition(DIRICHLET, top_check,fzero)); // no-slip
+    us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); // no-slip
+    us.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // outlet (neumann 0)
+    us.push_back(BoundaryCondition(DIRICHLET, left_check, fone)); // inlet u = 1
+    us.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); // no-slip
+
+    vs.push_back(BoundaryCondition(DIRICHLET, top_check, fzero)); // no-slip
+    vs.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); //no-slip
+    vs.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // *outlet (neumann 0)
+    vs.push_back(BoundaryCondition(DIRICHLET, left_check, fzero)); // *inlet v = 0
+    vs.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); //no-slip
+
+    ps.push_back(BoundaryCondition(NEUMANN, top_check,fzero)); //no-slip
+    ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero)); // no-slip
+    ps.push_back(BoundaryCondition(DIRICHLET, right_check, fzero)); // *outlet (dirichlet = 0)
+    ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero)); // *inlet = neumann 0
+    ps.push_back(BoundaryCondition(NEUMANN, circle_check, fzero)); // no-slip
+ 
+    NSSolver solver(&m, 0.2, 1.0, us, vs, ps);
+    // & Flow Over Cylinder ------------------------------------------------------
+    
     solver.TransientSimple();
 }
-
-// adicionar o controle do pp para true e false quando for lid e tomar cuidado com os lambdas pq o backward dependendo diverge...

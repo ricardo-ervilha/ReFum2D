@@ -608,7 +608,7 @@ void NSSolver::pres_correct(double lambda_p) {
 
 
 void NSSolver::TransientSimple(){
-    for(int i = 0; i < 100; i++){
+    for(int i = 0; i < 50; i++){
         // dez passos de tempo.
         cout << "Iteração: " << i << endl;
         // zera todos para a próxima iteração de tempo
@@ -638,20 +638,20 @@ void NSSolver::TransientSimple(){
             solve_y_mom();
             
             // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
-            face_velocity();
+            // face_velocity();
             // cout << "# Calculando correção na pressão (p')\n";
-            solve_pp(true); // lid chama com true, backward facing step chama com false
+            solve_pp(false); // lid chama com true, backward facing step chama com false
             // cout << "# Atualiza velocidades...\n";
             uv_correct();
             // cout << "# Atualiza pressão....\n";
-            pres_correct(0.3);
+            pres_correct(0.2);
         }
         // faz variaveis na proxima iteração começarem como as antigas.
         uc_old = uc;
         vc_old = vc;
         pc_old = pc;
         
-        string fn = "../outputs/lid_driven/v_vector_" + to_string(i) + ".vtk";
+        string fn = "../outputs/flow_over_cylinder/v_vector_" + to_string(i) + ".vtk";
         export_solution(fn);
     }
 }
