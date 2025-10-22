@@ -221,7 +221,7 @@ void NSSolver::mom_links_and_sources(double lambda_v){
                     // aP = ap + Df
                     // aN = 0
                     // S = S + Df * u_f - mf * u_f (entra a parte no termo fonte)
-                    A_mom(ic, ic) = A_mom(ic,ic) + Df;
+                    A_mom(ic, ic) = A_mom(ic,ic) + Df; // + SOMA ISSO UMA VEZ SÓ, NO PRÓXIMO NÃO É NECESSÁRIO.
                     b_mom_x[ic] = b_mom_x[ic] + u_face[idf] * Df - u_face[idf] * mf;
                 } else{
                     // considera-se que u_b = u_P; v_b = v_P.
@@ -240,7 +240,6 @@ void NSSolver::mom_links_and_sources(double lambda_v){
                     // aP = ap + Df
                     // aN = -Df
                     // S = S + Df * v_f - mf * v_f (convecção passou para o lado do termo fonte.)
-                    A_mom(ic, ic) = A_mom(ic,ic) + Df;
                     b_mom_y[ic] = b_mom_y[ic] + v_face[idf] * Df - v_face[idf] * mf;
                 } else{
                     // considera-se que u_b = u_P; v_b = v_P.
@@ -414,7 +413,7 @@ void NSSolver::face_velocity(){
 /**
  * * Calcula a correção da pressão (p')
  */
-void NSSolver::solve_pp(){
+void NSSolver::solve_pp(bool sing_matrix){
     // *Calcula termo fonte: -Σ m_f
     vector<Cell*> cells = mesh->get_cells();
     for(int i = 0; i < cells.size(); ++i){
@@ -486,10 +485,12 @@ void NSSolver::solve_pp(){
         }
     }
     
-    // removendo problema da matriz singular (caso do lid, no caso do backward não deveria ser.)
-    // A_pc.row(0).zeros();
-    // A_pc(0,0) = 1;
-    // b_pc[0] = 0;
+    if(sing_matrix){
+        // removendo problema da matriz singular (caso do lid, no caso do backward não deveria ser.)
+        A_pc.row(0).zeros();
+        A_pc(0,0) = 1;
+        b_pc[0] = 0;
+    }
 
     // resolve para obter p'.
     pcorr = arma::spsolve(A_pc, b_pc);

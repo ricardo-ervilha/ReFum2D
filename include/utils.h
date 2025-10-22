@@ -17,19 +17,20 @@ inline int get_neighbor(pair<int,int>& id_cells_share_face, int P){
 }
 
 inline bool step_1_check(double x, double y){
-    if(y == 1.0)
+    if(y == 0.5)
         return true;
     return false;
 }
 
 inline bool step_2_check(double x, double y){
-    if(x == 2.0)
+    if(x == 0.5)
         return true;
     return false;
 }
 
 inline bool top_check(double x, double y){
-    if(y == 2) // config: backward
+    // if(y == 1) // config: lid
+    if(y == 1) // config: backward
         return true;
     return false;
 }
@@ -47,6 +48,7 @@ inline bool left_check(double x, double y){
 }
 
 inline bool right_check(double x, double y){
+    // if(x == 1) // config: lid
     if(x == 10) // config: backward
         return true;
     return false;

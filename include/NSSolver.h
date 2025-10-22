@@ -62,7 +62,7 @@ class NSSolver{
         void solve_x_mom();
         void solve_y_mom();
         void face_velocity();
-        void solve_pp();
+        void solve_pp(bool sing_matrix);
         void uv_correct();
         void pres_correct(double lambda_p);
 

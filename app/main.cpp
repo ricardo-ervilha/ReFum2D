@@ -4,8 +4,8 @@
 #include "utils.h"
 
 double parabolic(double x, double y){
-    if(y > 1.0) // metade superior
-        return 1.0;
+    if(y > 0.5) // metade superior
+        return -16*pow((y - 0.75), 2) + 1;
     else
         return 0.0;
 }
@@ -79,7 +79,7 @@ u=1, v = 0 | ∇p = 0 |                                                         
               (0,0) *-----------------------------------------------------------------------------------------* (10,0)
                                                       wall: u = v = 0 | ∇p = 0
     */
-    m.read_mesh("../inputs/backward_step_incomplete_unstructured.msh");
+    m.read_mesh("../inputs/backward_step_laminar_with_parabolic_function.msh");
     us.push_back(BoundaryCondition(DIRICHLET, top_check,fzero)); // no-slip
     us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); // no-slip
     us.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // outlet (neumann 0)
@@ -104,7 +104,7 @@ u=1, v = 0 | ∇p = 0 |                                                         
     // & Backward facing step ----------------------------------------------------
 
     
-    for(int i = 0; i < 200; i++){
+    for(int i = 0; i < 600; i++){
         cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
         solver.mom_links_and_sources(0.6);
         cout << "Resolvendo para encontrar uc\n";
@@ -115,7 +115,7 @@ u=1, v = 0 | ∇p = 0 |                                                         
         cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
         solver.face_velocity();
         cout << "# Calculando correção na pressão (p')\n";
-        solver.solve_pp();
+        solver.solve_pp(true); // lid chama com true, backward facing step chama com false
         cout << "# Atualiza velocidades...\n";
         solver.uv_correct();
         cout << "# Atualiza pressão....\n";
@@ -124,3 +124,5 @@ u=1, v = 0 | ∇p = 0 |                                                         
     
     solver.export_solution("../outputs/v_vector.vtk");
 }
+
+// adicionar o controle do pp para true e false quando for lid e tomar cuidado com os lambdas pq o backward dependendo diverge...
