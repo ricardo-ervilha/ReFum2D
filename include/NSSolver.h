@@ -25,6 +25,7 @@ class NSSolver{
 
         float mu;
         float rho;
+        float dt;
 
         vector<pair<BoundaryType,double>> u_boundary; 
         vector<pair<BoundaryType,double>> v_boundary; 
@@ -37,6 +38,11 @@ class NSSolver{
         arma::vec uc;
         arma::vec vc;
         arma::vec pc;
+
+        // & quando houver timestep, eles guardam os valores de condição inicial.
+        arma::vec uc_old; 
+        arma::vec vc_old; 
+        arma::vec pc_old; 
 
         arma::vec uc_aux;
         arma::vec vc_aux;
@@ -65,6 +71,8 @@ class NSSolver{
         void solve_pp(bool sing_matrix);
         void uv_correct();
         void pres_correct(double lambda_p);
+
+        void TransientSimple();
 
         void compute_bcs();
 

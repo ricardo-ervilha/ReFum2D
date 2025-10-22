@@ -29,8 +29,8 @@ inline bool step_2_check(double x, double y){
 }
 
 inline bool top_check(double x, double y){
-    // if(y == 1) // config: lid
-    if(y == 1) // config: backward
+    // if(y == 1) // config: backward
+    if(y == 1) // config: lid
         return true;
     return false;
 }
@@ -48,8 +48,8 @@ inline bool left_check(double x, double y){
 }
 
 inline bool right_check(double x, double y){
-    // if(x == 1) // config: lid
-    if(x == 10) // config: backward
+    // if(x == 10) // config: backward
+    if(x == 1) // config: lid
         return true;
     return false;
 }
