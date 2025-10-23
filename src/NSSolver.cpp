@@ -38,7 +38,7 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, vector<BoundaryCondition> bc
     this->pc = arma::vec(ncells, arma::fill::zeros);
 
     // + Inicializando dt eu mesmo.
-    this->dt = 0.01;
+    this->dt = 0.0;
     // + Os vetores abaixo eu setei a condição inicial tudo zero para testar, mas o ideal é deixar isso customizável.
     this->uc_old = arma::vec(ncells, arma::fill::zeros);
     this->vc_old = arma::vec(ncells, arma::fill::zeros);
@@ -273,11 +273,11 @@ void NSSolver::mom_links_and_sources(double lambda_v){
         }
 
         // * Adição do termo transiente em aP: (ρ * V) / ∆t
-        A_mom(ic, ic) = A_mom(ic,ic) + (rho * c->get_area())/dt;
+        // A_mom(ic, ic) = A_mom(ic,ic) + (rho * c->get_area())/dt;
 
         // * Adição do termo transiente nos termos fonte: (u|v)^(n) * (ρ * V) / ∆t
-        b_mom_x[ic] = b_mom_x[ic] + uc_old[ic] * (rho * c->get_area())/dt;
-        b_mom_y[ic] = b_mom_y[ic] + vc_old[ic] * (rho * c->get_area())/dt;
+        // b_mom_x[ic] = b_mom_x[ic] + uc_old[ic] * (rho * c->get_area())/dt;
+        // b_mom_y[ic] = b_mom_y[ic] + vc_old[ic] * (rho * c->get_area())/dt;
 
         //* Após o cálculo, aplica-se a relaxação com lambda e salvar o coeficiente da diagonal para uso posterior.
         // aP <- aP / λ
@@ -591,8 +591,8 @@ void NSSolver::uv_correct() {
         }
     }
 
-    // cout << "# Convergência de u: " << arma::norm(uc-uc_aux, "inf") << endl;
-    // cout << "# Convergência de v: " << arma::norm(vc-vc_aux, "inf") << endl;
+    cout << "# Convergência de u: " << arma::norm(uc-uc_aux, "inf") << endl;
+    cout << "# Convergência de v: " << arma::norm(vc-vc_aux, "inf") << endl;
 };
 
 void NSSolver::pres_correct(double lambda_p) {
@@ -603,55 +603,55 @@ void NSSolver::pres_correct(double lambda_p) {
         int ic = cells[i]->id;
         pc[ic] = pc[ic] + lambda_p * pcorr[ic];
     }
-    // cout << "# Convergência de p: " << arma::norm(pc-pc_aux, "inf") << endl;
+    cout << "# Convergência de p: " << arma::norm(pc-pc_aux, "inf") << endl;
 }
 
 
 void NSSolver::TransientSimple(){
-    for(int i = 0; i < 50; i++){
-        // dez passos de tempo.
-        cout << "Iteração: " << i << endl;
-        // zera todos para a próxima iteração de tempo
-        uc.zeros();
-        vc.zeros();
-        pc.zeros();
-        u_face.zeros();
-        v_face.zeros();
-        p_face.zeros();
-        mdotf.zeros();
-        ap.zeros();
-        mdotfcorr.zeros();
-        pfcorr.zeros();
-        pcorr.zeros();
-        ucorr.zeros();
-        vcorr.zeros();
-
-        this->compute_bcs();
+    for(int i = 0; i < 1; i++){
         
-        for(int j = 0; j < 100; j++){
+        cout << "Iteração: " << i << endl;
+        // // zera todos para a próxima iteração de tempo
+        // uc.zeros();
+        // vc.zeros();
+        // pc.zeros();
+        // u_face.zeros();
+        // v_face.zeros();
+        // p_face.zeros();
+        // mdotf.zeros();
+        // ap.zeros();
+        // mdotfcorr.zeros();
+        // pfcorr.zeros();
+        // pcorr.zeros();
+        // ucorr.zeros();
+        // vcorr.zeros();
+
+        // this->compute_bcs();
+        
+        for(int j = 0; j < 1000; j++){
             // resolve o simple 100 iterações.
-            // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
-            mom_links_and_sources(0.6);
-            // cout << "Resolvendo para encontrar uc\n";
+            cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
+            mom_links_and_sources(0.3);
+            cout << "Resolvendo para encontrar uc\n";
             solve_x_mom();
-            // cout << "Resolvendo para encontrar uv\n";
+            cout << "Resolvendo para encontrar uv\n";
             solve_y_mom();
             
-            // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
-            // face_velocity();
-            // cout << "# Calculando correção na pressão (p')\n";
-            solve_pp(false); // lid chama com true, backward facing step chama com false
-            // cout << "# Atualiza velocidades...\n";
+            cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
+            face_velocity();
+            cout << "# Calculando correção na pressão (p')\n";
+            solve_pp(true); // lid chama com true, backward facing step chama com false
+            cout << "# Atualiza velocidades...\n";
             uv_correct();
-            // cout << "# Atualiza pressão....\n";
-            pres_correct(0.2);
+            cout << "# Atualiza pressão....\n";
+            pres_correct(0.05);
         }
         // faz variaveis na proxima iteração começarem como as antigas.
         uc_old = uc;
         vc_old = vc;
         pc_old = pc;
         
-        string fn = "../outputs/flow_over_cylinder/v_vector_" + to_string(i) + ".vtk";
+        string fn = "../outputs/cylinder_testecase_2d_1_steady.vtk";
         export_solution(fn);
     }
 }

@@ -10,6 +10,10 @@ double parabolic(double x, double y){
         return 0.0;
 }
 
+double u_velocity_cylinder(double x, double y){
+    return 4 * 0.3 * y * (0.41 - y)/(0.41*0.41);
+}
+
 int main(int argc, char* argv[]) {
     Mesh m;
     
@@ -104,26 +108,28 @@ u=1, v = 0 | ∇p = 0 |                                                         
     // & Backward facing step ----------------------------------------------------
     
     // & Flow Over Cylinder ------------------------------------------------------
-    m.read_mesh("../inputs/flow_over_cylinder_refined.msh");
+    m.read_mesh("../inputs/cylinder/flow_over_cylinder_benchmark_refined.msh");
     us.push_back(BoundaryCondition(DIRICHLET, top_check,fzero)); // no-slip
     us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); // no-slip
     us.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // outlet (neumann 0)
-    us.push_back(BoundaryCondition(DIRICHLET, left_check, fone)); // inlet u = 1
-    us.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); // no-slip
+    us.push_back(BoundaryCondition(DIRICHLET, left_check, u_velocity_cylinder)); // inlet
+    us.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); // no-slip (OBJETO)
 
     vs.push_back(BoundaryCondition(DIRICHLET, top_check, fzero)); // no-slip
     vs.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); //no-slip
     vs.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // *outlet (neumann 0)
     vs.push_back(BoundaryCondition(DIRICHLET, left_check, fzero)); // *inlet v = 0
-    vs.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); //no-slip
+    vs.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); //no-slip (OBJETO)
 
     ps.push_back(BoundaryCondition(NEUMANN, top_check,fzero)); //no-slip
     ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero)); // no-slip
     ps.push_back(BoundaryCondition(DIRICHLET, right_check, fzero)); // *outlet (dirichlet = 0)
     ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero)); // *inlet = neumann 0
-    ps.push_back(BoundaryCondition(NEUMANN, circle_check, fzero)); // no-slip
- 
-    NSSolver solver(&m, 0.2, 1.0, us, vs, ps);
+    ps.push_back(BoundaryCondition(NEUMANN, circle_check, fzero)); // no-slip (OBJETO)
+    
+    // Re = 20 (steady)
+    double rho = 1.0, nu = 1e-3;
+    NSSolver solver(&m, nu, rho, us, vs, ps);
     // & Flow Over Cylinder ------------------------------------------------------
     
     solver.TransientSimple();

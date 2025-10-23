@@ -17,8 +17,11 @@ inline int get_neighbor(pair<int,int>& id_cells_share_face, int P){
 }
 
 inline bool circle_check(double x, double y){
-    /*Rever essa conta.*/
-    if(sqrt(pow(x,2) + pow(y,2)) - 0.1 < 0.1)
+    // Se o ponto (x,y) pertence ao círculo então: sqrt((x-xc)**2 + (y-yc)**2) = r ou sqrt((x-xc)**2 + (y-yc)**2) - r = 0
+    // como o gmsh gera refinando o polígono, nao sera exatamente zero, ai estou pedindo pra ser menor q uma tolerância.
+    // círculo está centrado em 0.2 e 0.2
+    // raio dele é 0.05
+    if(fabs(sqrt(pow(x-0.2,2) + pow(y-0.2,2))- 0.05) <= 1e-3)
         return true;
     else
         return false;
@@ -39,7 +42,7 @@ inline bool step_2_check(double x, double y){
 inline bool top_check(double x, double y){
     // if(y == 1) // config: backward
     // if(y == 1) // config: lid
-    if(y == 1) // config: flow_over_cylinder
+    if(y == 0.41) // config: flow_over_cylinder
         return true;
     return false;
 }
@@ -59,7 +62,7 @@ inline bool left_check(double x, double y){
 inline bool right_check(double x, double y){
     // if(x == 10) // config: backward
     // if(x == 1) // config: lid
-    if(x == 5) // config: flow over cylinder
+    if(x == 2.2) // config: flow over cylinder
         return true;
     return false;
 }
