@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Armadillo REQUIRED)
 include_directories(${ARMADILLO_INCLUDE_DIRS})
 
+find_package(yaml-cpp REQUIRED)
+
 set(CMAKE_CXX_FLAGS_DEBUG "-pg -O3 -g")
 
 include_directories(include)
@@ -19,6 +21,7 @@ set(SOURCE_FILES
     # src/Source.cpp
     # src/GradientReconstruction.cpp
     # src/Convection.cpp
+    src/Orchestrator.cpp
     src/NSSolver.cpp
 )
 set(HEADER_FILES
@@ -28,6 +31,7 @@ set(HEADER_FILES
     include/Edge.h
     include/Mesh.h
     include/Cell.h  
+    include/Orchestrator.h
     # include/FVMsolver.h
     include/utils.h
     include/BoundaryCondition.h
@@ -39,5 +43,5 @@ set(HEADER_FILES
 )
 
 add_executable(${PROJECT_NAME}.exe app/main.cpp ${SOURCE_FILES})
-target_link_libraries(${PROJECT_NAME}.exe ${ARMADILLO_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}.exe PRIVATE ${ARMADILLO_LIBRARIES} yaml-cpp)
 target_precompile_headers(${PROJECT_NAME}.exe PRIVATE include/pch.h)

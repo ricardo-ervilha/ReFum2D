@@ -1,0 +1,38 @@
+problem: lid_driven
+mesh: "../inputs/regular/quad_50x50.msh"
+
+parameters:
+  viscosity: 1e-2
+  density: 1.0
+
+boundaries:
+  u
+    - { type: DIRICHLET, region: y = 1, value: 1 }
+    - { type: DIRICHLET, region: y = 0, value: 0 }
+    - { type: DIRICHLET, region: x = 0, value: 0 }
+    - { type: DIRICHLET, region: x = 1, value: 0 }
+
+  v
+    - { type: DIRICHLET, region: y = 1, value: 0 }
+    - { type: DIRICHLET, region: y = 0, value: 0 }
+    - { type: DIRICHLET, region: x = 0, value: 0 }
+    - { type: DIRICHLET, region: x = 1, value: 0 }
+
+  p
+    - { type: DIRICHLET, region: y = 1, value: 0 }
+    - { type: DIRICHLET, region: y = 0, value: 0 }
+    - { type: DIRICHLET, region: x = 0, value: 0 }
+    - { type: DIRICHLET, region: x = 1, value: 0 }
+
+solver: transient
+
+transient_parameters:
+  n_steps: 20
+  tf: 10
+
+simple:
+  lambda_uv: 0.6
+  lambda_p: 0.3
+  iterations: 100
+
+export: "../outputs/"
