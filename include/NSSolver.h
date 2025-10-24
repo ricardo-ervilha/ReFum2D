@@ -55,6 +55,8 @@ class NSSolver{
         arma::vec pcorr;
         arma::vec pfcorr;
 
+        bool is_transient;
+
         arma::vec ucorr;
         arma::vec vcorr;
 
@@ -72,11 +74,16 @@ class NSSolver{
         void uv_correct();
         void pres_correct(double lambda_p);
 
-        void TransientSimple();
+        void TransientSimple(int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf);
+
+        void SteadySimple(int num_simple_iterations, double lambda_uv, double lambda_p);
+
+        void set_initial_condition(double (*f)(double, double), double (*g)(double, double), double (*h)(double, double));
 
         void compute_bcs();
 
-        void export_solution(string filename);
+        void export_velocity(string filename);
+        void export_pressure(string filename);
 };
 
 #endif

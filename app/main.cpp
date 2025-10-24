@@ -46,22 +46,22 @@ u = v = 0 | ∇p = 0  |                                                         
                                         u = v = 0 | ∇p = 0
     */
 
-    // m.read_mesh("../inputs/q30x30.msh");
-    // us.push_back(BoundaryCondition(DIRICHLET, top_check,fone));
-    // us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero));
-    // us.push_back(BoundaryCondition(DIRICHLET, right_check, fzero));
-    // us.push_back(BoundaryCondition(DIRICHLET, left_check, fzero));
+    m.read_mesh("../inputs/regular/quad_50x50.msh");
+    us.push_back(BoundaryCondition(DIRICHLET, top_check,fone));
+    us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero));
+    us.push_back(BoundaryCondition(DIRICHLET, right_check, fzero));
+    us.push_back(BoundaryCondition(DIRICHLET, left_check, fzero));
     
-    // vs.push_back(BoundaryCondition(DIRICHLET, top_check,fzero));
-    // vs.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero));
-    // vs.push_back(BoundaryCondition(DIRICHLET, right_check, fzero));
-    // vs.push_back(BoundaryCondition(DIRICHLET, left_check, fzero));
+    vs.push_back(BoundaryCondition(DIRICHLET, top_check,fzero));
+    vs.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero));
+    vs.push_back(BoundaryCondition(DIRICHLET, right_check, fzero));
+    vs.push_back(BoundaryCondition(DIRICHLET, left_check, fzero));
     
-    // ps.push_back(BoundaryCondition(NEUMANN, top_check,fzero));
-    // ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero));
-    // ps.push_back(BoundaryCondition(NEUMANN, right_check, fzero));
-    // ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero));
-    // NSSolver solver(&m, 1e-2, 1.0, us, vs, ps);
+    ps.push_back(BoundaryCondition(NEUMANN, top_check,fzero));
+    ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero));
+    ps.push_back(BoundaryCondition(NEUMANN, right_check, fzero));
+    ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero));
+    NSSolver solver(&m, 1e-2, 1.0, us, vs, ps);
     // & Lid Driven Cavity Flow --------------------------------------------------
     
     // & Backward facing step ----------------------------------------------------
@@ -108,29 +108,55 @@ u=1, v = 0 | ∇p = 0 |                                                         
     // & Backward facing step ----------------------------------------------------
     
     // & Flow Over Cylinder ------------------------------------------------------
-    m.read_mesh("../inputs/cylinder/flow_over_cylinder_benchmark_refined.msh");
-    us.push_back(BoundaryCondition(DIRICHLET, top_check,fzero)); // no-slip
-    us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); // no-slip
-    us.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // outlet (neumann 0)
-    us.push_back(BoundaryCondition(DIRICHLET, left_check, u_velocity_cylinder)); // inlet
-    us.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); // no-slip (OBJETO)
+    /*
+                            (0,0.41)                        wall: u = 0.0, v = 0.0 | ∇p = 0                            (2.2,0.41)
+                            *-----------------------------------------------------------------------------------------*
+                            |                                                                                        |
+                            |                                                                                        |
+                            |                                                                                        |
+      inflow                |                                                                                        | outflow
+u=4*0.3*y*(0.41-y)/(0.41^2) |                  -----                                                                 |
+      v = 0 | ∇p = 0        |                -       -                                                               |
+                            |               -         -                                                              |
+                            |              -           -                                                             |
+                            |               -         -                                                              |
+                            |                -       -                                                               |
+                            |                  ------                                                                | ∇U = 0 | ∇p = 0
+                            |                                                                                        |
+                            |                                                                                        |
+                            |                                                                                        |
+                            |                                                                                        |
+                            |                                                                                        |
+                            |                                                                                        |
+                            |                                                                                        |
+                    (0,0) *-----------------------------------------------------------------------------------------* (2.2,0)
+                                                            wall: u = v = 0 | ∇p = 0
+    */
 
-    vs.push_back(BoundaryCondition(DIRICHLET, top_check, fzero)); // no-slip
-    vs.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); //no-slip
-    vs.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // *outlet (neumann 0)
-    vs.push_back(BoundaryCondition(DIRICHLET, left_check, fzero)); // *inlet v = 0
-    vs.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); //no-slip (OBJETO)
+    // m.read_mesh("../inputs/cylinder/flow_over_cylinder_benchmark_refined.msh");
+    // us.push_back(BoundaryCondition(DIRICHLET, top_check,fzero)); // no-slip
+    // us.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); // no-slip
+    // us.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // outlet (neumann 0)
+    // us.push_back(BoundaryCondition(DIRICHLET, left_check, u_velocity_cylinder)); // inlet
+    // us.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); // no-slip (OBJETO)
 
-    ps.push_back(BoundaryCondition(NEUMANN, top_check,fzero)); //no-slip
-    ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero)); // no-slip
-    ps.push_back(BoundaryCondition(DIRICHLET, right_check, fzero)); // *outlet (dirichlet = 0)
-    ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero)); // *inlet = neumann 0
-    ps.push_back(BoundaryCondition(NEUMANN, circle_check, fzero)); // no-slip (OBJETO)
+    // vs.push_back(BoundaryCondition(DIRICHLET, top_check, fzero)); // no-slip
+    // vs.push_back(BoundaryCondition(DIRICHLET, bottom_check, fzero)); //no-slip
+    // vs.push_back(BoundaryCondition(NEUMANN, right_check, fzero)); // *outlet (neumann 0)
+    // vs.push_back(BoundaryCondition(DIRICHLET, left_check, fzero)); // *inlet v = 0
+    // vs.push_back(BoundaryCondition(DIRICHLET, circle_check, fzero)); //no-slip (OBJETO)
+
+    // ps.push_back(BoundaryCondition(NEUMANN, top_check,fzero)); //no-slip
+    // ps.push_back(BoundaryCondition(NEUMANN, bottom_check, fzero)); // no-slip
+    // ps.push_back(BoundaryCondition(DIRICHLET, right_check, fzero)); // *outlet (dirichlet = 0)
+    // ps.push_back(BoundaryCondition(NEUMANN, left_check, fzero)); // *inlet = neumann 0
+    // ps.push_back(BoundaryCondition(NEUMANN, circle_check, fzero)); // no-slip (OBJETO)
     
-    // Re = 20 (steady)
-    double rho = 1.0, nu = 1e-3;
-    NSSolver solver(&m, nu, rho, us, vs, ps);
+    // // Re = 20 (steady)
+    // double rho = 1.0, nu = 1e-3;
+    // NSSolver solver(&m, nu, rho, us, vs, ps);
     // & Flow Over Cylinder ------------------------------------------------------
     
-    solver.TransientSimple();
+    solver.SteadySimple(100, 0.6, 0.3);
+    // solver.TransientSimple(100, 0.6, 0.3, 40, 10);
 }

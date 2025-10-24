@@ -66,6 +66,8 @@ NSSolver::NSSolver(Mesh *mesh, float mu, float rho, vector<BoundaryCondition> bc
     this->pcorr = arma::vec(ncells, arma::fill::zeros);
     this->ucorr = arma::vec(ncells, arma::fill::zeros);
     this->vcorr = arma::vec(ncells, arma::fill::zeros);
+
+    this->is_transient = false;
     
     // =======================================================================================
 
@@ -192,6 +194,17 @@ void NSSolver::compute_wf(){
     }
 }
 
+void NSSolver::set_initial_condition(double (*u_func)(double, double), double (*v_func)(double, double), double (*p_func)(double, double)){
+    vector<Cell*> cells = mesh->get_cells();
+    for(int i = 0; i < cells.size(); ++i){
+        Cell* c = cells[i];
+        int ic = c->id;
+        uc_old[ic] = u_func(c->get_centroid().first, c->get_centroid().second);
+        vc_old[ic] = v_func(c->get_centroid().first, c->get_centroid().second);
+        pc_old[ic] = p_func(c->get_centroid().first, c->get_centroid().second);
+    }
+}
+
 void NSSolver::mom_links_and_sources(double lambda_v){
     vector<Cell*> cells = mesh->get_cells();
     
@@ -272,12 +285,15 @@ void NSSolver::mom_links_and_sources(double lambda_v){
             }
         }
 
-        // * Adição do termo transiente em aP: (ρ * V) / ∆t
-        // A_mom(ic, ic) = A_mom(ic,ic) + (rho * c->get_area())/dt;
+        if(is_transient){
+            // * Adição do termo transiente em aP: (ρ * V) / ∆t
+            A_mom(ic, ic) = A_mom(ic,ic) + (rho * c->get_area())/dt;
 
-        // * Adição do termo transiente nos termos fonte: (u|v)^(n) * (ρ * V) / ∆t
-        // b_mom_x[ic] = b_mom_x[ic] + uc_old[ic] * (rho * c->get_area())/dt;
-        // b_mom_y[ic] = b_mom_y[ic] + vc_old[ic] * (rho * c->get_area())/dt;
+            // * Adição do termo transiente nos termos fonte: (u|v)^(n) * (ρ * V) / ∆t
+            b_mom_x[ic] = b_mom_x[ic] + uc_old[ic] * (rho * c->get_area())/dt;
+            b_mom_y[ic] = b_mom_y[ic] + vc_old[ic] * (rho * c->get_area())/dt;
+        }
+            
 
         //* Após o cálculo, aplica-se a relaxação com lambda e salvar o coeficiente da diagonal para uso posterior.
         // aP <- aP / λ
@@ -607,31 +623,34 @@ void NSSolver::pres_correct(double lambda_p) {
 }
 
 
-void NSSolver::TransientSimple(){
-    for(int i = 0; i < 1; i++){
-        
-        cout << "Iteração: " << i << endl;
-        // // zera todos para a próxima iteração de tempo
-        // uc.zeros();
-        // vc.zeros();
-        // pc.zeros();
-        // u_face.zeros();
-        // v_face.zeros();
-        // p_face.zeros();
-        // mdotf.zeros();
-        // ap.zeros();
-        // mdotfcorr.zeros();
-        // pfcorr.zeros();
-        // pcorr.zeros();
-        // ucorr.zeros();
-        // vcorr.zeros();
+void NSSolver::TransientSimple(int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf){
+    this->dt = (tf - 0)/n_steps;
+    this->is_transient = true;
+    double t = 0;
+    int cont = 0;
+    while(t <= tf){    
+        cout << "t: " << t << endl;
+        // zera todos para a próxima iteração de tempo
+        uc.zeros();
+        vc.zeros();
+        pc.zeros();
+        u_face.zeros();
+        v_face.zeros();
+        p_face.zeros();
+        mdotf.zeros();
+        ap.zeros();
+        mdotfcorr.zeros();
+        pfcorr.zeros();
+        pcorr.zeros();
+        ucorr.zeros();
+        vcorr.zeros();
 
-        // this->compute_bcs();
+        this->compute_bcs();
         
-        for(int j = 0; j < 1000; j++){
+        for(int j = 0; j < num_simple_iterations; j++){
             // resolve o simple 100 iterações.
             cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
-            mom_links_and_sources(0.3);
+            mom_links_and_sources(lambda_uv);
             cout << "Resolvendo para encontrar uc\n";
             solve_x_mom();
             cout << "Resolvendo para encontrar uv\n";
@@ -644,20 +663,48 @@ void NSSolver::TransientSimple(){
             cout << "# Atualiza velocidades...\n";
             uv_correct();
             cout << "# Atualiza pressão....\n";
-            pres_correct(0.05);
+            pres_correct(lambda_p);
         }
         // faz variaveis na proxima iteração começarem como as antigas.
         uc_old = uc;
         vc_old = vc;
         pc_old = pc;
         
-        string fn = "../outputs/cylinder_testecase_2d_1_steady.vtk";
-        export_solution(fn);
+        string fn = "../outputs/lid_driven/lid_" + to_string(cont) + ".vtk";
+        export_velocity(fn);
+
+        t = t + dt;
+        cont = cont + 1;
     }
 }
 
+void NSSolver::SteadySimple(int num_simple_iterations, double lambda_uv, double lambda_p){
+    for(int j = 0; j < num_simple_iterations; j++){
+        // resolve o simple 100 iterações.
+        cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
+        mom_links_and_sources(lambda_uv);
+        cout << "Resolvendo para encontrar uc\n";
+        solve_x_mom();
+        cout << "Resolvendo para encontrar uv\n";
+        solve_y_mom();
+        
+        cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
+        face_velocity();
+        cout << "# Calculando correção na pressão (p')\n";
+        solve_pp(true); // lid chama com true, backward facing step chama com false
+        cout << "# Atualiza velocidades...\n";
+        uv_correct();
+        cout << "# Atualiza pressão....\n";
+        pres_correct(lambda_p);
+    }
+    
+    string fn = "../outputs/lid_driven_cavity_velocity.vtk";
+    export_velocity(fn);
+    fn = "../outputs/lid_driven_cavity_pressure.vtk";
+    export_pressure(fn);
+}
 
-void NSSolver::export_solution(string filename){
+void NSSolver::export_velocity(string filename){
 
     ofstream vtk_file(filename);
 
@@ -721,3 +768,69 @@ void NSSolver::export_solution(string filename){
 
     vtk_file.close();
 }
+
+void NSSolver::export_pressure(string filename){
+
+    ofstream vtk_file(filename);
+
+    if (!vtk_file.is_open()) {
+        std::cerr << "ERROR: failed to create file." << filename << "'.\n";
+        exit(1);
+    }
+
+    /*Informações padrão*/
+    vtk_file << "# vtk DataFile Version 3.0\n";
+    vtk_file << "Malha 2D com triângulos e temperatura\n";
+    vtk_file << "ASCII\n";
+    vtk_file << "DATASET UNSTRUCTURED_GRID\n\n";
+
+    vector<Node*> nodes = this->mesh->get_nodes();
+    vtk_file << "POINTS " << nodes.size() << " double" << endl;
+    for(int i = 0; i < nodes.size(); i++){
+        vtk_file << nodes[i]->x << " " << nodes[i]->y << " " << 0 << endl;
+    }
+    vtk_file << endl;
+
+    vector<Cell*> cells = mesh->get_cells();
+    vtk_file << "CELLS " << cells.size() << " ";
+    int sum = 0; // vai contar a quantidade de valores a serem lidos depois...
+    for(int i = 0; i < cells.size(); i++)
+    {
+        if(cells[i]->cellType == 2)
+            sum += 4;
+        else if(cells[i]->cellType == 3)
+            sum += 5;
+    }
+    vtk_file << sum << endl;
+    
+    for(int i = 0; i < cells.size(); i++){
+        vector<Node*>& nodesOfCell = cells[i]->get_nodes();
+        vtk_file << nodesOfCell.size(); 
+        for(int j = 0; j < nodesOfCell.size(); j++)
+            vtk_file << " " << nodesOfCell[j]->id;
+        vtk_file << endl;
+    }
+    vtk_file << endl;
+
+    vtk_file << "CELL_TYPES " << cells.size() << endl;
+    for(int i = 0; i < cells.size(); i++){
+        if(cells[i]->cellType == 2)
+            vtk_file << "5" << endl;
+        else if(cells[i]->cellType == 3)
+            vtk_file << "9" << endl;
+    }
+    vtk_file << endl;
+    
+    vtk_file << "CELL_DATA " << cells.size() << endl;
+    vtk_file << "SCALARS pressure double 1\n";
+    vtk_file << "LOOKUP_TABLE default\n";
+    for(int i = 0; i < cells.size(); i++){
+        double p = pc[i];
+        // * salva p
+        vtk_file << p << endl;
+    }
+
+
+    vtk_file.close();
+}
+
