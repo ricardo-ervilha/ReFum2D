@@ -1,0 +1,40 @@
+problem: backward_facing_step
+mesh: "../inputs/backward_step_laminar_with_parabolic_function.msh"
+
+parameters:
+  viscosity: 2e-2
+  density: 1.0
+
+boundaries:
+  u:
+    - { type: DIRICHLET, region: TOP, value: zero }
+    - { type: DIRICHLET, region: BOTTOM, value: zero }
+    - { type: DIRICHLET, region: LEFT, value: bfs }
+    - { type: NEUMANN, region: RIGHT, value: zero }
+    - { type: DIRICHLET, region: BACKWARD_HORIZONTAL, value: zero }
+    - { type: DIRICHLET, region: BACKWARD_VERTICAL, value: zero }
+
+  v:
+    - { type: DIRICHLET, region: TOP, value: zero }
+    - { type: DIRICHLET, region: BOTTOM, value: zero }
+    - { type: DIRICHLET, region: LEFT, value: zero }
+    - { type: NEUMANN, region: RIGHT, value: zero }
+    - { type: DIRICHLET, region: BACKWARD_HORIZONTAL, value: zero }
+    - { type: DIRICHLET, region: BACKWARD_VERTICAL, value: zero }
+
+  p:
+    - { type: NEUMANN, region: TOP, value: zero }
+    - { type: NEUMANN, region: BOTTOM, value: zero }
+    - { type: NEUMANN, region: LEFT, value: zero }
+    - { type: DIRICHLET, region: RIGHT, value: zero }
+    - { type: NEUMANN, region: BACKWARD_HORIZONTAL, value: zero }
+    - { type: NEUMANN, region: BACKWARD_VERTICAL, value: zero }
+
+solver: steady
+
+simple:
+  lambda_uv: 0.6
+  lambda_p: 0.3
+  iterations: 100
+
+export_folder: "../outputs/"

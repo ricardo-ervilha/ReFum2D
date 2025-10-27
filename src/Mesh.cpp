@@ -69,7 +69,7 @@ void Mesh::read_mesh(string filepath){
                     iss >> dim >> id >> name;
                     name = name.substr(1, name.size() - 2); // Remoção das aspas duplas que vem junto com o nome.
                     
-                    if(dim == 2){    
+                    if(dim == 1 || dim == 2){    
                         PhysicalEntity* pg = new PhysicalEntity(id, name);
                         this->physicalentities.emplace(id, pg);
                     }
@@ -103,7 +103,7 @@ void Mesh::read_mesh(string filepath){
                 istringstream iss(line);
                 int totalElements;
                 iss >> totalElements;
-
+                
                 for(int i = 0; i < totalElements; i++){
                     getline(file, line);
                     istringstream iss(line);
@@ -127,13 +127,16 @@ void Mesh::read_mesh(string filepath){
                         iss >> id;
                         elNodes.push_back(this->nodes[id - 1]);
                     }
-
-                    if(elementType == 2 || elementType == 3){
-                        // é uma célula.
+                    
+                    if(elementType == 1){
+                        boundarySegments.push_back({elNodes[0]->id, elNodes[1]->id, physicalGroupTag});
+                    }
+                    else if(elementType == 2 || elementType == 3){ /// triangulo OU QUADRADO
+                        // é uma célula (informação de physical group é irrelevante).
                         Cell* c = new Cell(idCell, elementType, elNodes);
                         this->cells.push_back(c);
                         idCell++; // incrementa 1
-                        this->physicalentities[physicalGroupTag]->add_element(c);
+                        
                     }
                 }
             }
@@ -196,6 +199,23 @@ void Mesh::pre_processing(){
                 // adiciono em uniquefaces e faces.
                 uniqueFaces.insert(ordenered_edge); // insiro essa nova face, registrando uma nova face única.
                 edgesAux.push_back(FacesOfCell[j]);  // guardo isso no faces também, pois ele anda junto com o uniqueFaces.
+            }
+        }
+    }
+
+    for (auto& [id1, id2, pgTag] : boundarySegments) {
+        // ordena para comparação
+        int a = std::min(id1, id2);
+        int b = std::max(id1, id2);
+        for (Edge* e : edges) {
+            int ea = std::min(e->from->id, e->to->id);
+            int eb = std::max(e->from->id, e->to->id);
+            if (ea == a && eb == b) {
+                auto it = physicalentities.find(pgTag);
+                if (it != physicalentities.end()) {
+                    e->set_phyisicalgroup(it->second->name);
+                }
+                break;
             }
         }
     }

@@ -4,10 +4,7 @@
 #include "pch.h"
 class Cell;
 
-class PhysicalEntity{
-    private:
-        vector<Cell*> cells; 
-        
+class PhysicalEntity{        
     public:
         const int id;
         const string name; 
@@ -15,9 +12,6 @@ class PhysicalEntity{
         PhysicalEntity(int id, string name) : id(id), name(name) {};
         PhysicalEntity() : id(), name() {}; // construtor vazio por causa da map.
         ~PhysicalEntity() {};
-
-        void add_element(Cell* e)    {this->cells.push_back(e);};
-        vector<Cell*>& get_elements() {return this->cells;};
 };
 
 

@@ -1,0 +1,34 @@
+problem: lid_driven
+mesh: "../inputs/q30x30.msh"
+
+parameters:
+  viscosity: 0.01
+  density: 1.0
+
+boundaries:
+  u:
+    - { type: DIRICHLET, region: TOP, value: one }
+    - { type: DIRICHLET, region: BOTTOM, value: zero }
+    - { type: DIRICHLET, region: LEFT, value: zero }
+    - { type: DIRICHLET, region: RIGHT, value: zero }
+
+  v:
+    - { type: DIRICHLET, region: TOP, value: zero }
+    - { type: DIRICHLET, region: BOTTOM, value: zero }
+    - { type: DIRICHLET, region: LEFT, value: zero }
+    - { type: DIRICHLET, region: RIGHT, value: zero }
+
+  p:
+    - { type: NEUMANN, region: TOP, value: zero }
+    - { type: NEUMANN, region: BOTTOM, value: zero }
+    - { type: NEUMANN, region: LEFT, value: zero }
+    - { type: NEUMANN, region: RIGHT, value: zero }
+
+solver: steady
+
+simple:
+  lambda_uv: 0.6
+  lambda_p: 0.3
+  iterations: 300
+
+export_folder: "../outputs/"

@@ -1,6 +1,7 @@
 #ifndef BOUNDARYCONDITION_H
 #define BOUNDARYCONDITION_H
 
+#include <functional>
 class Edge;
 
 enum BoundaryType {
@@ -12,20 +13,20 @@ enum BoundaryType {
 class BoundaryCondition {
     private:
         BoundaryType type; 
-        bool (*location)(double, double);
-        double (*func)(double, double); // O valor a ser aplicado é uma função.
+        string location;
+        function<double(double, double)> func; // O valor a ser aplicado é uma função.
         static double xmin, xmax, ymin, ymax;
 
     public: 
-        BoundaryCondition(BoundaryType type, bool (*location)(double, double), double (*f)(double, double)) {
+        BoundaryCondition(BoundaryType type, string location, function<double(double, double)> f) {
             this->func = f;
             this->location = location;
             this->type = type;
         };
         ~BoundaryCondition() {};    
         BoundaryType get_type() { return type; }; 
-        bool get_location(double x, double y) { return location(x,y); }; 
-        double apply(double x, double y) {  return func(x, y); };
+        string get_location() { return location; }; 
+        double apply(double x, double y) { return func(x, y); };
 };
 
 #endif

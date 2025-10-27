@@ -12,6 +12,7 @@ class Edge{
         pair<double,double> middle;
         pair<double,double> normal;
         pair<int,int> link_face_to_cell;
+        string physicalGroup;
 
         void compute_properties(){
             length = distance(from->x, from->y, to->x, to->y);
@@ -50,8 +51,10 @@ class Edge{
                 return true;
             else
                 return false;
-        }
+        };
 
+        string get_physicalgroup() {return this->physicalGroup;};
+        void set_phyisicalgroup(string pg) {this->physicalGroup = pg;};
 };
 
 #endif

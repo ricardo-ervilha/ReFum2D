@@ -27,50 +27,16 @@ inline bool circle_check(double x, double y){
         return false;
 }
 
-inline bool step_1_check(double x, double y){
-    if(y == 0.5)
-        return true;
-    return false;
-}
-
-inline bool step_2_check(double x, double y){
-    if(x == 0.5)
-        return true;
-    return false;
-}
-
-inline bool top_check(double x, double y){
-    // if(y == 1) // config: backward
-    // if(y == 0.41) // config: flow_over_cylinder
-    if(y == 1) // config: lid
-        return true;
-    return false;
-}
-
-inline bool bottom_check(double x, double y){
-    if(y == 0.0)
-        return true;
-    return false;
-}
-
-inline bool left_check(double x, double y){
-    if(x == 0.0)
-        return true;
-    return false;
-}
-
-inline bool right_check(double x, double y){
-    // if(x == 10) // config: backward
-    // if(x == 2.2) // config: flow over cylinder
-    if(x == 1) // config: lid
-        return true;
-    return false;
-}
-
-inline double fzero(double x, double y){
-    return 0.0;
-}
-
-inline double fone(double x, double y){
-    return 1.0;
+inline void progress_bar(int i, int barWidth, int totalIterations){
+    float progress = (float) i / totalIterations;
+    int pos = barWidth * progress;
+    
+    std::cout << "] " << int(progress * 100.0) << " %\r"; // <- \r retorna para o início
+    std::cout.flush(); // força atualizar a linha
+    cout << "[";
+        for (int j = 0; j < barWidth; ++j) {
+            if (j < pos) cout << "=";
+            else if (j == pos) cout << ">";
+            else cout << " ";
+        }
 }

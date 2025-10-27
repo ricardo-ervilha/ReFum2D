@@ -1,0 +1,37 @@
+problem: flow_over_cyilinder
+mesh: "../inputs/cylinder/flow_over_cylinder_benchmark_refined.msh"
+
+parameters:
+  viscosity: 1e-3
+  density: 1.0
+
+boundaries:
+  u:
+    - { type: DIRICHLET, region: TOP, value: zero }
+    - { type: DIRICHLET, region: BOTTOM, value: zero }
+    - { type: DIRICHLET, region: LEFT, value: foc }
+    - { type: NEUMANN, region: RIGHT, value: zero }
+    - { type: DIRICHLET, region: OBJECT, value: zero }
+
+  v:
+    - { type: DIRICHLET, region: TOP, value: zero }
+    - { type: DIRICHLET, region: BOTTOM, value: zero }
+    - { type: DIRICHLET, region: LEFT, value: zero }
+    - { type: NEUMANN, region: RIGHT, value: zero }
+    - { type: DIRICHLET, region: OBJECT, value: zero }
+
+  p:
+    - { type: NEUMANN, region: TOP, value: zero }
+    - { type: NEUMANN, region: BOTTOM, value: zero }
+    - { type: NEUMANN, region: LEFT, value: zero }
+    - { type: DIRICHLET, region: RIGHT, value: zero }
+    - { type: NEUMANN, region: OBJECT, value: zero }
+
+solver: steady
+
+simple:
+  lambda_uv: 0.3
+  lambda_p: 0.01
+  iterations: 300
+
+export_folder: "../outputs/"

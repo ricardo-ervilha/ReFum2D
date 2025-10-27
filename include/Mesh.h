@@ -24,6 +24,8 @@ class Mesh{
         vector<Edge*> edges;
         map<int, PhysicalEntity*> physicalentities; //fluido, placa, aerofolio, etc.
 
+        vector<tuple<int, int, int>> boundarySegments; 
+
         // variáveis para ajudar a aplicar BCs.
         double xmin, xmax;
         double ymin, ymax;

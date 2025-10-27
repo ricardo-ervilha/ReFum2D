@@ -16,13 +16,8 @@ include_directories(include)
 # Fontes e cabeçalhos
 set(SOURCE_FILES
     src/Mesh.cpp
-    # src/FVMSolver.cpp
-    # src/Diffusion.cpp
-    # src/Source.cpp
-    # src/GradientReconstruction.cpp
-    # src/Convection.cpp
     src/Orchestrator.cpp
-    src/NSSolver.cpp
+    src/ReFumSolver.cpp
 )
 set(HEADER_FILES
     include/Element.h
@@ -32,14 +27,9 @@ set(HEADER_FILES
     include/Mesh.h
     include/Cell.h  
     include/Orchestrator.h
-    # include/FVMsolver.h
     include/utils.h
     include/BoundaryCondition.h
-    # include/Diffusion.h
-    # include/Source.h
-    # include/GradientReconstruction.h
-    # include/Convection.h
-    include/NSSolver.h
+    include/ReFumSolver.h
 )
 
 add_executable(${PROJECT_NAME}.exe app/main.cpp ${SOURCE_FILES})
