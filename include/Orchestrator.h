@@ -50,9 +50,12 @@ private:
         else
             return 0.0;
     };
-    static double flow_over_cylinder(double x, double y)
+    static double flow_over_cylinder_benchmark_a(double x, double y)
     {
-        return 4 * 0.3 * y * (0.41 - y) / (0.41 * 0.41);
+        return 4 * 0.3 * y * (0.41 - y) / (0.41 * 0.41); // Re = 20
+    }
+    static double flow_over_cylinder_benchmark_b(double x, double y){
+        return 4 * 1.5 * y * (0.41 - y) / (0.41 * 0.41); // U_m multiplicou por 5 => Re = 100
     }
 
 public:

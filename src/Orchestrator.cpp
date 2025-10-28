@@ -5,7 +5,8 @@ Orchestrator::Orchestrator(){
     name_to_function_object.emplace("one", one);
     name_to_function_object.emplace("zero", zero);
     name_to_function_object.emplace("bfs", backward_facing_step);
-    name_to_function_object.emplace("foc", flow_over_cylinder);
+    name_to_function_object.emplace("foc_a", flow_over_cylinder_benchmark_a);
+    name_to_function_object.emplace("foc_b", flow_over_cylinder_benchmark_b);
 }
 
 Orchestrator::~Orchestrator(){

@@ -1,4 +1,4 @@
-problem: flow_over_cyilinder
+problem: flow_over_cyilinder_Re_20
 mesh: "../inputs/cylinder/flow_over_cylinder_benchmark_refined.msh"
 
 parameters:
@@ -9,7 +9,7 @@ boundaries:
   u:
     - { type: DIRICHLET, region: TOP, value: zero }
     - { type: DIRICHLET, region: BOTTOM, value: zero }
-    - { type: DIRICHLET, region: LEFT, value: foc }
+    - { type: DIRICHLET, region: LEFT, value: foc_a }
     - { type: NEUMANN, region: RIGHT, value: zero }
     - { type: DIRICHLET, region: OBJECT, value: zero }
 

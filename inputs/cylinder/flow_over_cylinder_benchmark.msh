@@ -3,12 +3,12 @@ $MeshFormat
 $EndMeshFormat
 $PhysicalNames
 6
-1 6 "bottom"
-1 7 "right"
-1 8 "top"
-1 9 "left"
-1 10 "cylinder"
-2 11 "fluid"
+1 6 "BOTTOM"
+1 7 "RIGHT"
+1 8 "TOP"
+1 9 "LEFT"
+1 10 "OBJECT"
+2 11 "INTERIOR"
 $EndPhysicalNames
 $Nodes
 688
