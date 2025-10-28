@@ -73,7 +73,7 @@ ReFumSolver::ReFumSolver(Mesh *mesh, float mu, float rho, vector<BoundaryConditi
     bcsu = bcsU;
     bcsv = bcsV;
     bcsp = bcsP;
-    this->compute_bcs();
+    this->compute_bcs_first();
     
     // chama para calcular os pesos que precisa na hora de fazer a media do valor:
     // phi_f = wf*phi_P + (1-wf)*phi_N
@@ -124,7 +124,8 @@ void ReFumSolver::compute_wf(){
     }
 }
 
-void ReFumSolver::compute_bcs(){
+void ReFumSolver::compute_bcs_first(){
+    // + código único
     int nfaces = mesh->get_nedges();
     vector<Edge*> faces = mesh->get_edges();
 
@@ -148,7 +149,13 @@ void ReFumSolver::compute_bcs(){
         apply_bc(v_boundary, bcsv, face);
         apply_bc(p_boundary, bcsp, face);
     }
-    
+}
+
+void ReFumSolver::compute_bcs_repeat(){
+    // + código que pode ser chamado várias vezes.
+    int nfaces = mesh->get_nedges();
+    vector<Edge*> faces = mesh->get_edges();
+
     // faz os valores das faces quando for DIRICHLET em velocidade (wall ou inlet) serem o valor prescrito e mesma coisa com pressão quando for outlet
     for(int i = 0; i < nfaces; i++){
         Edge* face = faces[i];
@@ -600,6 +607,8 @@ void ReFumSolver::pres_correct(double lambda_p) {
 
 
 void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, bool pressure_correction_flag){
+    this->compute_bcs_repeat(); // aplica BC nos vetores
+
     // itera pelo número de iterações passado pelo usuário
     for(int j = 0; j < num_simple_iterations; j++){
         
@@ -634,68 +643,74 @@ void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_
     this->export_pressure(filepath + problem + "_pressure" + ".vtk");
 }
 
-// void ReFumSolver::TransientSimple(int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf){
-//     this->dt = (tf - 0)/n_steps;
-//     this->is_transient = true;
-//     double t = 0;
-//     int cont = 0;
-//     while(t <= tf){    
-//         cout << "t: " << t << endl;
-//         // zera todos para a próxima iteração de tempo
-//         uc.zeros();
-//         vc.zeros();
-//         pc.zeros();
-//         u_face.zeros();
-//         v_face.zeros();
-//         p_face.zeros();
-//         mdotf.zeros();
-//         ap.zeros();
-//         mdotfcorr.zeros();
-//         pfcorr.zeros();
-//         pcorr.zeros();
-//         ucorr.zeros();
-//         vcorr.zeros();
-
-//         this->compute_bcs();
-        
-//         for(int j = 0; j < num_simple_iterations; j++){
-//             // resolve o simple 100 iterações.
-//             cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
-//             mom_links_and_sources(lambda_uv);
-//             cout << "Resolvendo para encontrar uc\n";
-//             solve_x_mom();
-//             cout << "Resolvendo para encontrar uv\n";
-//             solve_y_mom();
-            
-//             cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
-//             face_velocity();
-//             cout << "# Calculando correção na pressão (p')\n";
-//             solve_pp(true); // lid chama com true, backward facing step chama com false
-//             cout << "# Atualiza velocidades...\n";
-//             uv_correct();
-//             cout << "# Atualiza pressão....\n";
-//             pres_correct(lambda_p);
-//         }
-//         // faz variaveis na proxima iteração começarem como as antigas.
-//         uc_old = uc;
-//         vc_old = vc;
-//         pc_old = pc;
-        
-//         string fn = "../outputs/lid_driven/lid_" + to_string(cont) + ".vtk";
-//         export_velocity(fn);
-
-//         t = t + dt;
-//         cont = cont + 1;
-//     }
-// }
-
-
+void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag){
     
-//     string fn = "../outputs/lid_driven_cavity_velocity.vtk";
-//     export_velocity(fn);
-//     fn = "../outputs/lid_driven_cavity_pressure.vtk";
-//     export_pressure(fn);
-// }
+    // calculando o dt (ASSUMINDO Q condição inicial é t = 0.)
+    double t = 0;
+    this->dt = (tf - 0)/n_steps;
+    
+    int cont = 0; // ajuda a salvar os arquivos.
+    
+    while(t <= tf){    
+        
+        // zera todos para a próxima iteração de tempo
+        uc.zeros();
+        vc.zeros();
+        pc.zeros();
+        u_face.zeros();
+        v_face.zeros();
+        p_face.zeros();
+        mdotf.zeros();
+        ap.zeros();
+        mdotfcorr.zeros();
+        pfcorr.zeros();
+        pcorr.zeros();
+        ucorr.zeros();
+        vcorr.zeros();
+        // -----------------------------------------------
+
+        this->compute_bcs_repeat(); // aplica BC nos vetores
+        
+        for(int j = 0; j < num_simple_iterations; j++){
+            
+            // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
+            mom_links_and_sources(lambda_uv);
+            
+            // cout << "Resolvendo para encontrar uc\n";
+            solve_x_mom();
+            
+            // cout << "Resolvendo para encontrar uv\n";
+            solve_y_mom();
+            
+            // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
+            face_velocity();
+            
+            // cout << "# Calculando correção na pressão (p')\n";
+            solve_pp(true); // lid chama com true, backward facing step chama com false
+            
+            // cout << "# Atualiza velocidades...\n";
+            uv_correct();
+            
+            // cout << "# Atualiza pressão....\n";
+            pres_correct(lambda_p);
+        }
+
+        // faz variaveis na proxima iteração começarem como as antigas u(n) = u(n-1)
+        uc_old = uc;
+        vc_old = vc;
+        pc_old = pc;
+        
+        string fn = filepath + problem + to_string(cont) + ".vtk";
+        export_velocity(fn);
+
+        t = t + dt; // atualiza o tempo
+        cont = cont + 1; // atualiza contador de snapshots
+        
+        progress_bar(cont, 50, n_steps);
+    }
+    cout << endl;
+}
+
 
 // *=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=
 

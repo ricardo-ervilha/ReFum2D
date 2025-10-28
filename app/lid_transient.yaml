@@ -21,7 +21,7 @@
 #                                        u = v = 0 | ∇p = 0
     
 problem: lid_driven
-mesh: "../inputs/malha_para_validar_contornos.msh"
+mesh: "../inputs/regular/quad_50x50.msh"
 
 parameters:
   viscosity: 1e-2
@@ -46,10 +46,10 @@ boundaries:
     - { type: NEUMANN, region: LEFT, value: zero }
     - { type: NEUMANN, region: RIGHT, value: zero }
 
-solver: transient
+solver: transient # avisa q é transiente
 
 transient_parameters:
-  n_steps: 20
+  n_steps: 50
   tf: 10
   initial_condition:
     u: zero
@@ -59,6 +59,6 @@ transient_parameters:
 simple:
   lambda_uv: 0.6
   lambda_p: 0.3
-  iterations: 100
+  iterations: 200
 
-export_folder: "../outputs/"
+export_folder: "../outputs/lid_transiente_simulation/" # importante deixar barra no final (precisa estar criado antes)

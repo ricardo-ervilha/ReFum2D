@@ -64,7 +64,8 @@ private:
 
     arma::vec wf;
     void compute_wf();
-    void compute_bcs();
+    void compute_bcs_first();
+    void compute_bcs_repeat();
 
     // exportar velocidade e pressão em .vtk
     void export_velocity(string filename);
