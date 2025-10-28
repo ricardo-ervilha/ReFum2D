@@ -8,7 +8,7 @@
 
 int main(int argc, char* argv[]) {
     Orchestrator o;
-    o.readYamlAndRecoverVariables("../app/flow_over_cylinder_Re_20.yaml");
+    o.readYamlAndRecoverVariables("../app/kovasznay_flow.yaml");
 
     Mesh m;
     m.read_mesh(o.get_mesh_path());

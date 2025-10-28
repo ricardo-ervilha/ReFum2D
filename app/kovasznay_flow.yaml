@@ -1,0 +1,34 @@
+problem: kovasznay_flow
+mesh: "../inputs/regular/quad_50x50.msh" # (0,1)x(0,1)
+
+parameters:
+  viscosity: 0.05 # Re = 20
+  density: 1.0
+
+boundaries:
+  u:
+    - { type: DIRICHLET, region: TOP, value: kov_u }
+    - { type: DIRICHLET, region: BOTTOM, value: kov_u }
+    - { type: DIRICHLET, region: LEFT, value: kov_u }
+    - { type: DIRICHLET, region: RIGHT, value: kov_u }
+
+  v:
+    - { type: DIRICHLET, region: TOP, value: kov_v }
+    - { type: DIRICHLET, region: BOTTOM, value: kov_v }
+    - { type: DIRICHLET, region: LEFT, value: kov_v }
+    - { type: DIRICHLET, region: RIGHT, value: kov_v }
+
+  p:
+    - { type: DIRICHLET, region: TOP, value: kov_p }
+    - { type: DIRICHLET, region: BOTTOM, value: kov_p }
+    - { type: DIRICHLET, region: LEFT, value: kov_p }
+    - { type: DIRICHLET, region: RIGHT, value: kov_p }
+
+solver: steady
+
+simple:
+  lambda_uv: 0.3
+  lambda_p: 0.05
+  iterations: 500
+
+export_folder: "../outputs/"

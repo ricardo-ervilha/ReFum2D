@@ -7,6 +7,9 @@ Orchestrator::Orchestrator(){
     name_to_function_object.emplace("bfs", backward_facing_step);
     name_to_function_object.emplace("foc_a", flow_over_cylinder_benchmark_a);
     name_to_function_object.emplace("foc_b", flow_over_cylinder_benchmark_b);
+    name_to_function_object.emplace("kov_u", kov_u);
+    name_to_function_object.emplace("kov_v", kov_v);
+    name_to_function_object.emplace("kov_p", kov_p);
 }
 
 Orchestrator::~Orchestrator(){

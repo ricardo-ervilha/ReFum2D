@@ -43,6 +43,7 @@ private:
     /* Funções necessárias para valor e condição inicial serão definidas aqui. */
     static double one(double x, double y) { return 1.0; };
     static double zero(double x, double y) { return 0.0; };
+    
     static double backward_facing_step(double x, double y)
     {
         if (y > 0.5) // metade superior
@@ -57,6 +58,20 @@ private:
     static double flow_over_cylinder_benchmark_b(double x, double y){
         return 4 * 1.5 * y * (0.41 - y) / (0.41 * 0.41); // U_m multiplicou por 5 => Re = 100
     }
+    static double kov_u(double x, double y){
+        double lambda = -1.81009812;
+        return 1 - exp(lambda*x) * cos(2*M_PI*y);
+    }
+    static double kov_v(double x, double y){
+        double lambda = -1.81009812;
+        return (lambda/(2*M_PI))*exp(lambda*x)*sin(2*M_PI*y);
+    }
+    static double kov_p(double x, double y){
+        double lambda = -1.81009812;
+        return 0.5 * (1 - exp(2 * lambda * x));
+    }
+
+
 
 public:
     Orchestrator();
