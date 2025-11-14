@@ -71,6 +71,17 @@ private:
     void export_velocity(string filename);
     void export_pressure(string filename);
 
+    vector<vector<int>> cnsigns;
+    vector<double>      careas;
+    vector<pair<double,double>> ccentroids;
+    vector<double>      flengths;
+    vector<double>      fdfs;
+    vector<pair<double,double>> fmiddles;
+    vector<pair<double,double>> fnormals;
+    vector<pair<int,int>> flftcs;
+    vector<bool> fboundaryfaces;
+    vector<vector<int>> idFacesFromCell;
+
 public:
     ReFumSolver(Mesh *mesh, float mu, float rho, vector<BoundaryCondition> bcsU, vector<BoundaryCondition> bcsV, vector<BoundaryCondition> bcsP, SolverType solver);
     ~ReFumSolver();
@@ -85,6 +96,8 @@ public:
     void solve_pp(bool sing_matrix);
     void uv_correct();
     void pres_correct(double lambda_p);
+
+    void calculate_exact_solution_and_compare();
 
     // solver
     void TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag);

@@ -67,7 +67,22 @@ ReFumSolver::ReFumSolver(Mesh *mesh, float mu, float rho, vector<BoundaryConditi
     this->pcorr = arma::vec(ncells, arma::fill::zeros);
     this->ucorr = arma::vec(ncells, arma::fill::zeros);
     this->vcorr = arma::vec(ncells, arma::fill::zeros);
-    
+
+    // * PEGANDO ARRAYS DO MESH (pré-processamento)
+    // ===== CELLS =====
+    cnsigns    = mesh->getCellNsign();
+    careas     = mesh->getCellArea();
+    ccentroids = mesh->getCellCentroid();
+    idFacesFromCell = mesh->getFacesFromCell();
+
+    // ===== FACES =====
+    flengths   = mesh->getFaceLength();
+    fdfs       = mesh->getFaceDf();
+    fmiddles  = mesh->getFaceMiddle();
+    fnormals  = mesh->getFaceNormal();
+    flftcs  = mesh->getFaceLftc();
+    fboundaryfaces = mesh->getIsBoundaryFace();
+
     // =======================================================================================
     // chama para inicializar as condições de contorno
     bcsu = bcsU;
@@ -91,33 +106,37 @@ ReFumSolver::~ReFumSolver(){
  * * Define u_0, v_0 e p_0.
  */
 void ReFumSolver::set_initial_condition(function<double(double, double)> u_func, function<double(double, double)> v_func, function<double(double, double)> p_func){
-    vector<Cell*> cells = mesh->get_cells();
-    for(int i = 0; i < cells.size(); ++i){
-        Cell* c = cells[i];
-        int ic = c->id;
-        uc_old[ic] = u_func(c->get_centroid().first, c->get_centroid().second);
-        vc_old[ic] = v_func(c->get_centroid().first, c->get_centroid().second);
-        pc_old[ic] = p_func(c->get_centroid().first, c->get_centroid().second);
+    int ncells = mesh->get_ncells();
+    for(int ic = 0; ic < ncells; ++ic){
+        double xc = ccentroids[ic].first, yc = ccentroids[ic].second;
+        
+        uc_old[ic] = u_func(xc, yc);
+        vc_old[ic] = v_func(xc, yc);
+        pc_old[ic] = p_func(xc, yc);
     }
 }
 
+/*
+    * computa os pesos de interpolação.
+*/
 void ReFumSolver::compute_wf(){
     vector<Cell*> cells = mesh->get_cells();
     vector<Edge*> faces = mesh->get_edges();
-    for(int i = 0; i < faces.size(); i++){
-        Edge* face = faces[i];
-        int idf = face->id;
-        if(!face->is_boundary_face()){
-            pair<int,int> nodes_share_face = face->get_link_face_to_cell();
-            
+    for(int idf = 0; idf < faces.size(); idf++){
+        
+        if(!fboundaryfaces[idf]){
+            pair<int,int> nodes_share_face = flftcs[idf];
             int ic1 = nodes_share_face.first;
             int ic2 = nodes_share_face.second;
+            double ic1x = ccentroids[ic1].first, ic1y = ccentroids[ic1].second;
+            double ic2x = ccentroids[ic2].first, ic2y = ccentroids[ic2].second;
+
+            double fx = fmiddles[idf].first, fy = fmiddles[idf].second;
             
-            Cell* cell1 = cells[ic1];
-            Cell* cell2 = cells[ic2];
-            
-            double d1 = distance(cell1->get_centroid().first, cell1->get_centroid().second, face->get_middle().first, face->get_middle().second);
-            double d2 = distance(cell2->get_centroid().first, cell2->get_centroid().second, face->get_middle().first, face->get_middle().second);
+            // distance from ic1 to face middle
+            double d1 = distance(ic1x, ic1y, fx, fy);
+            // distance from ic2 to face middle
+            double d2 = distance(ic2x, ic2y, fx, fy);
 
             wf[idf] = d2/(d1+d2);
         }
@@ -173,15 +192,13 @@ void ReFumSolver::compute_bcs_repeat(){
     }
 
     // Calculando fluxo de massa (Caso seja inlet irá pegar fluxo de massa diferente de zero)
-    for(int i = 0; i < nfaces; i++){
-        Edge* face = faces[i];
-        int idf = face->id;
-        pair<double,double> normal = face->get_normal();
+    for(int idf = 0; idf < nfaces; idf++){
+        pair<double,double> normal = fnormals[idf];
         // ρ_f * (U . n)_f * A_f 
         // * se for condição wall => mdotf = 0
         // * se for condição inlet => mdotf != 0
         // * se for condição outlet => começa como zero, pois a velocidade na condição de contorno é igual a velocidade na celula vizinha, e a velocidade na celula vizinha é inicializa com zero, portanto mdotf = 0.
-        mdotf[idf] = rho * (u_face[idf] * normal.first + v_face[idf] * normal.second) * face->get_length();
+        mdotf[idf] = rho * (u_face[idf] * normal.first + v_face[idf] * normal.second) * flengths[idf];
     }
 }
 
@@ -189,37 +206,35 @@ void ReFumSolver::compute_bcs_repeat(){
 
 
 void ReFumSolver::mom_links_and_sources(double lambda_v){
-    
-    vector<Cell*> cells = mesh->get_cells();
-    
+    int ncells = mesh->get_ncells();
+    int nfaces = mesh->get_nedges();
+
     // zera para recalcular a matriz.
     A_mom.zeros();
     
     /*
     * * Coeficientes de Convecção-difusão.
     */
-    for(int i = 0; i < cells.size(); ++i){
+
+    for(int ic = 0; ic < ncells; ++ic){
         // * warm-up
-        Cell* c = cells[i];
-        int ic = c->id;
-        vector<int> &nsigns = c->get_nsigns();
-        vector<Edge*> faces = c->get_edges();
+        vector<int> nsigns = cnsigns[ic];
+        vector<int> fids = idFacesFromCell[ic];
         
-        // zera tudo
+        // zera valores anteriores
         b_mom_x[ic] = 0;
         b_mom_y[ic] = 0;
         
-        for(int j = 0; j < faces.size(); ++j){
+        for(int j = 0; j < fids.size(); ++j){
             // * warm-up
-            Edge* face = faces[j];
-            int idf = face->id;
+            int idf = fids[j];
             int nsign = nsigns[j];
             
             // Df = μ_f * A_f / δ_f 
-            double Df = (mu * face->get_length()) / face->get_df();
+            double Df = (mu * flengths[idf]) / fdfs[idf];
             double mf = mdotf[idf] * nsign;            
             
-            if(face->is_boundary_face()){
+            if(fboundaryfaces[idf]){
                 
                 if(u_boundary[idf].first == DIRICHLET){
                     // aP = ap + Df
@@ -230,12 +245,10 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
                 } else{
                     // considera-se que u_b = u_P; v_b = v_P.
                     // com isso, o termo difusivo na discretização:  (μ_f*A_f/δ_f)*(u_b - u_P) = (μ_f*A_f/δ_f)*(u_P - u_P) = 0.
-                    pair<double,double> nc = {
-                        face->get_normal().first * nsign,
-                        face->get_normal().second * nsign
-                    };
+                    pair<double,double> nc = fnormals[idf];
+                    
                     // mdotf será calculado de forma alternativa, considerando a celula que faz divisa: ρ_f * A_f  * (U_c . n)
-                    double mf_O = rho * face->get_length() * (nc.first * uc[ic] + nc.second * vc[ic]);
+                    double mf_O = rho * flengths[idf] * (nc.first * uc[ic] + nc.second * vc[ic]);
                     // difusão é zero, e termo convectivo passa pro lado do termo fonte.
                     b_mom_x[ic] = b_mom_x[ic] - mf_O * uc[ic];
                 }  
@@ -248,12 +261,10 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
                 } else{
                     // considera-se que u_b = u_P; v_b = v_P.
                     // com isso, o termo difusivo na discretização:  (μ_f*A_f/δ_f)*(v_b - v_P) = (μ_f*A_f/δ_f)*(v_P - v_P) = 0.
-                    pair<double,double> nc = {
-                        face->get_normal().first * nsign,
-                        face->get_normal().second * nsign
-                    };
+                    pair<double,double> nc = fnormals[idf];
+                    
                     // mdotf será calculado de forma alternativa, considerando a celula que faz divisa: ρ_f * A_f  * (U_c . n)
-                    double mf_O = rho * face->get_length() * (nc.first * uc[ic] + nc.second * vc[ic]);
+                    double mf_O = rho * flengths[idf] * (nc.first * uc[ic] + nc.second * vc[ic]);
                     // difusão é zero, e termo convectivo passa pro lado do termo fonte.
                     b_mom_y[ic] = b_mom_y[ic] - mf_O * vc[ic];
                 }
@@ -261,7 +272,7 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
                 // interior cells
                 // aP = aP + Df + max(0, mf)
                 // aN = -Df - max(0, -mf)
-                int N = get_neighbor(face->get_link_face_to_cell(), ic);
+                int N = get_neighbor(flftcs[idf], ic);
                 
                 A_mom(ic,ic) = A_mom(ic,ic) + Df + max(mf, 0.0);
                 
@@ -271,11 +282,11 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
 
         if(solver == Transient){
             // * Adição do termo transiente em aP: (ρ * V) / ∆t
-            A_mom(ic, ic) = A_mom(ic,ic) + (rho * c->get_area())/dt;
+            A_mom(ic, ic) = A_mom(ic,ic) + (rho * careas[ic])/dt;
 
             // * Adição do termo transiente nos termos fonte: (u|v)^(n) * (ρ * V) / ∆t
-            b_mom_x[ic] = b_mom_x[ic] + uc_old[ic] * (rho * c->get_area())/dt;
-            b_mom_y[ic] = b_mom_y[ic] + vc_old[ic] * (rho * c->get_area())/dt;
+            b_mom_x[ic] = b_mom_x[ic] + uc_old[ic] * (rho * careas[ic])/dt;
+            b_mom_y[ic] = b_mom_y[ic] + vc_old[ic] * (rho * careas[ic])/dt;
         }
             
 
@@ -288,16 +299,14 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
     /*
     * * Calcula pressão nas faces
     */
-    vector<Edge*> faces = mesh->get_edges();
-    for(int i = 0; i < faces.size(); i++){
-        Edge* face = faces[i];
-        int idf = face->id;
-        pair<int,int> id_nodes_share_face = face->get_link_face_to_cell();
+    for(int idf = 0; idf < nfaces; ++idf){
+    
+        pair<int,int> id_nodes_share_face = flftcs[idf];
 
         int ic1 = id_nodes_share_face.first;
         int ic2 = id_nodes_share_face.second;
 
-        if(face->is_boundary_face()){
+        if(fboundaryfaces[idf]){
             if(p_boundary[idf].first == NEUMANN){
                 int neighbor = ic1 != -1 ? ic1 : ic2;
                 // se for ∇p = 0, então assume-se que a pressão na face(pb) é igual a do vizinho p_O.
@@ -315,22 +324,22 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
      * * Calcula fonte do gradiente de pressão.
      */
     double regularization = (1- lambda_v);
-    for(int i = 0; i < cells.size(); ++i){
-        Cell* c = cells[i];
-        int ic = c->id;
-        vector<Edge*> faces = c->get_edges();
-        vector<int> &nsigns = c->get_nsigns();
+    for(int ic = 0; ic < ncells; ++ic){
         
-        for(int j = 0; j < faces.size(); ++j){
+        vector<int> fids = idFacesFromCell[ic];
+        vector<int> nsigns = cnsigns[ic];
+        
+        for(int j = 0; j < fids.size(); ++j){
             int nsign = nsigns[j];
-            Edge* face = faces[j];
-            int idf = face->id;
+            int idf = fids[j];
+
+            double fnx = fnormals[idf].first, fny = fnormals[idf].second;
 
             // b_mom_x = -Σ_f p_f * A_f * n_{x,f}
-            b_mom_x[ic] = b_mom_x[ic] - p_face[idf] * face->get_normal().first * nsign * face->get_length();
+            b_mom_x[ic] = b_mom_x[ic] - p_face[idf] * fnx * nsign * flengths[idf];
             
             // b_mom_y = -Σ_f p_f * A_f * n_{y,f}
-            b_mom_y[ic] = b_mom_y[ic] - p_face[idf] * face->get_normal().second * nsign * face->get_length();
+            b_mom_y[ic] = b_mom_y[ic] - p_face[idf] * fny * nsign * flengths[idf];
         }
 
         // + Não esquecer, ap já está divido por λ, por isso multiplica por (1-λ) ao invés de (1-λ)/λ.
@@ -356,70 +365,75 @@ void ReFumSolver::solve_y_mom(){
  * * Realiza a interpolação de momento para obter a velocidade nas faces. (PWIM)
  */
 void ReFumSolver::face_velocity(){
-    vector<Edge*> faces = mesh->get_edges();
-    vector<Cell*> cells = mesh->get_cells();
+    int nfaces = mesh->get_nedges();
     
-    for(int i = 0; i < faces.size(); ++i){
-        Edge* face = faces[i];
-        int idf = face->id;
-        pair<int,int> nodes_share_face = face->get_link_face_to_cell();
+    for(int idf = 0; idf < nfaces; ++idf){
+        
+        pair<int,int> nodes_share_face = flftcs[idf];
         int c1 = nodes_share_face.first;
         int c2 = nodes_share_face.second;
 
-        if(face->is_boundary_face()){
+        if(fboundaryfaces[idf]){
+            continue;
+            /* 
             if(u_boundary[idf].first == DIRICHLET) 
-                continue; // Valor já está definido (wall ou inlet) e não é necessário alterá-lo.
-            else{
-                // As velocidades u_face e v_face quando for neumann, irei pegar do vizinho lá no momento, então aqui não precisa alterar nada.
-                continue;
-            }
+                 continue; // Valor já está definido (wall ou inlet) e não é necessário alterá-lo.
+             else{
+                 As velocidades u_face e v_face quando for neumann, irei pegar do vizinho lá no momento, então aqui não precisa alterar nada.
+                 continue;
+            }*/
         }
         else{
             // * Face interior.
+            double fnx = fnormals[idf].first, fny = fnormals[idf].second;
 
             // interpolação linear
             double velf_x = wf[idf]*uc[c1] + (1-wf[idf]) * uc[c2];
             double velf_y = wf[idf]*vc[c1] + (1-wf[idf]) * vc[c2];
-            double vel_f_i = velf_x * face->get_normal().first + velf_y * face->get_normal().second;
+            double vel_f_i = velf_x * fnx + velf_y * fny;
 
             double v0dp0_x = 0;
             double v0dp0_y = 0;
 
-            vector<Edge*> facesOfc1 = cells[c1]->get_edges();
-            vector<int> nsignsc1 = cells[c1]->get_nsigns();
+            vector<int> facesOfc1 = idFacesFromCell[c1];
+            vector<int> nsignsc1 = cnsigns[c1];
             for(int j = 0; j < facesOfc1.size(); j++){
                 // faces of cell O
-                Edge* faceC1 = facesOfc1[j];
+                int faceC1 = facesOfc1[j];
                 int nsign = nsignsc1[j];
+                double fc1nx = fnormals[faceC1].first, fc1ny = fnormals[faceC1].second;
+                
                 // Σ p_f * A_f * n_x,f onde f são as faces da celula 1
-                v0dp0_x = v0dp0_x + p_face[faceC1->id] * faceC1->get_length() * faceC1->get_normal().first * nsign;
+                v0dp0_x = v0dp0_x + p_face[faceC1] * flengths[faceC1] * fc1nx * nsign;
                 // Σ p_f * A_f * n_y,f onde f sao as faces da celula 1
-                v0dp0_y = v0dp0_y + p_face[faceC1->id] * faceC1->get_length() * faceC1->get_normal().second * nsign;
+                v0dp0_y = v0dp0_y + p_face[faceC1] * flengths[faceC1] * fc1ny * nsign;
             }
 
             double v1dp1_x = 0;
             double v1dp1_y = 0;
 
-            vector<Edge*> facesOfc2 = cells[c2]->get_edges();
-            vector<int> nsignsc2 = cells[c2]->get_nsigns();
+            vector<int> facesOfc2 = idFacesFromCell[c2];
+            vector<int> nsignsc2 = cnsigns[c2];
             for(int j = 0; j < facesOfc2.size(); j++){
                 // faces of cell N, contas similares ao caso de cima
-                Edge* faceC2 = facesOfc2[j];
+                int faceC2 = facesOfc2[j];
                 int nsign = nsignsc2[j];
-                v1dp1_x = v1dp1_x + p_face[faceC2->id] * faceC2->get_length() * faceC2->get_normal().first * nsign;
-                v1dp1_y = v1dp1_y + p_face[faceC2->id] * faceC2->get_length() * faceC2->get_normal().second * nsign;
+                double fc2nx = fnormals[faceC2].first, fc2ny = fnormals[faceC2].second;
+
+                v1dp1_x = v1dp1_x + p_face[faceC2] * flengths[faceC2] * fc2nx * nsign;
+                v1dp1_y = v1dp1_y + p_face[faceC2] * flengths[faceC2] * fc2ny * nsign;
             }
             
             // continua contas do PWIM
             velf_x = wf[idf] * v0dp0_x/ap[c1] + (1-wf[idf]) * v1dp1_x/ap[c2];
             velf_y = wf[idf] * v0dp0_y/ap[c1] + (1-wf[idf]) * v1dp1_y/ap[c2];
             
-            double velf_p = velf_x * face->get_normal().first + velf_y * face->get_normal().second;
+            double velf_p = velf_x * fnx + velf_y * fny;
             
-            double vdotn = vel_f_i + velf_p - (wf[idf]*cells[c1]->get_area()/ap[c1] + (1-wf[idf])*cells[c2]->get_area()/ap[c2]) * (pc[c2] - pc[c1])/face->get_df();
+            double vdotn = vel_f_i + velf_p - (wf[idf]*careas[c1]/ap[c1] + (1-wf[idf])*careas[c2]/ap[c2]) * (pc[c2] - pc[c1])/fdfs[idf];
             
             // no fim, tem-se o fluxo de massa da face interpolado.
-            mdotf[face->id] = vdotn * rho * face->get_length();
+            mdotf[idf] = vdotn * rho * flengths[idf];
         }
     }
 }
@@ -429,29 +443,26 @@ void ReFumSolver::face_velocity(){
  */
 void ReFumSolver::solve_pp(bool sing_matrix){
     // *Calcula termo fonte: -Σ m_f
-    vector<Cell*> cells = mesh->get_cells();
-    for(int i = 0; i < cells.size(); ++i){
+    int ncells = mesh->get_ncells();
+    for(int ic = 0; ic < ncells; ++ic){
             
         // * warm-up
-        Cell* c = cells[i];
-        int ic = c->id;
-        vector<Edge*> faces = c->get_edges();
-        vector<int> nsigns = c->get_nsigns();
-        b_pc[ic] = 0;
+        vector<int> fids = idFacesFromCell[ic];
+        vector<int> nsigns = cnsigns[ic];
+        b_pc[ic] = 0; // zera para nn ter conteudo da anterior.
         
-        for(int j = 0; j < faces.size(); ++j){
+        for(int j = 0; j < fids.size(); ++j){
             //* warm-up
-            Edge* face = faces[j];
-            int idf = face->id;
+            int idf = fids[j];
             int nsign = nsigns[j];
             
             if(u_boundary[idf].first == NEUMANN){
                 // Análogo ao caso do momento, é preciso usar as velocidades das celulas vizinhas para encontrar o mf.
                 pair<double,double> normal_corrected = {
-                        face->get_normal().first * nsign,
-                        face->get_normal().second * nsign
+                        fnormals[idf].first * nsign,
+                        fnormals[idf].second * nsign
                 };
-                double mf_outlet = rho * (uc[ic] * normal_corrected.first + vc[ic] * normal_corrected.second) * face->get_length();
+                double mf_outlet = rho * (uc[ic] * normal_corrected.first + vc[ic] * normal_corrected.second) * flengths[idf];
                 b_pc[ic] = b_pc[ic] - mf_outlet;
             }else{
                 // Quando for inlet ou wall (dirichlet) => usa o valor que já tem armazenado.
@@ -462,19 +473,16 @@ void ReFumSolver::solve_pp(bool sing_matrix){
         
    // Calcula coeficientes da A
    A_pc.zeros();
-   for(int i = 0; i < cells.size(); ++i){
-        Cell* c = cells[i];
-        int ic = c->id;
+   for(int ic = 0; ic < ncells; ++ic){
 
-        vector<Edge*> faces = c->get_edges();
-        vector<int> &nsigns = c->get_nsigns();
+        vector<int> fids = idFacesFromCell[ic];
+        vector<int> nsigns = cnsigns[ic];
 
-        for(int j = 0; j < faces.size(); ++j){ // loop over faces of cell
+        for(int j = 0; j < fids.size(); ++j){ // loop over faces of cell
             int sign = nsigns[j];
-            Edge* face = faces[j];
-            int idf = face->id;
+            int idf = fids[j];
 
-            if(face->is_boundary_face()){
+            if(fboundaryfaces[idf]){
                 if(u_boundary[idf].first == DIRICHLET){
                     // se for wall, a correção do fluxo de massa é zero, então não tem nada para fazer.
                     // se for inlet, a correção do fluxo de massa é zero também, visto que já foi especificado, então não há nada a fazer.
@@ -484,17 +492,17 @@ void ReFumSolver::solve_pp(bool sing_matrix){
                     // correção do fluxo de massa em geral = rho_f * Af * (V_P/aP + V_N/aN) * (p'_O - p'_N)/delta_f
                     // tomar-se então: rho_f * Af * (V_P/aP)(p'_O - p'_b)/delta_f. Mas, p'b = 0 pois a pressão é dada.
                     // => rho_f * Af * (V_P/aP) * (p'_O)/delta_f 
-                    A_pc(ic, ic) = A_pc(ic,ic) + (rho * face->get_length() * (c->get_area()/ap[ic])) / face->get_df();
+                    A_pc(ic, ic) = A_pc(ic,ic) + (rho * flengths[idf] * (careas[ic]/ap[ic])) / fdfs[idf];
                 }
             }
             else{
 
                 // faces interiores
-                int N = get_neighbor(face->get_link_face_to_cell(), ic);
+                int N = get_neighbor(flftcs[idf], ic);
                 
-                A_pc(ic,ic) = A_pc(ic,ic) + rho * face->get_length() * (wf[idf] * cells[ic]->get_area()/ap[ic] + (1-wf[idf]) * cells[N]->get_area()/ap[N])/face->get_df();
+                A_pc(ic,ic) = A_pc(ic,ic) + rho * flengths[idf] * (wf[idf] * careas[ic]/ap[ic] + (1-wf[idf]) * careas[N]/ap[N])/fdfs[idf];
 
-                A_pc(ic, N) = -rho * face->get_length() * (wf[idf] * cells[ic]->get_area()/ap[ic] + (1-wf[idf]) * cells[N]->get_area()/ap[N])/face->get_df();
+                A_pc(ic, N) = -rho * flengths[idf] * (wf[idf] * careas[ic]/ap[ic] + (1-wf[idf]) * careas[N]/ap[N])/fdfs[idf];
             }
         }
     }
@@ -514,17 +522,17 @@ void ReFumSolver::solve_pp(bool sing_matrix){
 * * Corrige velocidades.
 */
 void ReFumSolver::uv_correct() {
+    int nfaces = mesh->get_nedges();
+    int ncells = mesh->get_ncells();
 
     // Interpola pfcorr nas faces
-    vector<Edge*> faces = mesh->get_edges();
-    for(int i = 0; i < faces.size(); i++){
-        Edge* face = faces[i];
-        int idf = face->id;
-        pair<int,int> id_nodes_share_face = face->get_link_face_to_cell();
+    for(int idf = 0; idf < nfaces; idf++){
+        
+        pair<int,int> id_nodes_share_face = flftcs[idf];
         int ic1 = id_nodes_share_face.first;
         int ic2 = id_nodes_share_face.second;
 
-        if(face->is_boundary_face()){
+        if(fboundaryfaces[idf]){
             if(p_boundary[idf].first == NEUMANN){
                 // se for neumann, assumo que p'_b = p'_C
                 int neighbor = ic1 != -1 ? ic1 : ic2;
@@ -540,26 +548,24 @@ void ReFumSolver::uv_correct() {
     }
     
     // Corrigindo valores das velocidades no centro
-    vector<Cell*> cells = mesh->get_cells();
     
     // + convergência (!!!) 
     uc_aux = uc; // * salva valor antigo
     vc_aux = vc; // * salva valor antigo
     
-    for(int i = 0; i < cells.size(); i++){
-        Cell* c = cells[i];
-        int ic = c->id;
+    for(int ic = 0; ic < ncells; ic++){
+        
         ucorr[ic] = 0;
         vcorr[ic] = 0;
         
-        vector<Edge*> faces = c->get_edges();
-        vector<int> &nsigns = c->get_nsigns();
-        for(int j = 0; j < faces.size(); j++){
-            Edge* face = faces[j];
+        vector<int> fids = idFacesFromCell[ic];
+        vector<int> nsigns = cnsigns[ic];
+        for(int j = 0; j < fids.size(); j++){
+            int idf = fids[j];
             int nsign = nsigns[j];
 
-            ucorr[ic] = ucorr[ic] + pfcorr[face->id] * face->get_normal().first * nsign * face->get_length();
-            vcorr[ic] = vcorr[ic] + pfcorr[face->id] * face->get_normal().second * nsign * face->get_length();
+            ucorr[ic] = ucorr[ic] + pfcorr[idf] * fnormals[idf].first * nsign * flengths[idf];
+            vcorr[ic] = vcorr[ic] + pfcorr[idf] * fnormals[idf].second * nsign * flengths[idf];
         }
         ucorr[ic] = -ucorr[ic]/ap[ic];
         vcorr[ic] = -vcorr[ic]/ap[ic];
@@ -569,10 +575,9 @@ void ReFumSolver::uv_correct() {
     }
 
     // Corrigindo valores das velocidades nas faces
-    for(int i = 0; i < faces.size(); i++){
-        Edge* face = faces[i];
-        int idf = face->id;
-        if(face->is_boundary_face()){
+    for(int idf = 0; idf < nfaces; idf++){
+        
+        if(fboundaryfaces[idf]){
             if(u_boundary[idf].first == DIRICHLET) 
                 continue; // nada a fazer.
             else{
@@ -581,12 +586,12 @@ void ReFumSolver::uv_correct() {
         }
         else{
             // interior.
-            pair<int,int> nodes_share_face = face->get_link_face_to_cell();
+            pair<int,int> nodes_share_face = flftcs[idf];
             int c1 = nodes_share_face.first;
             int c2 = nodes_share_face.second;
 
-            double coeff = wf[idf]*cells[c1]->get_area()/ap[c1] + (1-wf[idf]) * cells[c2]->get_area()/ap[c2];
-            mdotfcorr[idf] = rho*coeff*face->get_length()*(pcorr[c1]-pcorr[c2])/face->get_df();
+            double coeff = wf[idf]*careas[c1]/ap[c1] + (1-wf[idf]) * careas[c2]/ap[c2];
+            mdotfcorr[idf] = rho*coeff*flengths[idf]*(pcorr[c1]-pcorr[c2])/fdfs[idf];
             mdotf[idf] = mdotf[idf] + mdotfcorr[idf];
         }
     }
@@ -594,11 +599,10 @@ void ReFumSolver::uv_correct() {
 };
 
 void ReFumSolver::pres_correct(double lambda_p) {
-    vector<Cell*> cells = mesh->get_cells();
+    int ncells = mesh->get_ncells();
     
     pc_aux = pc; // * salva valores antigos
-    for(int i = 0; i < cells.size(); i++){
-        int ic = cells[i]->id;
+    for(int ic = 0; ic < ncells; ic++){
         pc[ic] = pc[ic] + lambda_p * pcorr[ic];
     }
 }
@@ -641,6 +645,8 @@ void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_
     cout << "# Convergência de p: " << arma::norm(pc-pc_aux, "inf") << endl;
     this->export_velocity(filepath + problem + "_velocity" + ".vtk");
     this->export_pressure(filepath + problem + "_pressure" + ".vtk");
+
+    this->calculate_exact_solution_and_compare();
 }
 
 void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag){
@@ -709,6 +715,28 @@ void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_sim
         progress_bar(cont, 50, n_steps);
     }
     cout << endl;
+}
+
+void ReFumSolver::calculate_exact_solution_and_compare(){
+    int ncells = mesh->get_ncells();
+    arma::vec u_exact = arma::vec(ncells, arma::fill::zeros);
+    arma::vec v_exact = arma::vec(ncells, arma::fill::zeros);
+    arma::vec p_exact = arma::vec(ncells, arma::fill::zeros);
+
+    vector<Cell*> cells = mesh->get_cells();
+    double lambda = -1.81009812;
+    for(int i = 0; i < ncells; ++i){
+        Cell* c = cells[i];
+        pair<double,double> centroid = c->get_centroid();
+        double xc = centroid.first; double yc = centroid.second;
+        u_exact[i] = 1 - exp(lambda*xc) * cos(2*M_PI*yc);
+        v_exact[i] = (lambda/(2*M_PI))*exp(lambda*xc)*sin(2*M_PI*yc);
+        p_exact[i] = 0.5 * (1 - exp(2 * lambda * xc));
+    }
+    cout << "==*===*===*==*===*===*==*===*===*==*===*===*==*===*===*\n";
+    cout << "\nDiferença entre u_exact e u:" << arma::norm(u_exact - uc, "inf") << endl;
+    cout << "Diferença entre v_exact e v:" << arma::norm(v_exact - vc, "inf") << endl;
+    cout << "Diferença entre p_exact e p:" << arma::norm(p_exact - pc, "inf") << endl;
 }
 
 

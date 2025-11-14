@@ -40,6 +40,6 @@ transient_parameters:
 simple:
   lambda_uv: 0.3
   lambda_p: 0.01
-  iterations: 100
+  iterations: 200
 
 export_folder: "../outputs/flow_over_cylinder_Re_100/"

@@ -278,4 +278,25 @@ void Mesh::pre_processing(){
             this->edges[i]->set_df(df);
         }
     }
+
+    /*
+        * Após aproveitar a questão de Orientação a Objetos, utilizo arrays para aumentar performance.
+    */
+    // Acesso a arrays contíguos é muito mais rápido que indireção por ponteiro e chamadas virtuais.
+    for(int i = 0; i < this->cells.size(); ++i){
+        cell_nsign.push_back(cells[i]->get_nsigns());
+        cell_area.push_back(cells[i]->get_area());
+        cell_centroid.push_back(cells[i]->get_centroid());
+        cell_faces_ids.push_back(cells[i]->get_edges_ids());
+    }
+    for(int i = 0; i < edges.size(); ++i){
+        face_length.push_back(edges[i]->get_length());
+        face_df.push_back(edges[i]->get_df());
+        face_middle.push_back(edges[i]->get_middle());
+        face_normal.push_back(edges[i]->get_normal());
+        face_lftc.push_back(edges[i]->get_link_face_to_cell());
+        face_boundary_face.push_back(edges[i]->is_boundary_face());
+    }
+    /*--------------------------------------------------------------------------------------------------------*/
+
 }

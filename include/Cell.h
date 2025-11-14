@@ -41,6 +41,14 @@ class Cell{
         void insert_edge(Edge* edge)            {this->edges.push_back(edge);};
         vector<Node*>& get_nodes()              {return this->nodes;};
         vector<Edge*>& get_edges()              {return this->edges;};
+        vector<int> get_edges_ids()             {
+            vector<int> ids;
+            for(int i = 0; i < this->edges.size(); ++i)
+            {
+                ids.push_back(edges[i]->id);
+            }
+            return ids;
+        };
 
 };
 
