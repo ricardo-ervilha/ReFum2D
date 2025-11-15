@@ -5,6 +5,7 @@
 #include <armadillo>
 #include "BoundaryCondition.h"
 #include "Orchestrator.h"
+#include "eigen3/Eigen/Sparse"
 
 class Mesh;
 class Cell;
@@ -18,51 +19,53 @@ private:
     vector<BoundaryCondition> bcsv;
     vector<BoundaryCondition> bcsp;
 
-    arma::sp_mat A_mom;
-    arma::vec b_mom_x;
-    arma::vec b_mom_y;
+    Eigen::SparseMatrix<double> A;
+    Eigen::VectorXd b_mom_x;
+    Eigen::VectorXd b_mom_y;
 
-    arma::sp_mat A_pc;
-    arma::vec b_pc;
+    Eigen::VectorXd b_pc;
 
     float mu;
     float rho;
     float dt;
 
+    vector<Eigen::Triplet<double>> triplets;
+    Eigen::VectorXd diags; 
+
     vector<pair<BoundaryType, double>> u_boundary;
     vector<pair<BoundaryType, double>> v_boundary;
     vector<pair<BoundaryType, double>> p_boundary;
 
-    arma::vec u_face;
-    arma::vec v_face;
-    arma::vec p_face;
+    Eigen::VectorXd u_face;
+    Eigen::VectorXd v_face;
+    Eigen::VectorXd p_face;
 
-    arma::vec uc;
-    arma::vec vc;
-    arma::vec pc;
+    Eigen::VectorXd uc;
+    Eigen::VectorXd vc;
+    Eigen::VectorXd pc;
 
     // & quando houver timestep, eles guardam os valores de condição inicial.
-    arma::vec uc_old;
-    arma::vec vc_old;
-    arma::vec pc_old;
+    Eigen::VectorXd uc_old;
+    Eigen::VectorXd vc_old;
+    Eigen::VectorXd pc_old;
 
-    arma::vec uc_aux;
-    arma::vec vc_aux;
-    arma::vec pc_aux;
+    Eigen::VectorXd uc_aux;
+    Eigen::VectorXd vc_aux;
+    Eigen::VectorXd pc_aux;
 
-    arma::vec mdotf;
+    Eigen::VectorXd mdotf;
 
-    arma::vec ap;
-    arma::vec mdotfcorr;
-    arma::vec pcorr;
-    arma::vec pfcorr;
+    Eigen::VectorXd ap;
+    Eigen::VectorXd mdotfcorr;
+    Eigen::VectorXd pcorr;
+    Eigen::VectorXd pfcorr;
 
     SolverType solver;
 
-    arma::vec ucorr;
-    arma::vec vcorr;
+    Eigen::VectorXd ucorr;
+    Eigen::VectorXd vcorr;
 
-    arma::vec wf;
+    Eigen::VectorXd wf;
     void compute_wf();
     void compute_bcs_first();
     void compute_bcs_repeat();

@@ -16,57 +16,77 @@ ReFumSolver::ReFumSolver(Mesh *mesh, float mu, float rho, vector<BoundaryConditi
     // + Inicialização de todas as variáveis que ReFumSolver guarda.
     int ncells = this->mesh->get_ncells();
     int nfaces = this->mesh->get_nedges();
+
+    A.resize(ncells, ncells);
+    triplets.reserve(6*ncells);
+    diags.resize(ncells);
     
     // * guarda informações sobre boundary condition em um formato mais util para o ReFum: {tipo e valor}.
     this->u_boundary.resize(nfaces, {NONE, 0.0});
     this->v_boundary.resize(nfaces, {NONE, 0.0});
     this->p_boundary.resize(nfaces, {NONE, 0.0});
-
-    // matriz A de momemnto
-    this->A_mom = arma::sp_mat(ncells, ncells);
     
     // matrizes b de momento
-    this->b_mom_x = arma::vec(ncells, arma::fill::zeros);
-    this->b_mom_y = arma::vec(ncells, arma::fill::zeros);
-
-    // matriz A de correção de pressão
-    this->A_pc = arma::sp_mat(ncells, ncells);
+    this->b_mom_x.resize(ncells);
+    this->b_mom_x.setZero();
+    this->b_mom_y.resize(ncells);
+    this->b_mom_y.setZero();
 
     // matriz b de correção de pressão
-    this->b_pc = arma::vec(ncells, arma::fill::zeros);
+    this->b_pc.resize(ncells);
+    this->b_pc.setZero();
     
     // velocidades nos centroides
-    this->uc = arma::vec(ncells, arma::fill::zeros);
-    this->vc = arma::vec(ncells, arma::fill::zeros);
-    this->pc = arma::vec(ncells, arma::fill::zeros);
+    this->uc.resize(ncells);
+    this->uc.setZero();
+    this->vc.resize(ncells);
+    this->vc.setZero();
+    this->pc.resize(ncells);
+    this->pc.setZero();
 
     // + Define esses vetores como zeros. 
-    this->uc_old = arma::vec(ncells, arma::fill::zeros);
-    this->vc_old = arma::vec(ncells, arma::fill::zeros);
-    this->pc_old = arma::vec(ncells, arma::fill::zeros);
+    this->uc_old.resize(ncells);
+    this->uc_old.setZero();
+    this->vc_old.resize(ncells);
+    this->vc_old.setZero();
+    this->pc_old.resize(ncells);
+    this->pc_old.setZero();
 
     // vetores auxiliares para ajudar a validar a convergência
-    this->uc_aux = arma::vec(ncells, arma::fill::zeros);
-    this->vc_aux = arma::vec(ncells, arma::fill::zeros);
-    this->pc_aux = arma::vec(ncells, arma::fill::zeros);
+    this->uc_aux.resize(ncells);
+    this->uc_aux.setZero();
+    this->vc_aux.resize(ncells);
+    this->vc_aux.setZero();
+    this->pc_aux.resize(ncells);
+    this->pc_aux.setZero();
 
     // velocidades nas faces
-    this->u_face = arma::vec(nfaces, arma::fill::zeros);
-    this->v_face = arma::vec(nfaces, arma::fill::zeros);
-    this->p_face = arma::vec(nfaces, arma::fill::zeros);
+    this->u_face.resize(nfaces);
+    this->u_face.setZero();
+    this->v_face.resize(nfaces);
+    this->v_face.setZero();
+    this->p_face.resize(nfaces);
+    this->p_face.setZero();
     
     // fluxo de massa nas faces
-    this->mdotf = arma::vec(nfaces, arma::fill::zeros);
+    this->mdotf.resize(nfaces);
+    this->mdotf.setZero();
     
     // valor dos coeficientes da diagonal!
-    this->ap = arma::vec(ncells, arma::fill::zeros);
+    this->ap.resize(ncells);
+    this->ap.setZero();
     
     // correções
-    this->mdotfcorr = arma::vec(nfaces, arma::fill::zeros);
-    this->pfcorr = arma::vec(nfaces, arma::fill::zeros);
-    this->pcorr = arma::vec(ncells, arma::fill::zeros);
-    this->ucorr = arma::vec(ncells, arma::fill::zeros);
-    this->vcorr = arma::vec(ncells, arma::fill::zeros);
+    this->mdotfcorr.resize(nfaces);
+    this->mdotfcorr.setZero();
+    this->pfcorr.resize(nfaces);
+    this->pfcorr.setZero();
+    this->pcorr.resize(ncells);
+    this->pcorr.setZero();
+    this->ucorr.resize(ncells);
+    this->ucorr.setZero();
+    this->vcorr.resize(ncells);
+    this->vcorr.setZero();
 
     // * PEGANDO ARRAYS DO MESH (pré-processamento)
     // ===== CELLS =====
@@ -92,7 +112,8 @@ ReFumSolver::ReFumSolver(Mesh *mesh, float mu, float rho, vector<BoundaryConditi
     
     // chama para calcular os pesos que precisa na hora de fazer a media do valor:
     // phi_f = wf*phi_P + (1-wf)*phi_N
-    this->wf = arma::vec(nfaces, arma::fill::zeros);
+    this->wf.resize(nfaces);
+    this->wf.setZero();
     this->compute_wf();
 }   
 
@@ -105,16 +126,16 @@ ReFumSolver::~ReFumSolver(){
 /**
  * * Define u_0, v_0 e p_0.
  */
-void ReFumSolver::set_initial_condition(function<double(double, double)> u_func, function<double(double, double)> v_func, function<double(double, double)> p_func){
-    int ncells = mesh->get_ncells();
-    for(int ic = 0; ic < ncells; ++ic){
-        double xc = ccentroids[ic].first, yc = ccentroids[ic].second;
+// void ReFumSolver::set_initial_condition(function<double(double, double)> u_func, function<double(double, double)> v_func, function<double(double, double)> p_func){
+//     int ncells = mesh->get_ncells();
+//     for(int ic = 0; ic < ncells; ++ic){
+//         double xc = ccentroids[ic].first, yc = ccentroids[ic].second;
         
-        uc_old[ic] = u_func(xc, yc);
-        vc_old[ic] = v_func(xc, yc);
-        pc_old[ic] = p_func(xc, yc);
-    }
-}
+//         uc_old[ic] = u_func(xc, yc);
+//         vc_old[ic] = v_func(xc, yc);
+//         pc_old[ic] = p_func(xc, yc);
+//     }
+// }
 
 /*
     * computa os pesos de interpolação.
@@ -210,7 +231,8 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
     int nfaces = mesh->get_nedges();
 
     // zera para recalcular a matriz.
-    A_mom.zeros();
+    triplets.clear();
+    diags.setZero();
     
     /*
     * * Coeficientes de Convecção-difusão.
@@ -240,7 +262,9 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
                     // aP = ap + Df
                     // aN = 0
                     // S = S + Df * u_f - mf * u_f (entra a parte no termo fonte)
-                    A_mom(ic, ic) = A_mom(ic,ic) + Df; // + SOMA ISSO UMA VEZ SÓ, NO PRÓXIMO NÃO É NECESSÁRIO.
+                    // A_mom(ic, ic) = A_mom(ic,ic) + Df; // + SOMA ISSO UMA VEZ SÓ, NO PRÓXIMO NÃO É NECESSÁRIO.
+                    
+                    diags[ic] = diags[ic] + Df;
                     b_mom_x[ic] = b_mom_x[ic] + u_face[idf] * Df - u_face[idf] * mf;
                 } else{
                     // considera-se que u_b = u_P; v_b = v_P.
@@ -274,15 +298,18 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
                 // aN = -Df - max(0, -mf)
                 int N = get_neighbor(flftcs[idf], ic);
                 
-                A_mom(ic,ic) = A_mom(ic,ic) + Df + max(mf, 0.0);
+                // A_mom(ic,ic) = A_mom(ic,ic) + Df + max(mf, 0.0);
+                diags[ic] = diags[ic] + Df + max(mf, 0.0);
                 
-                A_mom(ic,N) = -Df - max(-mf,0.0);
+                // A_mom(ic,N) = -Df - max(-mf,0.0);
+                triplets.push_back(Eigen::Triplet<double>(ic, N, -Df - max(-mf,0.0)));
             }
         }
 
         if(solver == Transient){
             // * Adição do termo transiente em aP: (ρ * V) / ∆t
-            A_mom(ic, ic) = A_mom(ic,ic) + (rho * careas[ic])/dt;
+            // A_mom(ic, ic) = A_mom(ic,ic) + (rho * careas[ic])/dt;
+            diags[ic] = diags[ic] + (rho * careas[ic])/dt;
 
             // * Adição do termo transiente nos termos fonte: (u|v)^(n) * (ρ * V) / ∆t
             b_mom_x[ic] = b_mom_x[ic] + uc_old[ic] * (rho * careas[ic])/dt;
@@ -292,8 +319,12 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
 
         //* Após o cálculo, aplica-se a relaxação com lambda e salvar o coeficiente da diagonal para uso posterior.
         // aP <- aP / λ
-        A_mom(ic, ic) = A_mom(ic,ic) / lambda_v;
-        ap[ic] = A_mom(ic, ic);
+        // A_mom(ic, ic) = A_mom(ic,ic) / lambda_v;
+        diags[ic] = diags[ic] / lambda_v;
+        
+        ap[ic] = diags[ic];
+
+        triplets.push_back(Eigen::Triplet<double>(ic, ic, diags[ic]));
     }
 
     /*
@@ -348,17 +379,23 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
         // & Adiciona contribuição de regularização: (1-λ) * aP * v_O^n 
         b_mom_y[ic] = b_mom_y[ic] + regularization * ap[ic] * vc[ic];
     }
+
+    A.setFromTriplets(triplets.begin(), triplets.end());
 }
 
 void ReFumSolver::solve_x_mom(){
     // Solve A x = b
-    uc = arma::spsolve(A_mom, b_mom_x);
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
+    solver.compute(A);
+    uc = solver.solve(b_mom_x);
 }
 
 
 void ReFumSolver::solve_y_mom(){
     // Solve A x = b 
-    vc = arma::spsolve(A_mom, b_mom_y);
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
+    solver.compute(A);
+    vc = solver.solve(b_mom_y);
 }
 
 /**
@@ -472,7 +509,8 @@ void ReFumSolver::solve_pp(bool sing_matrix){
     }
         
    // Calcula coeficientes da A
-   A_pc.zeros();
+   triplets.clear();
+   diags.setZero();
    for(int ic = 0; ic < ncells; ++ic){
 
         vector<int> fids = idFacesFromCell[ic];
@@ -492,7 +530,8 @@ void ReFumSolver::solve_pp(bool sing_matrix){
                     // correção do fluxo de massa em geral = rho_f * Af * (V_P/aP + V_N/aN) * (p'_O - p'_N)/delta_f
                     // tomar-se então: rho_f * Af * (V_P/aP)(p'_O - p'_b)/delta_f. Mas, p'b = 0 pois a pressão é dada.
                     // => rho_f * Af * (V_P/aP) * (p'_O)/delta_f 
-                    A_pc(ic, ic) = A_pc(ic,ic) + (rho * flengths[idf] * (careas[ic]/ap[ic])) / fdfs[idf];
+                    // A_pc(ic, ic) = A_pc(ic,ic) + (rho * flengths[idf] * (careas[ic]/ap[ic])) / fdfs[idf];
+                    diags[ic] = diags[ic] + (rho * flengths[idf] * (careas[ic]/ap[ic])) / fdfs[idf];
                 }
             }
             else{
@@ -500,22 +539,24 @@ void ReFumSolver::solve_pp(bool sing_matrix){
                 // faces interiores
                 int N = get_neighbor(flftcs[idf], ic);
                 
-                A_pc(ic,ic) = A_pc(ic,ic) + rho * flengths[idf] * (wf[idf] * careas[ic]/ap[ic] + (1-wf[idf]) * careas[N]/ap[N])/fdfs[idf];
+                // A_pc(ic,ic) = A_pc(ic,ic) + rho * flengths[idf] * (wf[idf] * careas[ic]/ap[ic] + (1-wf[idf]) * careas[N]/ap[N])/fdfs[idf];
+                diags[ic] = diags[ic] + rho * flengths[idf] * (wf[idf] * careas[ic]/ap[ic] + (1-wf[idf]) * careas[N]/ap[N])/fdfs[idf];
 
-                A_pc(ic, N) = -rho * flengths[idf] * (wf[idf] * careas[ic]/ap[ic] + (1-wf[idf]) * careas[N]/ap[N])/fdfs[idf];
+                // A_pc(ic, N) = -rho * flengths[idf] * (wf[idf] * careas[ic]/ap[ic] + (1-wf[idf]) * careas[N]/ap[N])/fdfs[idf];
+                triplets.push_back(Eigen::Triplet<double>(ic, N, -rho * flengths[idf] * (wf[idf] * careas[ic]/ap[ic] + (1-wf[idf]) * careas[N]/ap[N])/fdfs[idf] ));
             }
         }
-    }
-    
-    if(sing_matrix){
-        // removendo problema da matriz singular (caso do lid, no caso do backward não deveria ser.)
-        A_pc.row(0).zeros();
-        A_pc(0,0) = 1;
-        b_pc[0] = 0;
+        triplets.push_back(Eigen::Triplet<double>(ic, ic, diags[ic]));
     }
 
+    A.setFromTriplets(triplets.begin(), triplets.end());
+    
     // resolve para obter p'.
-    pcorr = arma::spsolve(A_pc, b_pc);
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
+    solver.setMaxIterations(100);
+    solver.setTolerance(1e-3); 
+    solver.compute(A);
+    pcorr = solver.solve(b_pc);
 }
 
 /*
@@ -640,104 +681,106 @@ void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_
         progress_bar(j, 50, num_simple_iterations);
     }
     
-    cout << "\n# Convergência de u: " << arma::norm(uc-uc_aux, "inf") << endl;
-    cout << "# Convergência de v: " << arma::norm(vc-vc_aux, "inf") << endl;
-    cout << "# Convergência de p: " << arma::norm(pc-pc_aux, "inf") << endl;
+    double err_u = (uc - uc_aux).lpNorm<Eigen::Infinity>();
+    double err_v = (vc - vc_aux).lpNorm<Eigen::Infinity>();
+    double err_p = (pc - pc_aux).lpNorm<Eigen::Infinity>();
+    cout << "\n||du||_inf = " << err_u << " ||dv||_inf = " << err_v << " ||dp||_inf = " << err_p << endl;
+
     this->export_velocity(filepath + problem + "_velocity" + ".vtk");
     this->export_pressure(filepath + problem + "_pressure" + ".vtk");
 
-    this->calculate_exact_solution_and_compare();
+    // this->calculate_exact_solution_and_compare();
 }
 
-void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag){
+// void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag){
     
-    // calculando o dt (ASSUMINDO Q condição inicial é t = 0.)
-    double t = 0;
-    this->dt = (tf - 0)/n_steps;
+//     // calculando o dt (ASSUMINDO Q condição inicial é t = 0.)
+//     double t = 0;
+//     this->dt = (tf - 0)/n_steps;
     
-    int cont = 0; // ajuda a salvar os arquivos.
+//     int cont = 0; // ajuda a salvar os arquivos.
     
-    while(t <= tf){    
+//     while(t <= tf){    
         
-        // zera todos para a próxima iteração de tempo
-        uc.zeros();
-        vc.zeros();
-        pc.zeros();
-        u_face.zeros();
-        v_face.zeros();
-        p_face.zeros();
-        mdotf.zeros();
-        ap.zeros();
-        mdotfcorr.zeros();
-        pfcorr.zeros();
-        pcorr.zeros();
-        ucorr.zeros();
-        vcorr.zeros();
-        // -----------------------------------------------
+//         // zera todos para a próxima iteração de tempo
+//         uc.zeros();
+//         vc.zeros();
+//         pc.zeros();
+//         u_face.zeros();
+//         v_face.zeros();
+//         p_face.zeros();
+//         mdotf.zeros();
+//         ap.zeros();
+//         mdotfcorr.zeros();
+//         pfcorr.zeros();
+//         pcorr.zeros();
+//         ucorr.zeros();
+//         vcorr.zeros();
+//         // -----------------------------------------------
 
-        this->compute_bcs_repeat(); // aplica BC nos vetores
+//         this->compute_bcs_repeat(); // aplica BC nos vetores
         
-        for(int j = 0; j < num_simple_iterations; j++){
+//         for(int j = 0; j < num_simple_iterations; j++){
             
-            // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
-            mom_links_and_sources(lambda_uv);
+//             // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
+//             mom_links_and_sources(lambda_uv);
             
-            // cout << "Resolvendo para encontrar uc\n";
-            solve_x_mom();
+//             // cout << "Resolvendo para encontrar uc\n";
+//             solve_x_mom();
             
-            // cout << "Resolvendo para encontrar uv\n";
-            solve_y_mom();
+//             // cout << "Resolvendo para encontrar uv\n";
+//             solve_y_mom();
             
-            // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
-            face_velocity();
+//             // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
+//             face_velocity();
             
-            // cout << "# Calculando correção na pressão (p')\n";
-            solve_pp(true); // lid chama com true, backward facing step chama com false
+//             // cout << "# Calculando correção na pressão (p')\n";
+//             solve_pp(true); // lid chama com true, backward facing step chama com false
             
-            // cout << "# Atualiza velocidades...\n";
-            uv_correct();
+//             // cout << "# Atualiza velocidades...\n";
+//             uv_correct();
             
-            // cout << "# Atualiza pressão....\n";
-            pres_correct(lambda_p);
-        }
+//             // cout << "# Atualiza pressão....\n";
+//             pres_correct(lambda_p);
+//         }
 
-        // faz variaveis na proxima iteração começarem como as antigas u(n) = u(n-1)
-        uc_old = uc;
-        vc_old = vc;
-        pc_old = pc;
+//         // faz variaveis na proxima iteração começarem como as antigas u(n) = u(n-1)
+//         uc_old = uc;
+//         vc_old = vc;
+//         pc_old = pc;
         
-        string fn = filepath + problem + to_string(cont) + ".vtk";
-        export_velocity(fn);
+//         string fn = filepath + problem + to_string(cont) + ".vtk";
+//         export_velocity(fn);
 
-        t = t + dt; // atualiza o tempo
-        cont = cont + 1; // atualiza contador de snapshots
+//         t = t + dt; // atualiza o tempo
+//         cont = cont + 1; // atualiza contador de snapshots
         
-        progress_bar(cont, 50, n_steps);
-    }
-    cout << endl;
-}
+//         progress_bar(cont, 50, n_steps);
+//     }
+//     cout << endl;
+// }
 
-void ReFumSolver::calculate_exact_solution_and_compare(){
-    int ncells = mesh->get_ncells();
-    arma::vec u_exact = arma::vec(ncells, arma::fill::zeros);
-    arma::vec v_exact = arma::vec(ncells, arma::fill::zeros);
-    arma::vec p_exact = arma::vec(ncells, arma::fill::zeros);
+// void ReFumSolver::calculate_exact_solution_and_compare(){
+//     int ncells = mesh->get_ncells();
+//     arma::vec u_exact = arma::vec(ncells, arma::fill::zeros);
+//     arma::vec v_exact = arma::vec(ncells, arma::fill::zeros);
+//     arma::vec p_exact = arma::vec(ncells, arma::fill::zeros);
 
-    vector<Cell*> cells = mesh->get_cells();
-    double lambda = -1.81009812;
-    for(int i = 0; i < ncells; ++i){
-        Cell* c = cells[i];
-        pair<double,double> centroid = c->get_centroid();
-        double xc = centroid.first; double yc = centroid.second;
-        u_exact[i] = 1 - exp(lambda*xc) * cos(2*M_PI*yc);
-        v_exact[i] = (lambda/(2*M_PI))*exp(lambda*xc)*sin(2*M_PI*yc);
-        p_exact[i] = 0.5 * (1 - exp(2 * lambda * xc));
-    }
-    cout << "==*===*===*==*===*===*==*===*===*==*===*===*==*===*===*\n";
-    cout << "\nDiferença entre u_exact e u:" << arma::norm(u_exact - uc, "inf") << endl;
-    cout << "Diferença entre v_exact e v:" << arma::norm(v_exact - vc, "inf") << endl;
-    cout << "Diferença entre p_exact e p:" << arma::norm(p_exact - pc, "inf") << endl;
-}
+//     vector<Cell*> cells = mesh->get_cells();
+//     double lambda = -1.81009812;
+//     for(int i = 0; i < ncells; ++i){
+//         Cell* c = cells[i];
+//         pair<double,double> centroid = c->get_centroid();
+//         double xc = centroid.first; double yc = centroid.second;
+//         u_exact[i] = 1 - exp(lambda*xc) * cos(2*M_PI*yc);
+//         v_exact[i] = (lambda/(2*M_PI))*exp(lambda*xc)*sin(2*M_PI*yc);
+//         p_exact[i] = 0.5 * (1 - exp(2 * lambda * xc));
+//     }
+//     cout << "==*===*===*==*===*===*==*===*===*==*===*===*==*===*===*\n";
+//     cout << "\nDiferença entre u_exact e u:" << arma::norm(u_exact - uc, "inf") << endl;
+//     cout << "Diferença entre v_exact e v:" << arma::norm(v_exact - vc, "inf") << endl;
+//     cout << "Diferença entre p_exact e p:" << arma::norm(p_exact - pc, "inf") << endl;
+// }
 
 
 // *=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=
