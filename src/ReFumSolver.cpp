@@ -126,16 +126,16 @@ ReFumSolver::~ReFumSolver(){
 /**
  * * Define u_0, v_0 e p_0.
  */
-// void ReFumSolver::set_initial_condition(function<double(double, double)> u_func, function<double(double, double)> v_func, function<double(double, double)> p_func){
-//     int ncells = mesh->get_ncells();
-//     for(int ic = 0; ic < ncells; ++ic){
-//         double xc = ccentroids[ic].first, yc = ccentroids[ic].second;
+void ReFumSolver::set_initial_condition(function<double(double, double)> u_func, function<double(double, double)> v_func, function<double(double, double)> p_func){
+    int ncells = mesh->get_ncells();
+    for(int ic = 0; ic < ncells; ++ic){
+        double xc = ccentroids[ic].first, yc = ccentroids[ic].second;
         
-//         uc_old[ic] = u_func(xc, yc);
-//         vc_old[ic] = v_func(xc, yc);
-//         pc_old[ic] = p_func(xc, yc);
-//     }
-// }
+        uc_old[ic] = u_func(xc, yc);
+        vc_old[ic] = v_func(xc, yc);
+        pc_old[ic] = p_func(xc, yc);
+    }
+}
 
 /*
     * computa os pesos de interpolação.
@@ -224,6 +224,7 @@ void ReFumSolver::compute_bcs_repeat(){
 }
 
 // *=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=
+
 
 
 void ReFumSolver::mom_links_and_sources(double lambda_v){
@@ -550,11 +551,22 @@ void ReFumSolver::solve_pp(bool sing_matrix){
     }
 
     A.setFromTriplets(triplets.begin(), triplets.end());
+    if(sing_matrix){
+        int row = 0; 
+
+        A.prune([&](int i, int j, double v){
+            return i != row;
+        });
+
+        A.coeffRef(row, row) = 1.0;
+        b_pc[row] = 0.0;
+    }
     
     // resolve para obter p'.
     Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
-    solver.setMaxIterations(100);
-    solver.setTolerance(1e-3); 
+    solver.setMaxIterations(200);
+    solver.setTolerance(1e-4); 
+    // Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
     solver.compute(A);
     pcorr = solver.solve(b_pc);
 }
@@ -686,233 +698,175 @@ void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_
     double err_p = (pc - pc_aux).lpNorm<Eigen::Infinity>();
     cout << "\n||du||_inf = " << err_u << " ||dv||_inf = " << err_v << " ||dp||_inf = " << err_p << endl;
 
-    this->export_velocity(filepath + problem + "_velocity" + ".vtk");
-    this->export_pressure(filepath + problem + "_pressure" + ".vtk");
+    this->export_vtk(filepath + problem + ".vtk");
 
-    // this->calculate_exact_solution_and_compare();
+    this->calculate_exact_solution_and_compare();
 }
 
-// void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag){
+void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag){
     
-//     // calculando o dt (ASSUMINDO Q condição inicial é t = 0.)
-//     double t = 0;
-//     this->dt = (tf - 0)/n_steps;
+    // calculando o dt (ASSUMINDO Q condição inicial é t = 0.)
+    double t = 0;
+    this->dt = (tf - 0)/n_steps;
     
-//     int cont = 0; // ajuda a salvar os arquivos.
-    
-//     while(t <= tf){    
+    int cont = 0; // ajuda a salvar os arquivos.
+
+    while(t <= tf){    
         
-//         // zera todos para a próxima iteração de tempo
-//         uc.zeros();
-//         vc.zeros();
-//         pc.zeros();
-//         u_face.zeros();
-//         v_face.zeros();
-//         p_face.zeros();
-//         mdotf.zeros();
-//         ap.zeros();
-//         mdotfcorr.zeros();
-//         pfcorr.zeros();
-//         pcorr.zeros();
-//         ucorr.zeros();
-//         vcorr.zeros();
-//         // -----------------------------------------------
+        // zera todos para a próxima iteração de tempo
+        uc.setZero();
+        vc.setZero();
+        pc.setZero();
+        u_face.setZero();
+        v_face.setZero();
+        p_face.setZero();
+        mdotf.setZero();
+        ap.setZero();
+        mdotfcorr.setZero();
+        pfcorr.setZero();
+        pcorr.setZero();
+        ucorr.setZero();
+        vcorr.setZero();
+        // -----------------------------------------------
 
-//         this->compute_bcs_repeat(); // aplica BC nos vetores
+        this->compute_bcs_repeat(); // aplica BC nos vetores
         
-//         for(int j = 0; j < num_simple_iterations; j++){
+        for(int j = 0; j < num_simple_iterations; j++){
             
-//             // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
-//             mom_links_and_sources(lambda_uv);
+            // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
+            mom_links_and_sources(lambda_uv);
             
-//             // cout << "Resolvendo para encontrar uc\n";
-//             solve_x_mom();
+            // cout << "Resolvendo para encontrar uc\n";
+            solve_x_mom();
             
-//             // cout << "Resolvendo para encontrar uv\n";
-//             solve_y_mom();
+            // cout << "Resolvendo para encontrar uv\n";
+            solve_y_mom();
             
-//             // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
-//             face_velocity();
+            // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
+            face_velocity();
             
-//             // cout << "# Calculando correção na pressão (p')\n";
-//             solve_pp(true); // lid chama com true, backward facing step chama com false
+            // cout << "# Calculando correção na pressão (p')\n";
+            solve_pp(true); // lid chama com true, backward facing step chama com false
             
-//             // cout << "# Atualiza velocidades...\n";
-//             uv_correct();
+            // cout << "# Atualiza velocidades...\n";
+            uv_correct();
             
-//             // cout << "# Atualiza pressão....\n";
-//             pres_correct(lambda_p);
-//         }
+            // cout << "# Atualiza pressão....\n";
+            pres_correct(lambda_p);
+        }
 
-//         // faz variaveis na proxima iteração começarem como as antigas u(n) = u(n-1)
-//         uc_old = uc;
-//         vc_old = vc;
-//         pc_old = pc;
+        // faz variaveis na proxima iteração começarem como as antigas u(n) = u(n-1)
+        uc_old = uc;
+        vc_old = vc;
+        pc_old = pc;
         
-//         string fn = filepath + problem + to_string(cont) + ".vtk";
-//         export_velocity(fn);
+        string fn = filepath + problem + to_string(cont) + ".vtk";
+        export_vtk(fn);
 
-//         t = t + dt; // atualiza o tempo
-//         cont = cont + 1; // atualiza contador de snapshots
+        t = t + dt; // atualiza o tempo
+        cont = cont + 1; // atualiza contador de snapshots
         
-//         progress_bar(cont, 50, n_steps);
-//     }
-//     cout << endl;
-// }
+        progress_bar(cont, 50, n_steps);
+    }
+    cout << endl;
+}
 
-// void ReFumSolver::calculate_exact_solution_and_compare(){
-//     int ncells = mesh->get_ncells();
-//     arma::vec u_exact = arma::vec(ncells, arma::fill::zeros);
-//     arma::vec v_exact = arma::vec(ncells, arma::fill::zeros);
-//     arma::vec p_exact = arma::vec(ncells, arma::fill::zeros);
+void ReFumSolver::calculate_exact_solution_and_compare(){
+    int ncells = mesh->get_ncells();
+    Eigen::VectorXd u_exact(ncells);
+    u_exact.setZero();
+    Eigen::VectorXd v_exact(ncells);
+    v_exact.setZero();
+    Eigen::VectorXd p_exact(ncells);
+    p_exact.setZero();
 
-//     vector<Cell*> cells = mesh->get_cells();
-//     double lambda = -1.81009812;
-//     for(int i = 0; i < ncells; ++i){
-//         Cell* c = cells[i];
-//         pair<double,double> centroid = c->get_centroid();
-//         double xc = centroid.first; double yc = centroid.second;
-//         u_exact[i] = 1 - exp(lambda*xc) * cos(2*M_PI*yc);
-//         v_exact[i] = (lambda/(2*M_PI))*exp(lambda*xc)*sin(2*M_PI*yc);
-//         p_exact[i] = 0.5 * (1 - exp(2 * lambda * xc));
-//     }
-//     cout << "==*===*===*==*===*===*==*===*===*==*===*===*==*===*===*\n";
-//     cout << "\nDiferença entre u_exact e u:" << arma::norm(u_exact - uc, "inf") << endl;
-//     cout << "Diferença entre v_exact e v:" << arma::norm(v_exact - vc, "inf") << endl;
-//     cout << "Diferença entre p_exact e p:" << arma::norm(p_exact - pc, "inf") << endl;
-// }
+    vector<Cell*> cells = mesh->get_cells();
+    double lambda = -1.81009812;
+    for(int i = 0; i < ncells; ++i){
+        Cell* c = cells[i];
+        pair<double,double> centroid = c->get_centroid();
+        double xc = centroid.first; double yc = centroid.second;
+        u_exact[i] = 1 - exp(lambda*xc) * cos(2*M_PI*yc);
+        v_exact[i] = (lambda/(2*M_PI))*exp(lambda*xc)*sin(2*M_PI*yc);
+        p_exact[i] = 0.5 * (1 - exp(2 * lambda * xc));
+    }
+    cout << "==*===*===*==*===*===*==*===*===*==*===*===*==*===*===*\n";
+    cout << "\nDiferença entre u_exact e u:" << (u_exact - uc).lpNorm<Eigen::Infinity>() << endl;
+    cout << "Diferença entre v_exact e v:" << (v_exact - vc).lpNorm<Eigen::Infinity>() << endl;
+    cout << "Diferença entre p_exact e p:" << (p_exact - pc).lpNorm<Eigen::Infinity>() << endl;
+}
 
 
 // *=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=
 
 
-void ReFumSolver::export_velocity(string filename){
+void ReFumSolver::export_vtk(string filename) {
 
     ofstream vtk_file(filename);
 
     if (!vtk_file.is_open()) {
-        std::cerr << "ERROR: failed to create file." << filename << "'.\n";
+        std::cerr << "ERROR: failed to create file '" << filename << "'.\n";
         exit(1);
     }
 
-    /*Informações padrão*/
+    // ---------------- Informações padrão ----------------
     vtk_file << "# vtk DataFile Version 3.0\n";
-    vtk_file << "Malha 2D com triângulos e temperatura\n";
+    vtk_file << "Malha 2D com triângulos: velocidade e pressão\n";
     vtk_file << "ASCII\n";
     vtk_file << "DATASET UNSTRUCTURED_GRID\n\n";
 
+    // ---------------- Pontos ----------------
     vector<Node*> nodes = this->mesh->get_nodes();
     vtk_file << "POINTS " << nodes.size() << " double" << endl;
-    for(int i = 0; i < nodes.size(); i++){
-        vtk_file << nodes[i]->x << " " << nodes[i]->y << " " << 0 << endl;
+    for (auto &node : nodes) {
+        vtk_file << node->x << " " << node->y << " 0\n";
     }
     vtk_file << endl;
 
+    // ---------------- Células ----------------
     vector<Cell*> cells = mesh->get_cells();
     vtk_file << "CELLS " << cells.size() << " ";
-    int sum = 0; // vai contar a quantidade de valores a serem lidos depois...
-    for(int i = 0; i < cells.size(); i++)
-    {
-        if(cells[i]->cellType == 2)
-            sum += 4;
-        else if(cells[i]->cellType == 3)
-            sum += 5;
+    int sum = 0;
+    for (auto &cell : cells) {
+        sum += cell->get_nodes().size() + 1; // +1 para o número de nós no VTK
     }
     vtk_file << sum << endl;
-    
-    for(int i = 0; i < cells.size(); i++){
-        vector<Node*>& nodesOfCell = cells[i]->get_nodes();
-        vtk_file << nodesOfCell.size(); 
-        for(int j = 0; j < nodesOfCell.size(); j++)
-            vtk_file << " " << nodesOfCell[j]->id;
+
+    for (auto &cell : cells) {
+        vector<Node*>& nodesOfCell = cell->get_nodes();
+        vtk_file << nodesOfCell.size();
+        for (auto &n : nodesOfCell)
+            vtk_file << " " << n->id;
         vtk_file << endl;
     }
     vtk_file << endl;
 
+    // ---------------- Tipos de células ----------------
     vtk_file << "CELL_TYPES " << cells.size() << endl;
-    for(int i = 0; i < cells.size(); i++){
-        if(cells[i]->cellType == 2)
-            vtk_file << "5" << endl;
-        else if(cells[i]->cellType == 3)
-            vtk_file << "9" << endl;
+    for (auto &cell : cells) {
+        if (cell->cellType == 2)
+            vtk_file << "5\n"; // triângulo
+        else if (cell->cellType == 3)
+            vtk_file << "9\n"; // quadrilátero
     }
     vtk_file << endl;
-    
+
+    // ---------------- Dados das células ----------------
     vtk_file << "CELL_DATA " << cells.size() << endl;
+
+    // Velocidade
     vtk_file << "VECTORS velocity double\n";
-    for(int i = 0; i < cells.size(); i++){
-        double u = uc[i];
-        double v = vc[i];
-        // * SALVA U E V.
-        vtk_file << u << " " << v << " 0.0\n";
-    }
-
-
-    vtk_file.close();
-}
-
-void ReFumSolver::export_pressure(string filename){
-
-    ofstream vtk_file(filename);
-
-    if (!vtk_file.is_open()) {
-        std::cerr << "ERROR: failed to create file." << filename << "'.\n";
-        exit(1);
-    }
-
-    /*Informações padrão*/
-    vtk_file << "# vtk DataFile Version 3.0\n";
-    vtk_file << "Malha 2D com triângulos e temperatura\n";
-    vtk_file << "ASCII\n";
-    vtk_file << "DATASET UNSTRUCTURED_GRID\n\n";
-
-    vector<Node*> nodes = this->mesh->get_nodes();
-    vtk_file << "POINTS " << nodes.size() << " double" << endl;
-    for(int i = 0; i < nodes.size(); i++){
-        vtk_file << nodes[i]->x << " " << nodes[i]->y << " " << 0 << endl;
+    for (size_t i = 0; i < cells.size(); ++i) {
+        vtk_file << uc[i] << " " << vc[i] << " 0\n";
     }
     vtk_file << endl;
 
-    vector<Cell*> cells = mesh->get_cells();
-    vtk_file << "CELLS " << cells.size() << " ";
-    int sum = 0; // vai contar a quantidade de valores a serem lidos depois...
-    for(int i = 0; i < cells.size(); i++)
-    {
-        if(cells[i]->cellType == 2)
-            sum += 4;
-        else if(cells[i]->cellType == 3)
-            sum += 5;
-    }
-    vtk_file << sum << endl;
-    
-    for(int i = 0; i < cells.size(); i++){
-        vector<Node*>& nodesOfCell = cells[i]->get_nodes();
-        vtk_file << nodesOfCell.size(); 
-        for(int j = 0; j < nodesOfCell.size(); j++)
-            vtk_file << " " << nodesOfCell[j]->id;
-        vtk_file << endl;
-    }
-    vtk_file << endl;
-
-    vtk_file << "CELL_TYPES " << cells.size() << endl;
-    for(int i = 0; i < cells.size(); i++){
-        if(cells[i]->cellType == 2)
-            vtk_file << "5" << endl;
-        else if(cells[i]->cellType == 3)
-            vtk_file << "9" << endl;
-    }
-    vtk_file << endl;
-    
-    vtk_file << "CELL_DATA " << cells.size() << endl;
+    // Pressão
     vtk_file << "SCALARS pressure double 1\n";
     vtk_file << "LOOKUP_TABLE default\n";
-    for(int i = 0; i < cells.size(); i++){
-        double p = pc[i];
-        // * salva p
-        vtk_file << p << endl;
+    for (size_t i = 0; i < cells.size(); ++i) {
+        vtk_file << pc[i] << endl;
     }
-
 
     vtk_file.close();
 }
-

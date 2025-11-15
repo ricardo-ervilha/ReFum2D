@@ -71,9 +71,8 @@ private:
     void compute_bcs_repeat();
 
     // exportar velocidade e pressão em .vtk
-    void export_velocity(string filename);
-    void export_pressure(string filename);
-
+    void export_vtk(string filename);
+    
     vector<vector<int>> cnsigns;
     vector<double>      careas;
     vector<pair<double,double>> ccentroids;

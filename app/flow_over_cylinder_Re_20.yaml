@@ -32,6 +32,6 @@ solver: steady
 simple:
   lambda_uv: 0.3
   lambda_p: 0.01
-  iterations: 300
+  iterations: 1000
 
 export_folder: "../outputs/"

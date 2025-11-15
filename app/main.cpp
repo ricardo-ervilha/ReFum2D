@@ -8,14 +8,11 @@
 
 int main(int argc, char* argv[]) {
     Orchestrator o;
-    o.readYamlAndRecoverVariables("../app/lid_steady.yaml");
+    o.readYamlAndRecoverVariables("../app/kovasznay_flow.yaml");
 
     Mesh m;
     m.read_mesh(o.get_mesh_path());
     
-    /**
-     * * Exibindo informações do problema
-     */
     cout << "# Nome do Problema: " << o.get_problem() << endl;
     if(o.get_solver_type() == Transient)
         cout << "# Tipo do problema: Transiente\n";
@@ -26,10 +23,12 @@ int main(int argc, char* argv[]) {
 
     ReFumSolver solver(&m, o.get_nu(), o.get_rho(), o.get_ubcs(), o.get_vbcs(), o.get_pbcs(), o.get_solver_type());
 
-    // // sendo transiente, é necessário passar condição inicialç
-    // solver.set_initial_condition(o.get_uic(), o.get_vic(), o.get_pic());
-
-    solver.STEADY_SIMPLE(o.get_problem(), o.get_export_path(), o.get_iterations(), o.get_lambda_uv(), o.get_lambda_p(), true);
-
-    // solver.TRANSIENTE_SIMPLE(o.get_problem(), o.get_export_path(), o.get_iterations(), o.get_lambda_uv(), o.get_lambda_p(), o.get_n_steps(), o.get_tf(), true);
+    if(o.get_solver_type() == Transient){
+        solver.set_initial_condition(o.get_uic(), o.get_vic(), o.get_pic());
+        solver.TRANSIENTE_SIMPLE(o.get_problem(), o.get_export_path(), o.get_iterations(), o.get_lambda_uv(), o.get_lambda_p(), o.get_n_steps(), o.get_tf(), true);
+    }
+    else{
+        solver.STEADY_SIMPLE(o.get_problem(), o.get_export_path(), o.get_iterations(), o.get_lambda_uv(), o.get_lambda_p(), true);
+    }    
+    
 }
