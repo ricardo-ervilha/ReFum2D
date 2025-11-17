@@ -1,5 +1,5 @@
 problem: kovasznay_flow
-mesh: "../inputs/regular/quad_50x50.msh" # (0,1)x(0,1)
+mesh: "../inputs/1026tri.msh" # (0,1)x(0,1)
 
 parameters:
   viscosity: 0.05 # Re = 20
@@ -10,25 +10,25 @@ boundaries:
     - { type: DIRICHLET, region: TOP, value: kov_u }
     - { type: DIRICHLET, region: BOTTOM, value: kov_u }
     - { type: DIRICHLET, region: LEFT, value: kov_u }
-    - { type: DIRICHLET, region: RIGHT, value: kov_u }
+    - { type: NEUMANN, region: RIGHT, value: zero }
 
   v:
     - { type: DIRICHLET, region: TOP, value: kov_v }
     - { type: DIRICHLET, region: BOTTOM, value: kov_v }
     - { type: DIRICHLET, region: LEFT, value: kov_v }
-    - { type: DIRICHLET, region: RIGHT, value: kov_v }
+    - { type: NEUMANN, region: RIGHT, value: zero }
 
   p:
-    - { type: DIRICHLET, region: TOP, value: kov_p }
-    - { type: DIRICHLET, region: BOTTOM, value: kov_p }
-    - { type: DIRICHLET, region: LEFT, value: kov_p }
+    - { type: NEUMANN, region: TOP, value: zero }
+    - { type: NEUMANN, region: BOTTOM, value: zero }
+    - { type: NEUMANN, region: LEFT, value: zero }
     - { type: DIRICHLET, region: RIGHT, value: kov_p }
 
 solver: steady
 
 simple:
-  lambda_uv: 0.6
-  lambda_p: 0.3
-  iterations: 200
+  lambda_uv: 0.3
+  lambda_p: 0.05
+  iterations: 1000
 
 export_folder: "../outputs/"

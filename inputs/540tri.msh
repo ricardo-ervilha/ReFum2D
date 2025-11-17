@@ -3,7 +3,7 @@ $MeshFormat
 $EndMeshFormat
 $PhysicalNames
 5
-1 5 "DOWN"
+1 5 "BOTTOM"
 1 6 "RIGHT"
 1 7 "TOP"
 1 8 "LEFT"

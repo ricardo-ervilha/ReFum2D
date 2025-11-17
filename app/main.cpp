@@ -25,10 +25,10 @@ int main(int argc, char* argv[]) {
 
     if(o.get_solver_type() == Transient){
         solver.set_initial_condition(o.get_uic(), o.get_vic(), o.get_pic());
-        solver.TRANSIENTE_SIMPLE(o.get_problem(), o.get_export_path(), o.get_iterations(), o.get_lambda_uv(), o.get_lambda_p(), o.get_n_steps(), o.get_tf(), true);
+        solver.TRANSIENTE_SIMPLE(o.get_problem(), o.get_export_path(), o.get_iterations(), o.get_lambda_uv(), o.get_lambda_p(), o.get_n_steps(), o.get_tf(), false);
     }
     else{
-        solver.STEADY_SIMPLE(o.get_problem(), o.get_export_path(), o.get_iterations(), o.get_lambda_uv(), o.get_lambda_p(), true);
+        solver.STEADY_SIMPLE(o.get_problem(), o.get_export_path(), o.get_iterations(), o.get_lambda_uv(), o.get_lambda_p(), false);
     }    
     
 }

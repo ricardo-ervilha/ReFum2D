@@ -552,21 +552,18 @@ void ReFumSolver::solve_pp(bool sing_matrix){
 
     A.setFromTriplets(triplets.begin(), triplets.end());
     if(sing_matrix){
-        int row = 0; 
-
-        A.prune([&](int i, int j, double v){
-            return i != row;
-        });
+        int row = 0;
+        for(int j = 0; j < A.outerSize(); ++j) {
+            for(Eigen::SparseMatrix<double>::InnerIterator it(A,j); it; ++it) {
+                if(it.row() == row && it.col() != row) it.valueRef() = 0.0;
+            }
+        }
 
         A.coeffRef(row, row) = 1.0;
         b_pc[row] = 0.0;
     }
     
-    // resolve para obter p'.
-    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
-    solver.setMaxIterations(200);
-    solver.setTolerance(1e-4); 
-    // Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
     solver.compute(A);
     pcorr = solver.solve(b_pc);
 }
