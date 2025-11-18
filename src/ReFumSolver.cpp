@@ -25,6 +25,8 @@ ReFumSolver::ReFumSolver(Mesh *mesh, float mu, float rho, vector<BoundaryConditi
     this->u_boundary.resize(nfaces, {NONE, 0.0});
     this->v_boundary.resize(nfaces, {NONE, 0.0});
     this->p_boundary.resize(nfaces, {NONE, 0.0});
+
+    this->gradients.resize(ncells, 2); // um gradiente reconstruido para cada celula
     
     // matrizes b de momento
     this->b_mom_x.resize(ncells);
@@ -115,6 +117,8 @@ ReFumSolver::ReFumSolver(Mesh *mesh, float mu, float rho, vector<BoundaryConditi
     this->wf.resize(nfaces);
     this->wf.setZero();
     this->compute_wf();
+
+    this->init_gradients();
 }   
 
 ReFumSolver::~ReFumSolver(){
@@ -225,7 +229,176 @@ void ReFumSolver::compute_bcs_repeat(){
 
 // *=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=
 
+void ReFumSolver::init_gradients()
+{
+    int ncells = mesh->get_ncells();
+    grad_weights.resize(ncells);
+    for (int ic = 0; ic < ncells; ic++)
+    {
+        vector<int> fids = idFacesFromCell[ic];
+        pair<double, double> centroidP = ccentroids[ic];
 
+        Eigen::MatrixXd M(fids.size(), 2);
+
+        for (int j = 0; j < fids.size(); j++)
+        {
+            int idf = fids[j];
+
+            // # meio da face
+            pair<double, double> middleFace = fmiddles[idf];
+
+            if (fboundaryfaces[idf])
+            {
+
+                if (u_boundary[idf].first == DIRICHLET)
+                {
+
+                    double dx = middleFace.first - centroidP.first;
+                    double dy = middleFace.second - centroidP.second;
+                    // + [dx dy]
+                    M(j, 0) = dx;
+                    M(j, 1) = dy;
+                }
+                else if (u_boundary[idf].first == DIRICHLET)
+                {
+                    continue;
+                    // * No caso de neumann já tem o gradiente...
+                }
+            }
+            else
+            {
+                int nb = get_neighbor(flftcs[idf], ic);
+                pair<double, double> centroidN = ccentroids[nb];
+
+                double dx = centroidN.first - centroidP.first;
+                double dy = centroidN.second - centroidP.second;
+
+                // + [dx dy]
+                M(j, 0) = dx;
+                M(j, 1) = dy;
+            }
+        }
+        grad_weights[ic] = (M.transpose() * M).inverse() * M.transpose();
+    }
+}
+
+void ReFumSolver::reconstruct_gradients(Eigen::VectorXd var_center, Eigen::VectorXd var_face, vector<pair<BoundaryType, double>> boundary){
+    int ncells = mesh->get_ncells();
+    
+    for(int ic = 0; ic < ncells; ic++){ 
+
+        vector<int> fids = idFacesFromCell[ic];
+
+        Eigen::VectorXd y(fids.size());
+        
+        for(int j = 0; j < fids.size(); j++){
+            int idf = fids[j];
+            
+            if(fboundaryfaces[idf]){
+                
+                if(boundary[idf].first == DIRICHLET){
+
+                     // + [u_B - u_P]
+                    y[j] = var_face[idf] - var_center[ic];  
+
+                }else if(boundary[idf].first == DIRICHLET){
+                    continue;
+                    // * No caso de neumann já tem o gradiente...
+                }
+            }else{
+                int nb = get_neighbor(flftcs[idf], ic);
+
+                // + [u_N - u_P]
+                y[j] = var_center[nb] - var_center[ic];  
+            }
+        }
+        
+        // + Resolve sistema sobre-determinado M x = y.
+        Eigen::VectorXd x = grad_weights[ic] * y;
+        this->gradients(ic,0) = x[0];
+        this->gradients(ic,1) = x[1];
+    }
+}
+
+pair<double,double> compute_n1(pair<double,double>& p, pair<double,double>& n, pair<double,double>& normal){
+    /* vetor que une P e N */
+    pair<double,double> dpn = make_pair(n.first - p.first, n.second - p.second);
+    
+    /* norma do vetor normal */
+    double norm_normal_square = normal.first*normal.first + normal.second*normal.second; // |nf|²
+    
+    /* produto escalar entre normal e dpn -> nf . dpn*/
+    double nfdotdpn = normal.first*dpn.first + normal.second*dpn.second; 
+    
+    /* n_1 = dPN * (|n_f|^2 / (n_f . dPN))*/
+    double n1x = dpn.first * (norm_normal_square/nfdotdpn);
+    double n1y = dpn.second * (norm_normal_square/nfdotdpn);
+
+    return make_pair(n1x, n1y);
+}
+
+Eigen::VectorXd ReFumSolver::cross_diffusion(Eigen::VectorXd b, vector<pair<BoundaryType, double>> boundary){
+
+
+    int ncells = mesh->get_ncells();
+    for(int ic = 0; ic < ncells; ic++){ 
+        
+        vector<int> fids = idFacesFromCell[ic];
+        vector<int> nsigns = cnsigns[ic];
+        pair<double,double> centroidP = ccentroids[ic];
+
+        for(int j = 0; j < fids.size(); j++){
+            int idf = fids[j];
+            int nsign = nsigns[j];
+
+            pair<double, double> middleFace = fmiddles[idf];
+            pair<double, double> normal = fnormals[idf];
+            pair<double,double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);    
+
+            if(fboundaryfaces[idf]){
+                
+                if(boundary[idf].first == DIRICHLET){
+                    pair<double,double> n1 = compute_n1(centroidP, middleFace, normal_corrected);
+
+                    // + encontrando o n2: n1 + n2 = nf => n2 = nf - n1
+                    double n2x = normal_corrected.first - n1.first;
+                    double n2y = normal_corrected.second - n1.second;
+
+                    // estou assumindo que o gradiente da face é o gradiente da celula.
+                    double graddotnormal = gradients(ic,0) * n2x + gradients(ic,1) * n2y;
+
+                    b[ic] += (mu * flengths[idf] * graddotnormal);
+                }else if(boundary[idf].first == DIRICHLET){
+                    continue;
+                    // * não precisa tratar
+                }
+            }else{
+                int nb = get_neighbor(flftcs[idf], ic);
+                pair<double,double>& centroidN = ccentroids[nb]; // centroide do vizinho
+
+                pair<double,double> n1 = compute_n1(centroidP, centroidN, normal_corrected);
+
+                double n2x = normal_corrected.first - n1.first;
+                double n2y = normal_corrected.second - n1.second;
+
+                /*Calculo da distancia de P até center(gface) & N até center(gface)*/
+                pair<double,double>& midFace = fmiddles[idf];
+                double d1 = distance(centroidP.first, centroidP.second, midFace.first, midFace.second);
+                double d2 = distance(centroidN.first, centroidN.second, midFace.first, midFace.second);
+                
+                // + Interpolação do gradiente da face
+                double gradx = (gradients(ic,0)*d2 + gradients(nb,0)*d1)/(d1+d2);
+                double grady = (gradients(ic,1)*d2 + gradients(nb,1)*d1)/(d1+d2);
+
+                double graddotnormal = gradx * n2x + grady * n2y;
+
+                b[ic] += (mu * flengths[idf] * graddotnormal);
+            }
+        }
+    }
+
+    return b;
+}
 
 void ReFumSolver::mom_links_and_sources(double lambda_v){
     int ncells = mesh->get_ncells();
@@ -257,16 +430,26 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
             double Df = (mu * flengths[idf]) / fdfs[idf];
             double mf = mdotf[idf] * nsign;            
             
+            
+            pair<double,double> centroidP = ccentroids[ic];
+            pair<double, double> middleFace = fmiddles[idf];
+            pair<double, double> &normal = fnormals[idf];
+            pair<double, double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
+            
             if(fboundaryfaces[idf]){
-                
                 if(u_boundary[idf].first == DIRICHLET){
                     // aP = ap + Df
                     // aN = 0
                     // S = S + Df * u_f - mf * u_f (entra a parte no termo fonte)
                     // A_mom(ic, ic) = A_mom(ic,ic) + Df; // + SOMA ISSO UMA VEZ SÓ, NO PRÓXIMO NÃO É NECESSÁRIO.
                     
-                    diags[ic] = diags[ic] + Df;
-                    b_mom_x[ic] = b_mom_x[ic] + u_face[idf] * Df - u_face[idf] * mf;
+                    // * Quando é dirichlet N1 ligará centro de P e centro da face.
+                    
+                    pair<double,double> n1 = compute_n1(centroidP, middleFace, normal_corrected);
+                    double normn1 = sqrt(n1.first * n1.first + n1.second * n1.second); // |n1|
+
+                    diags[ic] = diags[ic] + Df * normn1;
+                    b_mom_x[ic] = b_mom_x[ic] + u_face[idf] * Df * normn1 - u_face[idf] * mf;
                 } else{
                     // considera-se que u_b = u_P; v_b = v_P.
                     // com isso, o termo difusivo na discretização:  (μ_f*A_f/δ_f)*(u_b - u_P) = (μ_f*A_f/δ_f)*(u_P - u_P) = 0.
@@ -282,7 +465,10 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
                     // aP = ap + Df
                     // aN = -Df
                     // S = S + Df * v_f - mf * v_f (convecção passou para o lado do termo fonte.)
-                    b_mom_y[ic] = b_mom_y[ic] + v_face[idf] * Df - v_face[idf] * mf;
+                    pair<double,double> n1 = compute_n1(centroidP, middleFace, normal_corrected);
+                    double normn1 = sqrt(n1.first * n1.first + n1.second * n1.second); // |n1|
+
+                    b_mom_y[ic] = b_mom_y[ic] + v_face[idf] * Df * normn1 - v_face[idf] * mf;
                 } else{
                     // considera-se que u_b = u_P; v_b = v_P.
                     // com isso, o termo difusivo na discretização:  (μ_f*A_f/δ_f)*(v_b - v_P) = (μ_f*A_f/δ_f)*(v_P - v_P) = 0.
@@ -298,12 +484,18 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
                 // aP = aP + Df + max(0, mf)
                 // aN = -Df - max(0, -mf)
                 int N = get_neighbor(flftcs[idf], ic);
+
+                pair<double,double> centroidN = ccentroids[N]; // centroide do vizinho
+            
+                // + Vetor n1 unitário que liga o centroide de P com N.
+                pair<double,double> n1 = compute_n1(centroidP, centroidN, normal_corrected);
+                double normn1 = sqrt(n1.first * n1.first + n1.second * n1.second); // + |n1|
                 
                 // A_mom(ic,ic) = A_mom(ic,ic) + Df + max(mf, 0.0);
-                diags[ic] = diags[ic] + Df + max(mf, 0.0);
+                diags[ic] = diags[ic] + Df * normn1 + max(mf, 0.0);
                 
                 // A_mom(ic,N) = -Df - max(-mf,0.0);
-                triplets.push_back(Eigen::Triplet<double>(ic, N, -Df - max(-mf,0.0)));
+                triplets.push_back(Eigen::Triplet<double>(ic, N, -Df*normn1 - max(-mf,0.0)));
             }
         }
 
@@ -384,19 +576,98 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
     A.setFromTriplets(triplets.begin(), triplets.end());
 }
 
-void ReFumSolver::solve_x_mom(){
-    // Solve A x = b
-    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
-    solver.compute(A);
-    uc = solver.solve(b_mom_x);
+Eigen::VectorXd ReFumSolver::linear_upwind(Eigen::VectorXd b, vector<pair<BoundaryType, double>> boundary) {
+    int ncells = mesh->get_ncells();
+
+    for (int ic = 0; ic < ncells; ++ic) {
+        vector<int> fids = idFacesFromCell[ic];
+        vector<int> nsigns = cnsigns[ic];
+        pair<double,double> centroidP = ccentroids[ic];
+        
+        for (int j = 0; j < fids.size(); ++j) {
+            int idf = fids[j];
+            int nsign = nsigns[j]; 
+            
+            // centro & normal corrigida
+            pair<double,double> middleFace = fmiddles[idf];
+            pair<double,double> normal = fnormals[idf];
+            pair<double,double> normal_corrected = make_pair(normal.first * nsign, normal.second * nsign);
+
+            double G_f = mdotf[idf] * nsign;
+
+            if (fboundaryfaces[idf]) {
+                
+                if (boundary[idf].first == DIRICHLET) {
+                    if (G_f > 0) {
+                        // upwind = célula interna (P)
+                        pair<double,double> deltaR = {middleFace.first - centroidP.first,
+                                                      middleFace.second - centroidP.second};
+                        double GdDotDeltaR = gradients(ic,0) * deltaR.first
+                                           + gradients(ic,1) * deltaR.second;
+                        
+                        b[ic] -= G_f*GdDotDeltaR;
+                    } 
+                } 
+                else if (boundary[idf].second == NEUMANN) {
+                    continue;
+                }
+            } 
+            else {
+                // face interna
+                if (G_f > 0) {                    
+                    pair<double,double> deltaR = {middleFace.first - centroidP.first,
+                                                  middleFace.second - centroidP.second};
+                    double GdDotDeltaR = gradients(ic,0) * deltaR.first
+                                       + gradients(ic,1) * deltaR.second;
+                    
+                    b[ic] -= G_f*GdDotDeltaR;
+                } else {
+                    int nb = get_neighbor(flftcs[idf], ic);
+                    pair<double,double> centroidN = ccentroids[nb];
+                    pair<double,double> deltaR = {middleFace.first - centroidN.first,
+                                                  middleFace.second - centroidN.second};
+                    double GdDotDeltaR = gradients(nb,0) * deltaR.first
+                                       + gradients(nb,1) * deltaR.second;
+                    
+                    b[ic] -= G_f*GdDotDeltaR;
+                }
+            }
+        }   
+    }
+
+    return b;
 }
 
+void ReFumSolver::solve_x_mom(){
+    // Solve A x = b
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
+    solver.compute(A);
+    solver.setTolerance(1e-4);
+
+    Eigen::VectorXd aux = b_mom_x;
+    for(int i = 0; i < 10; ++i){
+        uc = solver.solve(aux); // resolve com valor atual de aux
+        reconstruct_gradients(uc, u_face, u_boundary); // reconstroi e atualiza gradients.
+        aux = cross_diffusion(b_mom_x, u_boundary); // att aux com cd.
+        aux = linear_upwind(aux, u_boundary);
+    }
+    uc = solver.solve(aux);
+}
 
 void ReFumSolver::solve_y_mom(){
     // Solve A x = b 
-    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
     solver.compute(A);
-    vc = solver.solve(b_mom_y);
+    solver.setTolerance(1e-4);
+
+    Eigen::VectorXd aux = b_mom_y;
+    for(int i = 0; i < 10; ++i){
+        vc = solver.solve(aux); // resolve com 
+        reconstruct_gradients(vc, v_face, v_boundary);
+        aux = cross_diffusion(b_mom_y, v_boundary); // att aux com cd
+        aux = linear_upwind(aux, v_boundary);
+    }
+    vc = solver.solve(aux);
 }
 
 /**
@@ -563,7 +834,10 @@ void ReFumSolver::solve_pp(bool sing_matrix){
         b_pc[row] = 0.0;
     }
     
-    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+    // Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
+    solver.setMaxIterations(100);
+    solver.setTolerance(1e-3);
     solver.compute(A);
     pcorr = solver.solve(b_pc);
 }
@@ -662,9 +936,12 @@ void ReFumSolver::pres_correct(double lambda_p) {
 
 void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, bool pressure_correction_flag){
     this->compute_bcs_repeat(); // aplica BC nos vetores
+    double err_u = 1;
+    double err_v = 1;
+    double err_p = 1;
 
     // itera pelo número de iterações passado pelo usuário
-    for(int j = 0; j < num_simple_iterations; j++){
+    while(err_u > 1e-6 || err_v > 1e-6 || err_p > 1e-6){
         
         // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
         mom_links_and_sources(lambda_uv);
@@ -687,14 +964,13 @@ void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_
         // cout << "# Atualiza pressão....\n";
         pres_correct(lambda_p);
 
-        progress_bar(j, 50, num_simple_iterations);
+        err_u = (uc - uc_aux).lpNorm<Eigen::Infinity>();
+        err_v = (vc - vc_aux).lpNorm<Eigen::Infinity>();
+        err_p = (pc - pc_aux).lpNorm<Eigen::Infinity>();
+        cout << "\n||du||_inf = " << err_u << " ||dv||_inf = " << err_v << " ||dp||_inf = " << err_p << endl;
+
     }
     
-    double err_u = (uc - uc_aux).lpNorm<Eigen::Infinity>();
-    double err_v = (vc - vc_aux).lpNorm<Eigen::Infinity>();
-    double err_p = (pc - pc_aux).lpNorm<Eigen::Infinity>();
-    cout << "\n||du||_inf = " << err_u << " ||dv||_inf = " << err_v << " ||dp||_inf = " << err_p << endl;
-
     this->export_vtk(filepath + problem + ".vtk");
 
     this->calculate_exact_solution_and_compare();

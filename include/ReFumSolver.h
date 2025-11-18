@@ -5,7 +5,9 @@
 #include <armadillo>
 #include "BoundaryCondition.h"
 #include "Orchestrator.h"
+
 #include "eigen3/Eigen/Sparse"
+#include "eigen3/Eigen/Dense"
 
 class Mesh;
 class Cell;
@@ -28,6 +30,9 @@ private:
     float mu;
     float rho;
     float dt;
+
+    // guarda os gradientes ao longo do programa reconstruidos.
+    Eigen::MatrixXd gradients;
 
     vector<Eigen::Triplet<double>> triplets;
     Eigen::VectorXd diags; 
@@ -84,6 +89,15 @@ private:
     vector<bool> fboundaryfaces;
     vector<vector<int>> idFacesFromCell;
 
+    void reconstruct_gradients(Eigen::VectorXd var_center, Eigen::VectorXd var_face, vector<pair<BoundaryType, double>> boundary);
+
+    Eigen::VectorXd cross_diffusion(Eigen::VectorXd b, vector<pair<BoundaryType, double>> boundary);
+
+    Eigen::VectorXd linear_upwind(Eigen::VectorXd b, vector<pair<BoundaryType, double>> boundary);
+
+    vector<Eigen::MatrixXd> grad_weights;
+
+    void init_gradients();
 public:
     ReFumSolver(Mesh *mesh, float mu, float rho, vector<BoundaryCondition> bcsU, vector<BoundaryCondition> bcsV, vector<BoundaryCondition> bcsP, SolverType solver);
     ~ReFumSolver();

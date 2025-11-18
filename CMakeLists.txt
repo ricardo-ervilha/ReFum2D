@@ -9,7 +9,7 @@ include_directories(${ARMADILLO_INCLUDE_DIRS})
 
 find_package(yaml-cpp REQUIRED)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-pg -O3 -g")
+set(CMAKE_CXX_FLAGS_DEBUG "-O3")
 
 include_directories(include)
 
