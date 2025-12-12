@@ -1,5 +1,5 @@
 problem: kovasznay_flow
-mesh: "../inputs/kovasznay_7826_elementos.msh" # (0,1)x(0,1)
+mesh: "../inputs/kovasznay_15644_elementos.msh" # (0,1)x(0,1)
 
 parameters:
   viscosity: 0.05 # Re = 20
