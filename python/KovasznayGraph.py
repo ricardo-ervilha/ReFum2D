@@ -16,29 +16,31 @@ import numpy as np
 # Dados fornecidos
 x_vals = np.array([460, 942, 1992, 3962, 7826], dtype=float)
 y_vals_mat = np.array([
-    [ 0.0372087,
-    0.0135201,
-    0.00653967,
-    0.00261017,
-    0.0021225],
+    [ 0.0750389,
+    0.027179,
+    0.0131993,
+    0.0053091,
+    0.00408087
+    ],
     [
-   0.0155147,
-    0.00589536,
-    0.00356925,
-    0.00114755,
-    0.00195394
+    0.029763,
+    0.011186,
+    0.00677152,
+    0.00221416,
+    0.00370748
 ],
-    [0.110161,
-    0.0598823,
-    0.0354144,
-    0.0209899,
-    0.0224716]
+    [0.208114,
+    0.111619,
+    0.0661406,
+    0.0383191,
+    0.0412647
+    ]
 ])
 
 cmap = plt.get_cmap("tab10")
-y_vals = np.sqrt(y_vals_mat[0]**2 + y_vals_mat[1]**2)
+y_vals = np.sqrt(y_vals_mat[0]**2+ y_vals_mat[1]**2)
 # Transformação: 1 / sqrt(x)
-x_transformed = 1 / np.sqrt(x_vals)
+x_transformed = np.sqrt(4/x_vals)
 
 # Regressão linear em escala log-log
 logx = np.log10(x_transformed)
@@ -58,21 +60,21 @@ label = fr"$\vec{{u}}$, $\mathcal{{O}}({order})$"
 
 # Gráfico
 plt.figure(figsize=(8,6))
-plt.loglog(x_transformed, y_vals, '*', markersize=8,  markeredgewidth=1.5)
-plt.loglog(10**logx_fit, 10**logy_fit, label=label, color = cmap(0.3))
+plt.loglog(x_transformed, y_vals, marker='*')
+plt.loglog(10**logx_fit, 10**logy_fit, label=label, linestyle='--', color = cmap(0.3))
 
 plt.xlabel("$h$", fontsize=12)
 plt.ylabel("Erro", fontsize=12)
 plt.grid(True, which="both", linestyle="--", alpha=0.6)
 plt.legend()
-plt.show()
+plt.savefig("./velocity_convergence.pdf", format='pdf', dpi=300)
 plt.tight_layout()
 plt.close()
 
 cmap = plt.get_cmap("tab10")
 y_vals = y_vals_mat[2]
 # Transformação: 1 / sqrt(x)
-x_transformed = 1 / np.sqrt(x_vals)
+x_transformed = np.sqrt(4/x_vals)
 
 # Regressão linear em escala log-log
 logx = np.log10(x_transformed)
@@ -92,14 +94,14 @@ label = fr"$p$, $\mathcal{{O}}({order})$"
 
 # Gráfico
 plt.figure(figsize=(8,6))
-plt.loglog(x_transformed, y_vals, '*', markersize=8,  markeredgewidth=1.5)
-plt.loglog(10**logx_fit, 10**logy_fit, label=label, color ='orange')
+plt.loglog(x_transformed, y_vals, marker='*')
+plt.loglog(10**logx_fit, 10**logy_fit, label=label, linestyle='--', color = 'orange')
 
 plt.xlabel("$h$", fontsize=12)
 plt.ylabel("Erro", fontsize=12)
 plt.grid(True, which="both", linestyle="--", alpha=0.6)
 plt.legend()
-plt.show()
+plt.savefig("./pressure_convergence.pdf", format='pdf', dpi=300)
 plt.tight_layout()
 plt.close()
 

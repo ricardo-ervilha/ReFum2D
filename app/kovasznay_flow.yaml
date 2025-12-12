@@ -1,5 +1,5 @@
 problem: kovasznay_flow
-mesh: "../inputs/kovasznay_942_elementos.msh" # (0,1)x(0,1)
+mesh: "../inputs/kovasznay_7826_elementos.msh" # (0,1)x(0,1)
 
 parameters:
   viscosity: 0.05 # Re = 20
@@ -26,9 +26,10 @@ boundaries:
 
 solver: steady
 
+#tol: 1e-8
 simple:
-  lambda_uv: 0.5
-  lambda_p: 0.3
+  lambda_uv: 0.6 #0.6
+  lambda_p: 0.3 #0.3
   iterations: 500
 
 export_folder: "../outputs/"

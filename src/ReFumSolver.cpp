@@ -645,7 +645,7 @@ void ReFumSolver::solve_x_mom(){
     solver.setTolerance(1e-6);
 
     Eigen::VectorXd aux = b_mom_x;
-    for(int i = 0; i < 5; ++i){
+    for(int i = 0; i < 6; ++i){
         uc = solver.solve(aux); // resolve com valor atual de aux
         reconstruct_gradients(uc, u_face, u_boundary); // reconstroi e atualiza gradients.
         aux = cross_diffusion(b_mom_x, u_boundary); // att aux com cd.
@@ -661,7 +661,7 @@ void ReFumSolver::solve_y_mom(){
     solver.setTolerance(1e-6);
 
     Eigen::VectorXd aux = b_mom_y;
-    for(int i = 0; i < 5; ++i){
+    for(int i = 0; i < 6; ++i){
         vc = solver.solve(aux); // resolve com 
         reconstruct_gradients(vc, v_face, v_boundary);
         aux = cross_diffusion(b_mom_y, v_boundary); // att aux com cd
@@ -941,7 +941,7 @@ void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_
     double err_p = 1;
 
     // itera pelo número de iterações passado pelo usuário
-    while(err_u > 1e-6 || err_v > 1e-6 || err_p > 1e-6){
+    while(err_u > 1e-8 || err_v > 1e-8 || err_p > 1e-8){
         
         // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
         mom_links_and_sources(lambda_uv);
