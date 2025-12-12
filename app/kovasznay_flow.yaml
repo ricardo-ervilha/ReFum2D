@@ -1,5 +1,5 @@
 problem: kovasznay_flow
-mesh: "../inputs/triangular/tri_transf_20x20.msh" # (0,1)x(0,1)
+mesh: "../inputs/kovasznay_942_elementos.msh" # (0,1)x(0,1)
 
 parameters:
   viscosity: 0.05 # Re = 20
@@ -27,7 +27,7 @@ boundaries:
 solver: steady
 
 simple:
-  lambda_uv: 0.6
+  lambda_uv: 0.5
   lambda_p: 0.3
   iterations: 500
 

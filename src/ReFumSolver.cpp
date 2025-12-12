@@ -642,10 +642,10 @@ void ReFumSolver::solve_x_mom(){
     // Solve A x = b
     Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
     solver.compute(A);
-    solver.setTolerance(1e-4);
+    solver.setTolerance(1e-6);
 
     Eigen::VectorXd aux = b_mom_x;
-    for(int i = 0; i < 10; ++i){
+    for(int i = 0; i < 5; ++i){
         uc = solver.solve(aux); // resolve com valor atual de aux
         reconstruct_gradients(uc, u_face, u_boundary); // reconstroi e atualiza gradients.
         aux = cross_diffusion(b_mom_x, u_boundary); // att aux com cd.
@@ -658,10 +658,10 @@ void ReFumSolver::solve_y_mom(){
     // Solve A x = b 
     Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
     solver.compute(A);
-    solver.setTolerance(1e-4);
+    solver.setTolerance(1e-6);
 
     Eigen::VectorXd aux = b_mom_y;
-    for(int i = 0; i < 10; ++i){
+    for(int i = 0; i < 5; ++i){
         vc = solver.solve(aux); // resolve com 
         reconstruct_gradients(vc, v_face, v_boundary);
         aux = cross_diffusion(b_mom_y, v_boundary); // att aux com cd
@@ -837,7 +837,7 @@ void ReFumSolver::solve_pp(bool sing_matrix){
     // Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
     Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
     solver.setMaxIterations(100);
-    solver.setTolerance(1e-3);
+    solver.setTolerance(1e-4);
     solver.compute(A);
     pcorr = solver.solve(b_pc);
 }
@@ -1045,7 +1045,7 @@ void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_sim
 }
 
 void ReFumSolver::calculate_exact_solution_and_compare(){
-    int ncells = mesh->get_ncells();
+int ncells = mesh->get_ncells();
     Eigen::VectorXd u_exact(ncells);
     u_exact.setZero();
     Eigen::VectorXd v_exact(ncells);
@@ -1055,6 +1055,10 @@ void ReFumSolver::calculate_exact_solution_and_compare(){
 
     vector<Cell*> cells = mesh->get_cells();
     double lambda = -1.81009812;
+    double acc_u=0;
+    double acc_v=0;
+    double acc_p=0;
+    double sumAreas=0;
     for(int i = 0; i < ncells; ++i){
         Cell* c = cells[i];
         pair<double,double> centroid = c->get_centroid();
@@ -1062,11 +1066,20 @@ void ReFumSolver::calculate_exact_solution_and_compare(){
         u_exact[i] = 1 - exp(lambda*xc) * cos(2*M_PI*yc);
         v_exact[i] = (lambda/(2*M_PI))*exp(lambda*xc)*sin(2*M_PI*yc);
         p_exact[i] = 0.5 * (1 - exp(2 * lambda * xc));
+
+        acc_u += (u_exact[i] - uc[i]) * (u_exact[i] - uc[i]) * c->get_area();
+        acc_v += (v_exact[i] - vc[i]) * (v_exact[i] - vc[i]) * c->get_area();
+        acc_p += (p_exact[i] - pc[i]) * (p_exact[i] - pc[i]) * c->get_area();
+        sumAreas += c->get_area();
     }
+    acc_u = sqrt(acc_u);
+    acc_v = sqrt(acc_v);
+    acc_p = sqrt(acc_p);
+    
     cout << "==*===*===*==*===*===*==*===*===*==*===*===*==*===*===*\n";
-    cout << "\nDiferença entre u_exact e u:" << (u_exact - uc).lpNorm<Eigen::Infinity>() << endl;
-    cout << "Diferença entre v_exact e v:" << (v_exact - vc).lpNorm<Eigen::Infinity>() << endl;
-    cout << "Diferença entre p_exact e p:" << (p_exact - pc).lpNorm<Eigen::Infinity>() << endl;
+    cout << "\nDiferença entre u_exact e u:" << acc_u << endl;
+    cout << "Diferença entre v_exact e v:" << acc_v << endl;
+    cout << "Diferença entre p_exact e p:" << acc_p << endl;
 }
 
 
