@@ -973,7 +973,7 @@ void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_
     
     this->export_vtk(filepath + problem + ".vtk");
 
-    this->calculate_exact_solution_and_compare();
+    // this->calculate_exact_solution_and_compare();
 }
 
 void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag){

@@ -8,7 +8,7 @@
 
 int main(int argc, char* argv[]) {
     Orchestrator o;
-    o.readYamlAndRecoverVariables("../app/kovasznay_flow.yaml");
+    o.readYamlAndRecoverVariables("../app/lid_steady.yaml");
 
     Mesh m;
     m.read_mesh(o.get_mesh_path());

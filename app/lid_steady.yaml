@@ -1,8 +1,8 @@
-problem: lid_driven
-mesh: "../inputs/q30x30.msh"
+problem: lid_driven_Re=1000
+mesh: "../inputs/lid_driven_cavity_flow_13776.msh"
 
 parameters:
-  viscosity: 0.01
+  viscosity: 0.001
   density: 1.0
 
 boundaries:

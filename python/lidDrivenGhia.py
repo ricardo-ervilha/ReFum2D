@@ -5,9 +5,15 @@ import matplotlib.tri as tri
 from matplotlib.tri import LinearTriInterpolator
 import sys
 
+# ============================================================
+#  Entrada
+# ============================================================
 Re = float(sys.argv[1])
+vtk_file = sys.argv[2]
 
-# Configurações do estilo global do Matplotlib
+# ============================================================
+#  Estilo global Matplotlib
+# ============================================================
 plt.rcParams.update({
     "text.usetex": True,
     "font.family": "palatino",
@@ -18,46 +24,73 @@ plt.rcParams.update({
     "legend.fontsize": 12
 })
 
-# --- Leitura do arquivo VTK ---
-mesh = meshio.read(sys.argv[2])
+# ============================================================
+#  Leitura do VTK
+# ============================================================
+mesh = meshio.read(vtk_file)
+
 points = mesh.points
 x, y = points[:, 0], points[:, 1]
 
-# --- Dados de velocidade por célula ---
-velocity = mesh.cell_data_dict["velocity"]["quad"]
-u_cell, v_cell = velocity[:, 0], velocity[:, 1]
-vel_mag_cell = np.hypot(u_cell, v_cell)
-quads = mesh.cells_dict["quad"]
+cells = mesh.cells_dict
+cell_data = mesh.cell_data_dict["velocity"]
 
-# --- Conversão: célula → ponto (média nos vértices) ---
+# ============================================================
+#  Coleta de velocidades e conectividade
+# ============================================================
+u_cell = []
+v_cell = []
+triangles = []
+
+cell_idx = 0
+for cell_type, elems in cells.items():
+
+    vel = cell_data[cell_type]
+
+    for i, elem in enumerate(elems):
+        u_cell.append(vel[i, 0])
+        v_cell.append(vel[i, 1])
+
+        if cell_type == "quad":
+            triangles.append([elem[0], elem[1], elem[2]])
+            triangles.append([elem[0], elem[2], elem[3]])
+        elif cell_type == "triangle":
+            triangles.append(elem)
+
+u_cell = np.array(u_cell)
+v_cell = np.array(v_cell)
+
+triangles = np.array(triangles)
+
+# ============================================================
+#  Conversão célula → ponto (média nos vértices)
+# ============================================================
 num_points = len(points)
 u_points = np.zeros(num_points)
 v_points = np.zeros(num_points)
-vel_mag_points = np.zeros(num_points)
 counts = np.zeros(num_points, dtype=int)
 
-for i, quad in enumerate(quads):
-    u_points[quad] += u_cell[i]
-    v_points[quad] += v_cell[i]
-    vel_mag_points[quad] += vel_mag_cell[i]
-    counts[quad] += 1
+cell_idx = 0
+for cell_type, elems in cells.items():
+    for elem in elems:
+        for node in elem:
+            u_points[node] += u_cell[cell_idx]
+            v_points[node] += v_cell[cell_idx]
+            counts[node] += 1
+        cell_idx += 1
 
 mask = counts > 0
 u_points[mask] /= counts[mask]
 v_points[mask] /= counts[mask]
-vel_mag_points[mask] /= counts[mask]
 
-# --- Criação da triangulação ---
-triangles = np.vstack([
-    [q[0], q[1], q[2]] for q in quads
-] + [
-    [q[0], q[2], q[3]] for q in quads
-])
-triang = tri.Triangulation(x, y, triangles)
-triangles = np.array(triangles).reshape(-1, 3)
+# ============================================================
+#  Triangulação
+# ============================================================
 triang = tri.Triangulation(x, y, triangles)
 
-# --- Interpolação para a grade regular ---
+# ============================================================
+#  Interpolação para grade regular
+# ============================================================
 xi = np.linspace(x.min(), x.max(), 100)
 yi = np.linspace(y.min(), y.max(), 100)
 Xi, Yi = np.meshgrid(xi, yi)
@@ -65,47 +98,80 @@ Xi, Yi = np.meshgrid(xi, yi)
 Ui = LinearTriInterpolator(triang, u_points)(Xi, Yi)
 Vi = LinearTriInterpolator(triang, v_points)(Xi, Yi)
 
-# --- Carrega dados de Ghia et al. ---
-ghia_vertical = np.loadtxt("../docs/ghia_u_vertical_center_line_y.csv", skiprows=1, delimiter=',', dtype=np.float64)
-ghia_horizontal = np.loadtxt("../docs/ghia_v_horizontal_center_line_x.csv", skiprows=1, delimiter=',', dtype=np.float64)
+# ============================================================
+#  Dados de Ghia et al.
+# ============================================================
+ghia_vertical = np.loadtxt(
+    "../docs/ghia_u_vertical_center_line_y.csv",
+    skiprows=1, delimiter=',', dtype=np.float64
+)
 
-# --- Seleciona a coluna onde x = 0.5 ---
-col_idx = np.argmin(np.abs(xi - 0.5))
-u_center = Ui[:, col_idx]  # perfil vertical de u em x = 0.5
-col_idx = np.argmin(np.abs(yi - 0.5))
-v_center = Vi[col_idx, :]  # perfil vertical de u em x = 0.5
+ghia_horizontal = np.loadtxt(
+    "../docs/ghia_v_horizontal_center_line_x.csv",
+    skiprows=1, delimiter=',', dtype=np.float64
+)
 
-# --- Plotagem ---
+# ============================================================
+#  Perfis centrais
+# ============================================================
+col_x = np.argmin(np.abs(xi - 0.5))
+u_center = Ui[:, col_x]
+
+col_y = np.argmin(np.abs(yi - 0.5))
+v_center = Vi[col_y, :]
+
+# ============================================================
+#  Plot — perfil vertical de u
+# ============================================================
 plt.figure(figsize=(8, 8))
 plt.plot(u_center, yi, label="Este trabalho", linewidth=2)
+
 if Re == 100:
-    plt.scatter(ghia_vertical[:, 1], ghia_vertical[:, 0], label="Ghia et al.", color='black', facecolors='none', marker='o', linewidths=1.5)
+    plt.scatter(ghia_vertical[:, 1], ghia_vertical[:, 0],
+                label="Ghia et al.", facecolors='none',
+                edgecolors='black', marker='o', linewidths=1.5)
 elif Re == 400:
-    plt.scatter(ghia_vertical[:, 2], ghia_vertical[:, 0], label="Ghia et al.", color='black', facecolors='none', marker='o', linewidths=1.5)
+    plt.scatter(ghia_vertical[:, 2], ghia_vertical[:, 0],
+                label="Ghia et al.", facecolors='none',
+                edgecolors='black', marker='o', linewidths=1.5)
 elif Re == 1000:
-    plt.scatter(ghia_vertical[:, 3], ghia_vertical[:, 0], label="Ghia et al.", color='black', facecolors='none', marker='o', linewidths=1.5)
+    plt.scatter(ghia_vertical[:, 3], ghia_vertical[:, 0],
+                label="Ghia et al.", facecolors='none',
+                edgecolors='black', marker='o', linewidths=1.5)
+
 plt.xlabel(r"$u$")
-plt.ylabel(r"y")
+plt.ylabel(r"$y$")
 plt.legend()
-plt.grid(True, linestyle='--', alpha=0.5)
-plt.gca().set_aspect('equal')
+plt.grid(True, linestyle="--", alpha=0.5)
+plt.gca().set_aspect("equal")
 plt.tight_layout()
-plt.savefig(sys.argv[3], format='pdf', dpi=400)
+plt.savefig(f"ghia_vertical_{Re}.pdf", dpi=400)
 plt.close()
 
+# ============================================================
+#  Plot — perfil horizontal de v
+# ============================================================
 plt.figure(figsize=(8, 8))
 plt.plot(v_center, xi, label="Este trabalho", linewidth=2)
+
 if Re == 100:
-    plt.scatter(ghia_horizontal[:, 1], ghia_horizontal[:, 0], label="Ghia et al.", color='black', facecolors='none', marker='o', linewidths=1.5)
+    plt.scatter(ghia_horizontal[:, 1], ghia_horizontal[:, 0],
+                label="Ghia et al.", facecolors='none',
+                edgecolors='black', marker='o', linewidths=1.5)
 elif Re == 400:
-    plt.scatter(ghia_horizontal[:, 2], ghia_horizontal[:, 0], label="Ghia et al.", color='black', facecolors='none', marker='o', linewidths=1.5)
+    plt.scatter(ghia_horizontal[:, 2], ghia_horizontal[:, 0],
+                label="Ghia et al.", facecolors='none',
+                edgecolors='black', marker='o', linewidths=1.5)
 elif Re == 1000:
-    plt.scatter(ghia_horizontal[:, 3], ghia_horizontal[:, 0], label="Ghia et al.", color='black', facecolors='none', marker='o', linewidths=1.5)
+    plt.scatter(ghia_horizontal[:, 3], ghia_horizontal[:, 0],
+                label="Ghia et al.", facecolors='none',
+                edgecolors='black', marker='o', linewidths=1.5)
+
 plt.xlabel(r"$v$")
-plt.ylabel(r"y")
+plt.ylabel(r"$y$")
 plt.legend()
-plt.grid(True, linestyle='--', alpha=0.5)
-plt.gca().set_aspect('equal')
+plt.grid(True, linestyle="--", alpha=0.5)
+plt.gca().set_aspect("equal")
 plt.tight_layout()
-plt.savefig(sys.argv[4], format='pdf', dpi=400)
+plt.savefig(f"ghia_horizontal_{Re}.pdf", dpi=400)
 plt.close()
