@@ -1,8 +1,8 @@
-problem: backward_facing_step_Re=100
-mesh: "../inputs/backward_facing_step_13289_elementos.msh"
+problem: backward_facing_step_Re=200
+mesh: "../inputs/backward_facing_step_8450_elementos.msh"
 
 parameters:
-  viscosity: 0.006
+  viscosity: 0.0025
   density: 1.0
 
 boundaries:
@@ -33,8 +33,8 @@ boundaries:
 solver: steady
 
 simple:
-  lambda_uv: 0.3
-  lambda_p: 0.05
+  lambda_uv: 1e-3
+  lambda_p: 1e-3
   iterations: 100
 
 export_folder: "../outputs/"
