@@ -46,9 +46,9 @@ private:
     
     static double backward_facing_step(double x, double y)
     {
-        if (y > 0.5) // metade superior
+        if (y >= 0.5) // metade superior
             return -16 * pow((y - 0.75), 2) + 1;
-        else
+        else // metade inferior.
             return 0.0;
     };
     static double flow_over_cylinder_benchmark_a(double x, double y)

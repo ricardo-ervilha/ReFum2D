@@ -1,8 +1,8 @@
-problem: backward_facing_step
-mesh: "../inputs/backward_step_laminar_with_parabolic_function.msh"
+problem: backward_facing_step_Re=100
+mesh: "../inputs/backward_facing_step_13289_elementos.msh"
 
 parameters:
-  viscosity: 2e-2
+  viscosity: 0.006
   density: 1.0
 
 boundaries:
@@ -11,7 +11,7 @@ boundaries:
     - { type: DIRICHLET, region: BOTTOM, value: zero }
     - { type: DIRICHLET, region: LEFT, value: bfs }
     - { type: NEUMANN, region: RIGHT, value: zero }
-    - { type: DIRICHLET, region: BACKWARD_HORIZONTAL, value: zero }
+    - { type: DIRICHLET, region: STEP_HORIZONTAL, value: zero }
     - { type: DIRICHLET, region: BACKWARD_VERTICAL, value: zero }
 
   v:
@@ -19,22 +19,22 @@ boundaries:
     - { type: DIRICHLET, region: BOTTOM, value: zero }
     - { type: DIRICHLET, region: LEFT, value: zero }
     - { type: NEUMANN, region: RIGHT, value: zero }
-    - { type: DIRICHLET, region: BACKWARD_HORIZONTAL, value: zero }
-    - { type: DIRICHLET, region: BACKWARD_VERTICAL, value: zero }
+    - { type: DIRICHLET, region: STEP_HORIZONTAL, value: zero }
+    - { type: DIRICHLET, region: STEP_VERTICAL, value: zero }
 
   p:
     - { type: NEUMANN, region: TOP, value: zero }
     - { type: NEUMANN, region: BOTTOM, value: zero }
     - { type: NEUMANN, region: LEFT, value: zero }
     - { type: DIRICHLET, region: RIGHT, value: zero }
-    - { type: NEUMANN, region: BACKWARD_HORIZONTAL, value: zero }
-    - { type: NEUMANN, region: BACKWARD_VERTICAL, value: zero }
+    - { type: NEUMANN, region: STEP_HORIZONTAL, value: zero }
+    - { type: NEUMANN, region: STEP_VERTICAL, value: zero }
 
 solver: steady
 
 simple:
-  lambda_uv: 0.6
-  lambda_p: 0.3
+  lambda_uv: 0.3
+  lambda_p: 0.05
   iterations: 100
 
 export_folder: "../outputs/"
