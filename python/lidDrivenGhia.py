@@ -123,7 +123,7 @@ v_center = Vi[col_y, :]
 # ============================================================
 #  Plot — perfil vertical de u
 # ============================================================
-plt.figure(figsize=(8, 8))
+plt.figure(figsize=(6, 6))
 plt.plot(u_center, yi, label="Este trabalho", linewidth=2)
 
 if Re == 100:
@@ -139,11 +139,13 @@ elif Re == 1000:
                 label="Ghia et al.", facecolors='none',
                 edgecolors='black', marker='o', linewidths=1.5)
 
-plt.xlabel(r"$u$")
-plt.ylabel(r"$y$")
+plt.xlabel(r"$u$",fontsize=14)
+plt.ylabel(r"$y$",fontsize=14)
 plt.legend()
 plt.grid(True, linestyle="--", alpha=0.5)
 plt.gca().set_aspect("equal")
+ax = plt.gca()
+ax.set_box_aspect(1)
 plt.tight_layout()
 plt.savefig(f"ghia_vertical_{Re}.pdf", dpi=400)
 plt.close()
@@ -151,7 +153,7 @@ plt.close()
 # ============================================================
 #  Plot — perfil horizontal de v
 # ============================================================
-plt.figure(figsize=(8, 8))
+plt.figure(figsize=(6, 6))
 plt.plot(v_center, xi, label="Este trabalho", linewidth=2)
 
 if Re == 100:
@@ -167,11 +169,13 @@ elif Re == 1000:
                 label="Ghia et al.", facecolors='none',
                 edgecolors='black', marker='o', linewidths=1.5)
 
-plt.xlabel(r"$v$")
-plt.ylabel(r"$y$")
+plt.xlabel(r"$v$",fontsize=14)
+plt.ylabel(r"$y$",fontsize=14)
 plt.legend()
 plt.grid(True, linestyle="--", alpha=0.5)
 plt.gca().set_aspect("equal")
+ax = plt.gca()
+ax.set_box_aspect(1)
 plt.tight_layout()
 plt.savefig(f"ghia_horizontal_{Re}.pdf", dpi=400)
 plt.close()
