@@ -21,14 +21,16 @@ Orchestrator::~Orchestrator(){
 void Orchestrator::readYamlAndRecoverVariables(string yaml_filepath){
     YAML::Node config = YAML::LoadFile(yaml_filepath);
     
-    this->problem = config["problem"].as<string>();
-    this->mesh_path = config["mesh"].as<string>();
-    
-    YAML::Node parameters = config["parameters"];
-    this->rho = parameters["density"].as<double>();
-    this->nu = parameters["viscosity"].as<double>();
 
-    YAML::Node boundary_conditions = config["boundaries"];
+    // problem statement
+    YAML::Node problem_definitions = config["problem"];
+    this->name = problem_definitions["name"].as<string>();
+    this->nu = problem_definitions["nu"].as<double>();
+    this->rho = problem_definitions["rho"].as<double>();
+    this->reynolds = problem_definitions["reynolds"].as<double>();
+
+    // boundaries
+    YAML::Node boundary_conditions = problem_definitions["boundaries"];
     YAML::Node u_boundaries = boundary_conditions["u"];
     for (std::size_t i = 0; i < u_boundaries.size(); ++i) {
         YAML::Node item = u_boundaries[i];
@@ -68,28 +70,24 @@ void Orchestrator::readYamlAndRecoverVariables(string yaml_filepath){
         bcsp.push_back(BoundaryCondition(aux, item["region"].as<string>(), name_to_function_object[item["value"].as<string>()]));
     }
     
-    auto saux = config["solver"].as<string>();
-    if(saux == "transient")
-        this->st = Transient;
-    else if(saux == "steady")
-        this->st = Steady;
     
-    if(this->st == Transient){
-        YAML::Node transient_parameters = config["transient_parameters"];
-        this->n_steps = transient_parameters["n_steps"].as<int>();
-        this->tf = transient_parameters["tf"].as<double>();
-        
-        YAML::Node initial_condition = transient_parameters["initial_condition"];
-        
-        u_ic = name_to_function_object[initial_condition["u"].as<string>()];
-        v_ic = name_to_function_object[initial_condition["v"].as<string>()];
-        p_ic = name_to_function_object[initial_condition["p"].as<string>()];
-    }
+    this->mshfile = config["mshfile"].as<string>();
+    YAML::Node simple = config["simple"];
+    YAML::Node mom = simple["momentum"];
+    this->lambda_uv = mom["lambda_uv"].as<double>();
+    this->non_corrections = mom["non_corrections"].as<int>();
+    this->iterations_mom = mom["iterations_bicgstab"].as<int>();
+    this->tolerance_mom = mom["tolerance_bicgstab"].as<double>();
     
-    YAML::Node simple_config = config["simple"];
-    this->lambda_p = simple_config["lambda_p"].as<double>();
-    this->lambda_uv = simple_config["lambda_uv"].as<double>();
-    this->iterations = simple_config["iterations"].as<int>();
-    
-    this->export_path = config["export_folder"].as<string>();
+    YAML::Node pc = simple["pressure_correction"];
+    this->lambda_p = pc["lambda_p"].as<double>();
+    this->iterations_pc = pc["iterations_bicgstab"].as<int>();
+    this->tolerance_pc = pc["tolerance_bicgstab"].as<double>();
+
+    this->utol = simple["utol"].as<double>();
+    this->vtol = simple["vtol"].as<double>();
+    this->ptol = simple["ptol"].as<double>();
+
+    this->save_iterations = config["save_iterations"].as<bool>();
+    this->exportfolder =  config["exportfolder"].as<string>();
 }

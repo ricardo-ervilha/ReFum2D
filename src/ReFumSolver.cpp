@@ -130,16 +130,16 @@ ReFumSolver::~ReFumSolver(){
 /**
  * * Define u_0, v_0 e p_0.
  */
-void ReFumSolver::set_initial_condition(function<double(double, double)> u_func, function<double(double, double)> v_func, function<double(double, double)> p_func){
-    int ncells = mesh->get_ncells();
-    for(int ic = 0; ic < ncells; ++ic){
-        double xc = ccentroids[ic].first, yc = ccentroids[ic].second;
+// void ReFumSolver::set_initial_condition(function<double(double, double)> u_func, function<double(double, double)> v_func, function<double(double, double)> p_func){
+//     int ncells = mesh->get_ncells();
+//     for(int ic = 0; ic < ncells; ++ic){
+//         double xc = ccentroids[ic].first, yc = ccentroids[ic].second;
         
-        uc_old[ic] = u_func(xc, yc);
-        vc_old[ic] = v_func(xc, yc);
-        pc_old[ic] = p_func(xc, yc);
-    }
-}
+//         uc_old[ic] = u_func(xc, yc);
+//         vc_old[ic] = v_func(xc, yc);
+//         pc_old[ic] = p_func(xc, yc);
+//     }
+// }
 
 /*
     * computa os pesos de interpolação.
@@ -282,7 +282,7 @@ void ReFumSolver::init_gradients()
     }
 }
 
-void ReFumSolver::reconstruct_gradients(Eigen::VectorXd var_center, Eigen::VectorXd var_face, vector<pair<BoundaryType, double>> boundary){
+void ReFumSolver::reconstruct_gradients(Eigen::VectorXd& var_center, Eigen::VectorXd& var_face, vector<pair<BoundaryType, double>> &boundary){
     int ncells = mesh->get_ncells();
     
     for(int ic = 0; ic < ncells; ic++){ 
@@ -337,7 +337,7 @@ pair<double,double> compute_n1(pair<double,double>& p, pair<double,double>& n, p
     return make_pair(n1x, n1y);
 }
 
-Eigen::VectorXd ReFumSolver::cross_diffusion(Eigen::VectorXd b, vector<pair<BoundaryType, double>> boundary){
+Eigen::VectorXd ReFumSolver::cross_diffusion(Eigen::VectorXd &b, vector<pair<BoundaryType, double>> &boundary){
 
 
     int ncells = mesh->get_ncells();
@@ -499,15 +499,15 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
             }
         }
 
-        if(solver == Transient){
-            // * Adição do termo transiente em aP: (ρ * V) / ∆t
-            // A_mom(ic, ic) = A_mom(ic,ic) + (rho * careas[ic])/dt;
-            diags[ic] = diags[ic] + (rho * careas[ic])/dt;
+        // if(solver == Transient){
+        //     // * Adição do termo transiente em aP: (ρ * V) / ∆t
+        //     // A_mom(ic, ic) = A_mom(ic,ic) + (rho * careas[ic])/dt;
+        //     diags[ic] = diags[ic] + (rho * careas[ic])/dt;
 
-            // * Adição do termo transiente nos termos fonte: (u|v)^(n) * (ρ * V) / ∆t
-            b_mom_x[ic] = b_mom_x[ic] + uc_old[ic] * (rho * careas[ic])/dt;
-            b_mom_y[ic] = b_mom_y[ic] + vc_old[ic] * (rho * careas[ic])/dt;
-        }
+        //     // * Adição do termo transiente nos termos fonte: (u|v)^(n) * (ρ * V) / ∆t
+        //     b_mom_x[ic] = b_mom_x[ic] + uc_old[ic] * (rho * careas[ic])/dt;
+        //     b_mom_y[ic] = b_mom_y[ic] + vc_old[ic] * (rho * careas[ic])/dt;
+        // }
             
 
         //* Após o cálculo, aplica-se a relaxação com lambda e salvar o coeficiente da diagonal para uso posterior.
@@ -576,7 +576,7 @@ void ReFumSolver::mom_links_and_sources(double lambda_v){
     A.setFromTriplets(triplets.begin(), triplets.end());
 }
 
-Eigen::VectorXd ReFumSolver::linear_upwind(Eigen::VectorXd b, vector<pair<BoundaryType, double>> boundary) {
+Eigen::VectorXd ReFumSolver::linear_upwind(Eigen::VectorXd &b, vector<pair<BoundaryType, double>> &boundary) {
     int ncells = mesh->get_ncells();
 
     for (int ic = 0; ic < ncells; ++ic) {
@@ -638,14 +638,15 @@ Eigen::VectorXd ReFumSolver::linear_upwind(Eigen::VectorXd b, vector<pair<Bounda
     return b;
 }
 
-void ReFumSolver::solve_x_mom(){
+void ReFumSolver::solve_x_mom(int non_corrections, int maxiter, double tolerance){
     // Solve A x = b
     Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
     solver.compute(A);
-    solver.setTolerance(1e-6);
+    solver.setMaxIterations(maxiter);
+    solver.setTolerance(tolerance);
 
     Eigen::VectorXd aux = b_mom_x;
-    for(int i = 0; i < 6; ++i){
+    for(int i = 0; i < non_corrections; ++i){
         uc = solver.solve(aux); // resolve com valor atual de aux
         reconstruct_gradients(uc, u_face, u_boundary); // reconstroi e atualiza gradients.
         aux = cross_diffusion(b_mom_x, u_boundary); // att aux com cd.
@@ -654,20 +655,44 @@ void ReFumSolver::solve_x_mom(){
     uc = solver.solve(aux);
 }
 
-void ReFumSolver::solve_y_mom(){
+void ReFumSolver::solve_y_mom(int non_corrections, int maxiter, double tolerance){
     // Solve A x = b 
     Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
     solver.compute(A);
-    solver.setTolerance(1e-6);
+    solver.setMaxIterations(maxiter);
+    solver.setTolerance(tolerance);
 
     Eigen::VectorXd aux = b_mom_y;
-    for(int i = 0; i < 6; ++i){
+    for(int i = 0; i < non_corrections; ++i){
         vc = solver.solve(aux); // resolve com 
         reconstruct_gradients(vc, v_face, v_boundary);
         aux = cross_diffusion(b_mom_y, v_boundary); // att aux com cd
         aux = linear_upwind(aux, v_boundary);
     }
     vc = solver.solve(aux);
+}
+
+void ReFumSolver::solve_both_mom(int non_corrections, int maxiter, double tolerance){
+    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
+    solver.compute(A);
+    // solver.setMaxIterations(maxiter);
+    solver.setTolerance(tolerance);
+
+    Eigen::VectorXd aux_x = b_mom_x;
+    Eigen::VectorXd aux_y = b_mom_y;
+    for(int i = 0; i < non_corrections; ++i){
+        uc = solver.solve(aux_x); // resolve com valor atual de aux
+        reconstruct_gradients(uc, u_face, u_boundary); // reconstroi e atualiza gradients.
+        aux_x = cross_diffusion(b_mom_x, u_boundary); // att aux com cd.
+        aux_x = linear_upwind(aux_x, u_boundary);
+
+        vc = solver.solve(aux_y); // resolve com 
+        reconstruct_gradients(vc, v_face, v_boundary);
+        aux_y = cross_diffusion(b_mom_y, v_boundary); // att aux com cd
+        aux_y = linear_upwind(aux_y, v_boundary);
+    }
+    uc = solver.solve(aux_x);
+    vc = solver.solve(aux_y);
 }
 
 /**
@@ -750,7 +775,7 @@ void ReFumSolver::face_velocity(){
 /**
  * * Calcula a correção da pressão (p')
  */
-void ReFumSolver::solve_pp(bool sing_matrix){
+void ReFumSolver::solve_pp(int maxiter, double tolerance){
     // *Calcula termo fonte: -Σ m_f
     int ncells = mesh->get_ncells();
     for(int ic = 0; ic < ncells; ++ic){
@@ -822,24 +847,27 @@ void ReFumSolver::solve_pp(bool sing_matrix){
     }
 
     A.setFromTriplets(triplets.begin(), triplets.end());
-    if(sing_matrix){
-        int row = 0;
-        for(int j = 0; j < A.outerSize(); ++j) {
-            for(Eigen::SparseMatrix<double>::InnerIterator it(A,j); it; ++it) {
-                if(it.row() == row && it.col() != row) it.valueRef() = 0.0;
-            }
-        }
+    // deprecated
+    // if(sing_matrix){
+        // int row = 0;
+        // for(int j = 0; j < A.outerSize(); ++j) {
+        //     for(Eigen::SparseMatrix<double>::InnerIterator it(A,j); it; ++it) {
+        //         if(it.row() == row && it.col() != row) it.valueRef() = 0.0;
+        //     }
+        // }
 
-        A.coeffRef(row, row) = 1.0;
-        b_pc[row] = 0.0;
-    }
+        // A.coeffRef(row, row) = 1.0;
+        // b_pc[row] = 0.0;
+    // }
     
+    // cout << ap << endl;
     // Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
     Eigen::BiCGSTAB<Eigen::SparseMatrix<double>, Eigen::DiagonalPreconditioner<double>> solver;
-    solver.setMaxIterations(100);
-    solver.setTolerance(1e-4);
+    solver.setMaxIterations(maxiter);
+    solver.setTolerance(tolerance);
     solver.compute(A);
     pcorr = solver.solve(b_pc);
+    // cout << "Max: " << pcorr.maxCoeff() << endl;
 }
 
 /*
@@ -934,29 +962,42 @@ void ReFumSolver::pres_correct(double lambda_p) {
 // *=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=*=**=*=
 
 
-void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, bool pressure_correction_flag){
+void ReFumSolver::SIMPLE(string name, int reynolds, string exportfolder, bool save_iterations, double lambda_uv, double lambda_p, int non_corrections, int iter_bicgstab_mom, double tol_bicgstab_mom, int iter_bicgstab_pc, double tol_bicgstab_pc, double utol, double vtol, double ptol){
+    std::ofstream file;
+    if(save_iterations){
+        file.open(exportfolder + name + "_Re=" + std::to_string(reynolds) +  ".txt");
+
+        if (!file) {
+            throw std::runtime_error("Erro ao criar arquivo");
+        }   
+    }
+
     this->compute_bcs_repeat(); // aplica BC nos vetores
     double err_u = 1;
     double err_v = 1;
     double err_p = 1;
 
+    int cont=0;
+
     // itera pelo número de iterações passado pelo usuário
-    while(err_u > 1e-8 || err_v > 1e-8 || err_p > 1e-8){
+    while(err_u > utol || err_v > vtol || err_p > ptol){
         
         // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
         mom_links_and_sources(lambda_uv);
         
         // cout << "Resolvendo para encontrar uc\n";
-        solve_x_mom();
+        // solve_x_mom(non_corrections, iter_bicgstab_mom, tol_bicgstab_mom);
         
         // cout << "Resolvendo para encontrar uv\n";
-        solve_y_mom();
+        // solve_y_mom(non_corrections, iter_bicgstab_mom, tol_bicgstab_mom);
         
+        solve_both_mom(non_corrections, iter_bicgstab_mom, tol_bicgstab_mom);
+
         // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
         face_velocity();
         
         // cout << "# Calculando correção na pressão (p')\n";
-        solve_pp(pressure_correction_flag); // lid chama com true, backward facing step chama com false
+        solve_pp(iter_bicgstab_pc, tol_bicgstab_pc); // lid chama com true, backward facing step chama com false
         
         // cout << "# Atualiza velocidades...\n";
         uv_correct();
@@ -964,86 +1005,94 @@ void ReFumSolver::STEADY_SIMPLE(string problem, string filepath, int num_simple_
         // cout << "# Atualiza pressão....\n";
         pres_correct(lambda_p);
 
-        err_u = (uc - uc_aux).lpNorm<Eigen::Infinity>();
-        err_v = (vc - vc_aux).lpNorm<Eigen::Infinity>();
-        err_p = (pc - pc_aux).lpNorm<Eigen::Infinity>();
-        cout << "\n||du||_inf = " << err_u << " ||dv||_inf = " << err_v << " ||dp||_inf = " << err_p << endl;
-
-    }
-    
-    this->export_vtk(filepath + problem + ".vtk");
-
-    // this->calculate_exact_solution_and_compare();
-}
-
-void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag){
-    
-    // calculando o dt (ASSUMINDO Q condição inicial é t = 0.)
-    double t = 0;
-    this->dt = (tf - 0)/n_steps;
-    
-    int cont = 0; // ajuda a salvar os arquivos.
-
-    while(t <= tf){    
-        
-        // zera todos para a próxima iteração de tempo
-        uc.setZero();
-        vc.setZero();
-        pc.setZero();
-        u_face.setZero();
-        v_face.setZero();
-        p_face.setZero();
-        mdotf.setZero();
-        ap.setZero();
-        mdotfcorr.setZero();
-        pfcorr.setZero();
-        pcorr.setZero();
-        ucorr.setZero();
-        vcorr.setZero();
-        // -----------------------------------------------
-
-        this->compute_bcs_repeat(); // aplica BC nos vetores
-        
-        for(int j = 0; j < num_simple_iterations; j++){
+        if(cont % 1 == 0){
+            err_u = (uc - uc_aux).lpNorm<Eigen::Infinity>();
+            err_v = (vc - vc_aux).lpNorm<Eigen::Infinity>();
+            err_p = (pc - pc_aux).lpNorm<Eigen::Infinity>();
+            cout << "\n||du||_inf = " << err_u << " ||dv||_inf = " << err_v << " ||dp||_inf = " << err_p << endl;
             
-            // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
-            mom_links_and_sources(lambda_uv);
-            
-            // cout << "Resolvendo para encontrar uc\n";
-            solve_x_mom();
-            
-            // cout << "Resolvendo para encontrar uv\n";
-            solve_y_mom();
-            
-            // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
-            face_velocity();
-            
-            // cout << "# Calculando correção na pressão (p')\n";
-            solve_pp(true); // lid chama com true, backward facing step chama com false
-            
-            // cout << "# Atualiza velocidades...\n";
-            uv_correct();
-            
-            // cout << "# Atualiza pressão....\n";
-            pres_correct(lambda_p);
+            if(save_iterations)
+                file << err_u << "," << err_v << "," << err_p << endl;
         }
 
-        // faz variaveis na proxima iteração começarem como as antigas u(n) = u(n-1)
-        uc_old = uc;
-        vc_old = vc;
-        pc_old = pc;
-        
-        string fn = filepath + problem + to_string(cont) + ".vtk";
-        export_vtk(fn);
-
-        t = t + dt; // atualiza o tempo
-        cont = cont + 1; // atualiza contador de snapshots
-        
-        progress_bar(cont, 50, n_steps);
+        cont += 1;
     }
-    cout << endl;
+
+    if(save_iterations)
+        file.close();
+    this->export_vtk(exportfolder + name + "_Re=" + std::to_string(reynolds) + ".vtk");
 }
 
+// void ReFumSolver::TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag){
+    
+//     // calculando o dt (ASSUMINDO Q condição inicial é t = 0.)
+//     double t = 0;
+//     this->dt = (tf - 0)/n_steps;
+    
+//     int cont = 0; // ajuda a salvar os arquivos.
+
+//     while(t <= tf){    
+        
+//         // zera todos para a próxima iteração de tempo
+//         uc.setZero();
+//         vc.setZero();
+//         pc.setZero();
+//         u_face.setZero();
+//         v_face.setZero();
+//         p_face.setZero();
+//         mdotf.setZero();
+//         ap.setZero();
+//         mdotfcorr.setZero();
+//         pfcorr.setZero();
+//         pcorr.setZero();
+//         ucorr.setZero();
+//         vcorr.setZero();
+//         // -----------------------------------------------
+
+//         this->compute_bcs_repeat(); // aplica BC nos vetores
+        
+//         for(int j = 0; j < num_simple_iterations; j++){
+            
+//             // cout << "# Calculando A_mom, b_mom_x e b_mom_y\n";
+//             mom_links_and_sources(lambda_uv);
+            
+//             // cout << "Resolvendo para encontrar uc\n";
+//             solve_x_mom();
+            
+//             // cout << "Resolvendo para encontrar uv\n";
+//             solve_y_mom();
+            
+//             // cout << "# Calculando velocidade nas faces {u_f e v_f}\n";
+//             face_velocity();
+            
+//             // cout << "# Calculando correção na pressão (p')\n";
+//             solve_pp(true); // lid chama com true, backward facing step chama com false
+            
+//             // cout << "# Atualiza velocidades...\n";
+//             uv_correct();
+            
+//             // cout << "# Atualiza pressão....\n";
+//             pres_correct(lambda_p);
+//         }
+
+//         // faz variaveis na proxima iteração começarem como as antigas u(n) = u(n-1)
+//         uc_old = uc;
+//         vc_old = vc;
+//         pc_old = pc;
+        
+//         string fn = filepath + problem + to_string(cont) + ".vtk";
+//         export_vtk(fn);
+
+//         t = t + dt; // atualiza o tempo
+//         cont = cont + 1; // atualiza contador de snapshots
+        
+//         progress_bar(cont, 50, n_steps);
+//     }
+//     cout << endl;
+// }
+
+
+// Dada a exata computa as diferenças.
 void ReFumSolver::calculate_exact_solution_and_compare(){
 int ncells = mesh->get_ncells();
     Eigen::VectorXd u_exact(ncells);

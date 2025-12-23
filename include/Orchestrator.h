@@ -16,28 +16,32 @@ enum SolverType
 class Orchestrator
 {
 private:
-    string problem;
-    string mesh_path;
-
+    // problem definitions
+    string name;
+    double rho;
+    double nu;
+    double reynolds;
     vector<BoundaryCondition> bcsu;
     vector<BoundaryCondition> bcsv;
     vector<BoundaryCondition> bcsp;
 
-    double rho;
-    double nu;
+    string mshfile;
 
-    SolverType st;
-    int n_steps;
-    int tf;
+    // simple
+    double lambda_uv;
+    int non_corrections;
+    int iterations_mom;
+    double tolerance_mom;
 
-    double lambda_uv, lambda_p;
-    int iterations;
-    string export_path;
+    double lambda_p;
+    int iterations_pc;
+    double tolerance_pc;
 
-    function<double(double, double)> u_ic;
-    function<double(double, double)> v_ic;
-    function<double(double, double)> p_ic;
+    double utol, vtol, ptol;
 
+    bool save_iterations;
+    string exportfolder;
+    
     map<string, function<double(double, double)>> name_to_function_object;
 
     /* Funções necessárias para valor e condição inicial serão definidas aqui. */
@@ -71,36 +75,56 @@ private:
         return 0.5 * (1 - exp(2 * lambda * x));
     }
 
-
-
 public:
     Orchestrator();
     ~Orchestrator();
     void readYamlAndRecoverVariables(string yaml_filepath);
 
-    std::string get_problem() const { return problem; }
-    std::string get_mesh_path() const { return mesh_path; }
+    // strings
+    const std::string& get_name() const { return name; }
+    const std::string& get_mshfile() const { return mshfile; }
+    const std::string& get_exportfolder() const { return exportfolder; }
 
-    std::vector<BoundaryCondition> get_ubcs() const { return bcsu; }
-    std::vector<BoundaryCondition> get_vbcs() const { return bcsv; }
-    std::vector<BoundaryCondition> get_pbcs() const { return bcsp; }
-
+    // propriedades físicas
     double get_rho() const { return rho; }
     double get_nu() const { return nu; }
+    double get_reynolds() const { return reynolds; }
 
-    SolverType get_solver_type() const { return st; }
-    int get_n_steps() const { return n_steps; }
-    int get_tf() const { return tf; }
+    // condições de contorno
+    const std::vector<BoundaryCondition>& get_bcsu() const { return bcsu; }
+    const std::vector<BoundaryCondition>& get_bcsv() const { return bcsv; }
+    const std::vector<BoundaryCondition>& get_bcsp() const { return bcsp; }
 
+    // SIMPLE
     double get_lambda_uv() const { return lambda_uv; }
+    int get_non_corrections() const { return non_corrections; }
+    int get_iterations_mom() const { return iterations_mom; }
+    double get_tolerance_mom() const { return tolerance_mom; }
+
     double get_lambda_p() const { return lambda_p; }
+    int get_iterations_pc() const { return iterations_pc; }
+    double get_tolerance_pc() const { return tolerance_pc; }
 
-    int get_iterations() const { return iterations; }
-    std::string get_export_path() const { return export_path; }
+    // tolerâncias
+    double get_utol() const { return utol; }
+    double get_vtol() const { return vtol; }
+    double get_ptol() const { return ptol; }
 
-    function<double(double, double)> get_uic() {return u_ic;}
-    function<double(double, double)> get_vic() {return v_ic;}
-    function<double(double, double)> get_pic() {return p_ic;}
+    // controle
+    bool get_save_iterations() const { return save_iterations; }
+
+    std::vector<BoundaryCondition>& get_bcsu() {
+         return bcsu;
+    }
+
+    std::vector<BoundaryCondition>& get_bcsv() {
+        return bcsv;
+    }
+
+    std::vector<BoundaryCondition>& get_bcsp() {
+        return bcsp;
+    }
+
 };
 
 #endif

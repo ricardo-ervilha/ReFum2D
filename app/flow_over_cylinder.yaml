@@ -1,44 +1,40 @@
 problem: 
-  name: Backward Facing Step
-  nu: 0.005
+  name: Flow Over a cylinder
+  nu: 1e-3
   rho: 1.0
-  reynolds: 100
+  reynolds: 25
   boundaries:
     u:
       - { type: DIRICHLET, region: TOP, value: zero }
       - { type: DIRICHLET, region: BOTTOM, value: zero }
-      - { type: DIRICHLET, region: LEFT, value: bfs }
+      - { type: DIRICHLET, region: LEFT, value: foc_a }
       - { type: NEUMANN, region: RIGHT, value: zero }
-      - { type: DIRICHLET, region: STEP_HORIZONTAL, value: zero }
-      - { type: DIRICHLET, region: BACKWARD_VERTICAL, value: zero }
+      - { type: DIRICHLET, region: OBSTACLE, value: zero }
 
     v:
       - { type: DIRICHLET, region: TOP, value: zero }
       - { type: DIRICHLET, region: BOTTOM, value: zero }
       - { type: DIRICHLET, region: LEFT, value: zero }
       - { type: NEUMANN, region: RIGHT, value: zero }
-      - { type: DIRICHLET, region: STEP_HORIZONTAL, value: zero }
-      - { type: DIRICHLET, region: STEP_VERTICAL, value: zero }
+      - { type: DIRICHLET, region: OBSTACLE, value: zero }
 
     p:
       - { type: NEUMANN, region: TOP, value: zero }
       - { type: NEUMANN, region: BOTTOM, value: zero }
       - { type: NEUMANN, region: LEFT, value: zero }
       - { type: DIRICHLET, region: RIGHT, value: zero }
-      - { type: NEUMANN, region: STEP_HORIZONTAL, value: zero }
-      - { type: NEUMANN, region: STEP_VERTICAL, value: zero }
+      - { type: NEUMANN, region: OBSTACLE, value: zero }
 
-mshfile: ../inputs/backward_facing_step_8450_elementos.msh
-
+mshfile: ../inputs/flow_over_a_cylinder_8382.msh
 simple:
   momentum:
     lambda_uv: 0.3
-    non_corrections: 4
+    non_corrections: 6
     iterations_bicgstab: 200
     tolerance_bicgstab: 1e-6
 
   pressure_correction:
-    lambda_p: 0.2
+    lambda_p: 0.1
     iterations_bicgstab: 100
     tolerance_bicgstab: 1e-4
   

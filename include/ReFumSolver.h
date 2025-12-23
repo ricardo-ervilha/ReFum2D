@@ -89,11 +89,11 @@ private:
     vector<bool> fboundaryfaces;
     vector<vector<int>> idFacesFromCell;
 
-    void reconstruct_gradients(Eigen::VectorXd var_center, Eigen::VectorXd var_face, vector<pair<BoundaryType, double>> boundary);
+    void reconstruct_gradients(Eigen::VectorXd &var_center, Eigen::VectorXd &var_face, vector<pair<BoundaryType, double>> &boundary);
 
-    Eigen::VectorXd cross_diffusion(Eigen::VectorXd b, vector<pair<BoundaryType, double>> boundary);
+    Eigen::VectorXd cross_diffusion(Eigen::VectorXd &b, vector<pair<BoundaryType, double>> &boundary);
 
-    Eigen::VectorXd linear_upwind(Eigen::VectorXd b, vector<pair<BoundaryType, double>> boundary);
+    Eigen::VectorXd linear_upwind(Eigen::VectorXd &b, vector<pair<BoundaryType, double>> &boundary);
 
     vector<Eigen::MatrixXd> grad_weights;
 
@@ -102,22 +102,27 @@ public:
     ReFumSolver(Mesh *mesh, float mu, float rho, vector<BoundaryCondition> bcsU, vector<BoundaryCondition> bcsV, vector<BoundaryCondition> bcsP, SolverType solver);
     ~ReFumSolver();
 
-    void set_initial_condition(function<double(double, double)> u_func, function<double(double, double)> v_func, function<double(double, double)> p_func);
+    // deprecated
+    // void set_initial_condition(function<double(double, double)> u_func, function<double(double, double)> v_func, function<double(double, double)> p_func);
 
     // simple
-    void mom_links_and_sources(double lambda_v);
-    void solve_x_mom();
-    void solve_y_mom();
+    void mom_links_and_sources(double lambda_uv);
+    void solve_x_mom(int non_corrections, int maxiter, double tolerance);
+    void solve_y_mom(int non_corrections, int maxiter, double tolerance);
+    void solve_both_mom(int non_corrections, int maxiter, double tolerance);
     void face_velocity();
-    void solve_pp(bool sing_matrix);
+    void solve_pp(int maxiter, double tolerance);
     void uv_correct();
     void pres_correct(double lambda_p);
 
+    // used for kovasznay
     void calculate_exact_solution_and_compare();
 
-    // solver
-    void TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag);
-    void STEADY_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, bool pressure_correction_flag);
+    // solvers
+
+    // deprecated
+    // void TRANSIENTE_SIMPLE(string problem, string filepath, int num_simple_iterations, double lambda_uv, double lambda_p, int n_steps, double tf, bool pressure_correction_flag);
+    void SIMPLE(string name, int reynolds, string exportfolder, bool save_iterations, double lambda_uv, double lambda_p, int non_corrections, int iter_bicgstab_mom, double tol_bicgstab_mom, int iter_bicgstab_pc, double tol_bicgstab_pc, double utol, double vtol, double ptol);
 };
 
 #endif

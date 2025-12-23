@@ -38,15 +38,17 @@ Curve Loop(2) = {6, 5};
 //+
 Plane Surface(1) = {1, 2};
 //+
-Physical Curve("WALLS", 1) = {3, 1};
+Physical Curve("BOTTOM", 1) = {1};
 //+
-Physical Curve("INFLOW", 2) = {4};
+Physical Curve("RIGHT", 2) = {2};
 //+
-Physical Curve("OUTFLOW", 3) = {2};
+Physical Curve("TOP", 3) = {3};
 //+
-Physical Curve("OBSTACLE", 4) = {6, 5};
+Physical Curve("LEFT", 4) = {4};
 //+
-Physical Surface("FLUID", 5) = {1};
+Physical Curve("OBSTACLE", 5) = {6, 5};
+//+
+Physical Surface("FLUID", 6) = {1};
 
 
 
