@@ -144,6 +144,8 @@ Also, The numerical results are compared with the classical benchmark by Ghia et
 
 ## Reference
 
+**Guennebaud, G.; Jacob, B.; et al.** *Eigen v3*. A C++ template library for linear algebra. Available at: https://eigen.tuxfamily.org. Accessed in January 2026.
+
 If you are interested in this work, please consider reading:
 
 SILVA, R. E., $R_e$ FUM2D: Uma ferramenta de volumes finitos para a simulação das equações de Navier–Stokes em C++. Trabalho de Conclusão de Curso em Ciência da Computação — Universidade Federal de Juiz de Fora, Juiz de Fora, 2026. Orientador: José Jerônimo Camata.
