@@ -2,7 +2,7 @@ problem:
   name: Flow Over a cylinder
   nu: 1e-3
   rho: 1.0
-  reynolds: 25
+  reynolds: 20
   boundaries:
     u:
       - { type: DIRICHLET, region: TOP, value: zero }
