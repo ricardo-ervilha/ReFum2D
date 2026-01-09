@@ -128,7 +128,7 @@ exportfolder: "../outputs/"
 
 This section demonstrates the solver’s capability to handle Reynolds numbers $R_e = 100$ (left) and $R_e = 1000$ (right) using an unstructured mesh composed of 8,656 control volumes.
 
-<div style="display: flex; gap: 10px;"> <img src="image.png" alt="Re=100" width="45%"> <img src="image-1.png" alt="Re=1000" width="45%"> </div>
+<div style="display: flex; gap: 10px;"> <img src="./docs/image.png" alt="Re=100" width="45%"> <img src="./docs/image-1.png" alt="Re=1000" width="45%"> </div>
 
 Also, The numerical results are compared with the classical benchmark by Ghia et al. for $R_e = 100$.
 
@@ -136,7 +136,7 @@ Also, The numerical results are compared with the classical benchmark by Ghia et
 
 * Right: Vertical velocity profile
 
-<div style="display: flex; gap: 10px;"> <img src="image-2.png" alt="Horizontal profile" width="45%"> <img src="image-3.png" alt="Vertical profile" width="45%"> </div>
+<div style="display: flex; gap: 10px;"> <img src="./docs/image-2.png" alt="Horizontal profile" width="45%"> <img src="./docs/image-3.png" alt="Vertical profile" width="45%"> </div>
 
 ## Keywords
 
